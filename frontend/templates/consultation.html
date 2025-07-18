@@ -3,190 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PREVIDAS - Gerador de Laudos Médicos</title>
+    <title>PREVIDAS - Sistema Inteligente</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { 
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .hero { 
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); 
-            color: white; 
-            padding: 3rem 0; 
-            margin-bottom: 2rem; 
-            border-radius: 12px; 
-        }
-        .card { 
-            border: none; 
-            border-radius: 12px; 
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
-            margin-bottom: 2rem;
-        }
-        .recording-area {
-            border: 2px dashed #cbd5e1;
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            margin: 2rem 0;
-            transition: all 0.3s ease;
-        }
-        .recording-area.recording {
-            border-color: #ef4444;
-            background: #fef2f2;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-        .btn-record {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            font-size: 2rem;
-            border: none;
-            transition: all 0.3s ease;
-        }
-        .btn-record.recording {
-            background: #ef4444;
-            animation: pulse 1s infinite;
-        }
-        .document-upload {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        .processing {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
-        .results {
-            display: none;
-            margin-top: 3rem;
-        }
+        body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); }
+        .hero { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 3rem 0; margin-bottom: 2rem; border-radius: 12px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); margin-bottom: 2rem; }
+        .recording-area { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 3rem 2rem; text-align: center; margin: 2rem 0; }
+        .btn-record { width: 80px; height: 80px; border-radius: 50%; font-size: 2rem; }
+        .btn-record.recording { background: #ef4444; }
+        .processing { display: none; text-align: center; padding: 2rem; }
+        .results { display: none; margin-top: 3rem; }
+        .context-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; font-weight: bold; margin-bottom: 1rem; }
+        .context-bpc { background: #dbeafe; color: #1e40af; }
+        .context-incapacidade { background: #fee2e2; color: #dc2626; }
+        .context-pericia { background: #fef3c7; color: #d97706; }
+        .context-clinica { background: #d1fae5; color: #059669; }
     </style>
 </head>
 <body>
     <div class="container mt-4">
-        <!-- Hero Section -->
         <div class="hero text-center">
             <h1 class="display-5 fw-bold mb-3">
-                <i class="fas fa-stethoscope me-3"></i>
-                PREVIDAS - Gerador de Laudos Médicos
+                <i class="fas fa-brain me-3"></i>
+                PREVIDAS - Sistema Inteligente
             </h1>
-            <p class="lead">
-                Transcrição inteligente + Análise de documentos + IA especializada
-            </p>
+            <p class="lead">IA que identifica contexto: BPC • Incapacidade • Perícia • Clínica</p>
         </div>
 
-        <!-- Formulário Principal -->
         <div class="row justify-content-center">
             <div class="col-lg-10">
                 <div class="card p-4">
                     <h3 class="text-primary mb-4">
-                        <i class="fas fa-microphone me-2"></i>
-                        Nova Consulta Médica
+                        <i class="fas fa-stethoscope me-2"></i>Nova Consulta Médica Inteligente
                     </h3>
 
-                    <form id="consultationForm">
-                        <!-- Informações do Paciente -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">Informações do Paciente</label>
-                            <textarea name="patient_info" class="form-control" rows="3" 
-                                placeholder="Nome, idade, queixa principal, histórico relevante..."></textarea>
-                        </div>
+                    <!-- Informações do Paciente -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Informações do Paciente</label>
+                        <textarea name="patient_info" class="form-control" rows="4" 
+                            placeholder="Ex: Maria Silva, 45 anos, deficiência física, precisa BPC&#10;Ex: João Santos, 35 anos, pedreiro, lesão trabalho, auxílio doença&#10;Ex: Ana Costa, perícia médica para nexo causal"></textarea>
+                    </div>
 
-                        <!-- Gravação de Áudio -->
-                        <div class="recording-area" id="recordingArea">
-                            <div style="font-size: 3rem; color: #1e40af; margin-bottom: 1rem;">
-                                <i class="fas fa-microphone"></i>
-                            </div>
-                            <h4 class="fw-semibold mb-3">Gravação da Consulta</h4>
-                            <button type="button" class="btn btn-primary btn-record" id="recordBtn">
-                                <i class="fas fa-microphone"></i>
-                            </button>
-                            <p class="mt-3 mb-0">
-                                <span id="recordingStatus">Clique para iniciar gravação</span>
-                                <br>
-                                <small class="text-muted">Duração: <span id="recordingTime">00:00</span></small>
-                            </p>
+                    <!-- Gravação de Áudio -->
+                    <div class="recording-area">
+                        <div style="font-size: 3rem; color: #1e40af; margin-bottom: 1rem;">
+                            <i class="fas fa-microphone"></i>
                         </div>
+                        <h4 class="fw-semibold mb-3">Gravação da Consulta</h4>
+                        <button type="button" class="btn btn-primary btn-record" id="recordBtn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <p class="mt-3 mb-0">
+                            <span id="recordingStatus">Clique para iniciar gravação</span><br>
+                            <small class="text-muted">Duração: <span id="recordingTime">00:00</span></small>
+                        </p>
+                    </div>
 
-                        <!-- Upload de Documentos -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">Documentos Médicos</label>
-                            <div class="document-upload">
-                                <input type="file" name="documents" class="form-control mb-2" 
-                                       accept=".pdf,.png,.jpg,.jpeg" multiple>
-                                <small class="text-muted">
-                                    Anexe exames, laudos, receitas, etc. (PDF, PNG, JPG)
-                                </small>
-                            </div>
-                        </div>
+                    <!-- Upload de Documentos -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Documentos Médicos</label>
+                        <input type="file" name="documents" class="form-control" accept=".pdf,.png,.jpg,.jpeg" multiple>
+                        <small class="text-muted">Anexe exames, laudos, receitas, etc. (PDF, PNG, JPG)</small>
+                    </div>
 
-                        <!-- Botão Processar -->
-                        <div class="text-center">
-                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBtn">
-                                <i class="fas fa-magic me-2"></i>
-                                Gerar Laudo Médico
-                            </button>
-                        </div>
-                    </form>
+                    <!-- Botão Principal -->
+                    <div class="text-center">
+                        <button type="button" class="btn btn-success btn-lg px-5" id="generateBtn">
+                            <i class="fas fa-brain me-2"></i>Análise Inteligente
+                        </button><br>
+                        <small class="text-muted mt-2 d-block">Sistema identifica automaticamente: BPC • Incapacidade • Perícia • Clínica</small>
+                    </div>
 
                     <!-- Loading -->
                     <div class="processing" id="processing">
                         <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
-                        <h5>Processando Consulta</h5>
-                        <p class="text-muted">Transcrevendo áudio, analisando documentos e gerando laudo...</p>
+                        <h5>🧠 Analisando Contexto Inteligente</h5>
+                        <p class="text-muted">Identificando tipo de laudo + Gerando anamnese + Criando laudo específico...</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Resultados -->
+        <!-- Resultados com 3 Colunas -->
         <div class="results" id="results">
+            <!-- Contexto Identificado -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card p-3">
+                        <div id="contextInfo">Processando contexto...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3 Colunas: Transcrição + Anamnese + Laudo -->
             <div class="row">
-                <div class="col-lg-6">
+                <!-- TRANSCRIÇÃO -->
+                <div class="col-lg-4">
                     <div class="card p-4">
-                        <h5 class="text-primary mb-3">
-                            <i class="fas fa-microphone me-2"></i>
-                            Transcrição da Consulta
+                        <h5 class="text-info mb-3">
+                            <i class="fas fa-microphone me-2"></i>1. Transcrição Original
                         </h5>
                         <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
-                            <div id="transcriptionText"></div>
+                            <div id="transcriptionText">Processando áudio...</div>
                         </div>
-                    </div>
-
-                    <div class="card p-4 mt-3">
-                        <h5 class="text-primary mb-3">
-                            <i class="fas fa-file-medical me-2"></i>
-                            Documentos Processados
-                        </h5>
-                        <div id="documentsProcessed"></div>
                     </div>
                 </div>
 
-                <div class="col-lg-6">
+                <!-- ANAMNESE -->
+                <div class="col-lg-4">
+                    <div class="card p-4">
+                        <h5 class="text-success mb-3">
+                            <i class="fas fa-clipboard-list me-2"></i>2. Anamnese (Prontuário)
+                        </h5>
+                        <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
+                            <div id="anamneseText">Gerando anamnese estruturada...</div>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-success" onclick="copyAnamnese()">
+                                <i class="fas fa-copy me-1"></i>Copiar para Prontuário
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LAUDO -->
+                <div class="col-lg-4">
                     <div class="card p-4">
                         <h5 class="text-primary mb-3">
-                            <i class="fas fa-file-medical-alt me-2"></i>
-                            Laudo Médico Gerado
+                            <i class="fas fa-file-medical-alt me-2"></i>3. Laudo Especializado
                         </h5>
-                        <div id="medicalReport" style="line-height: 1.7; max-height: 600px; overflow-y: auto;"></div>
-
-                        <div class="mt-4 pt-3 border-top">
-                            <button class="btn btn-success me-2" onclick="downloadReport()">
-                                <i class="fas fa-download me-1"></i>Download PDF
+                        <div id="laudoText" style="line-height: 1.7; max-height: 400px; overflow-y: auto;">
+                            Gerando laudo específico...
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-primary me-2" onclick="downloadLaudo()">
+                                <i class="fas fa-download me-1"></i>Download
                             </button>
-                            <button class="btn btn-outline-primary me-2" onclick="window.print()">
+                            <button class="btn btn-sm btn-outline-primary" onclick="window.print()">
                                 <i class="fas fa-print me-1"></i>Imprimir
-                            </button>
-                            <button class="btn btn-outline-secondary" onclick="editReport()">
-                                <i class="fas fa-edit me-1"></i>Editar Laudo
                             </button>
                         </div>
                     </div>
@@ -195,22 +151,23 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // VARIÁVEIS GLOBAIS
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
         let recordingTimer;
         let recordingSeconds = 0;
 
-        // Elementos
+        // ELEMENTOS
         const recordBtn = document.getElementById('recordBtn');
-        const recordingArea = document.getElementById('recordingArea');
         const recordingStatus = document.getElementById('recordingStatus');
         const recordingTime = document.getElementById('recordingTime');
-        const consultationForm = document.getElementById('consultationForm');
+        const generateBtn = document.getElementById('generateBtn');
 
-        // Inicializar gravação
+        console.log("🧠 Sistema PREVIDAS Inteligente iniciado");
+
+        // GRAVAÇÃO DE ÁUDIO
         recordBtn.addEventListener('click', toggleRecording);
 
         async function toggleRecording() {
@@ -229,27 +186,17 @@
                 recordingSeconds = 0;
 
                 mediaRecorder.ondataavailable = event => {
+                    console.log("📊 Chunk de áudio:", event.data.size, "bytes");
                     audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    // Anexar ao formulário
-                    const audioFile = new File([audioBlob], `consulta_${Date.now()}.wav`, { type: 'audio/wav' });
-                    // Armazenar para envio
-                    consultationForm.audioFile = audioFile;
                 };
 
                 mediaRecorder.start();
                 isRecording = true;
 
-                // UI feedback
                 recordBtn.classList.add('recording');
                 recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
-                recordingArea.classList.add('recording');
                 recordingStatus.textContent = 'Gravando... Clique para parar';
 
-                // Timer
                 recordingTimer = setInterval(() => {
                     recordingSeconds++;
                     const minutes = Math.floor(recordingSeconds / 60);
@@ -257,7 +204,10 @@
                     recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 }, 1000);
 
+                console.log("🎤 Gravação iniciada");
+
             } catch (error) {
+                console.error("❌ Erro ao acessar microfone:", error);
                 alert('Erro ao acessar microfone: ' + error.message);
             }
         }
@@ -268,102 +218,146 @@
                 mediaRecorder.stream.getTracks().forEach(track => track.stop());
                 isRecording = false;
 
-                // UI feedback
                 recordBtn.classList.remove('recording');
-                recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-                recordingArea.classList.remove('recording');
+                recordBtn.innerHTML = '<i class="fas fa-check"></i>';
+                recordBtn.style.background = '#22c55e';
                 recordingStatus.textContent = 'Gravação concluída ✓';
 
                 clearInterval(recordingTimer);
+                
+                console.log("✅ Gravação finalizada. Chunks:", audioChunks.length);
             }
         }
 
-        // Form submission
-        consultationForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
+        // FUNÇÃO PRINCIPAL - ANÁLISE INTELIGENTE
+        generateBtn.addEventListener('click', analisarInteligente);
+
+        async function analisarInteligente() {
+            console.log("🧠 Iniciando análise inteligente");
+            
+            const patientInfo = document.querySelector('textarea[name="patient_info"]').value;
+            console.log("📝 Dados do paciente:", patientInfo);
+
+            if (!patientInfo.trim()) {
+                alert('Preencha as informações do paciente primeiro');
+                return;
+            }
 
             const formData = new FormData();
-            
-            // Adicionar informações do paciente
-            const patientInfo = this.querySelector('textarea[name="patient_info"]').value;
             formData.append('patient_info', patientInfo);
 
-            // Adicionar áudio se gravado
-            if (this.audioFile) {
-                formData.append('audio_file', this.audioFile);
+            // Adicionar áudio se disponível
+            if (audioChunks.length > 0) {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                formData.append('audio_data', audioBlob, `consulta_${Date.now()}.wav`);
+                console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes");
             }
 
-            // Adicionar documentos
-            const documentsInput = this.querySelector('input[name="documents"]');
+            // Adicionar documentos se disponíveis
+            const documentsInput = document.querySelector('input[name="documents"]');
             if (documentsInput.files.length > 0) {
-                for (let file of documentsInput.files) {
-                    formData.append('documents', file);
-                }
+                formData.append('image_data', documentsInput.files[0]);
+                console.log("📄 Documento adicionado:", documentsInput.files[0].name);
             }
-
-            // Mostrar loading
-            document.getElementById('submitBtn').style.display = 'none';
-            document.getElementById('processing').style.display = 'block';
-            document.getElementById('results').style.display = 'none';
 
             try {
-                const response = await fetch('/api/process-consultation', {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '🧠 Analisando...';
+                document.getElementById('processing').style.display = 'block';
+
+                console.log("📤 Enviando para /api/intelligent-medical-analysis");
+
+                const response = await fetch('/api/intelligent-medical-analysis', {
                     method: 'POST',
                     body: formData
                 });
 
+                console.log("📨 Status resposta:", response.status);
+
                 const result = await response.json();
+                console.log("📋 Resultado completo:", result);
 
                 if (result.success) {
-                    displayResults(result);
+                    displayIntelligentResults(result);
                 } else {
                     alert('Erro: ' + result.error);
                 }
 
             } catch (error) {
-                alert('Erro no processamento: ' + error.message);
+                console.error("💥 Erro na requisição:", error);
+                alert('Erro de comunicação: ' + error.message);
             } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Análise Inteligente';
                 document.getElementById('processing').style.display = 'none';
-                document.getElementById('submitBtn').style.display = 'block';
             }
-        });
+        }
 
-        function displayResults(result) {
-            // Transcrição
+        function displayIntelligentResults(result) {
+            console.log("📊 Exibindo resultados inteligentes");
+
+            // 1. CONTEXTO IDENTIFICADO
+            const contextClass = `context-${result.specialized_type}`;
+            const contextNames = {
+                'bpc': 'BPC (Benefício Prestação Continuada)',
+                'incapacidade': 'Benefício por Incapacidade',
+                'pericia': 'Perícia Médica',
+                'clinica': 'Consulta Clínica'
+            };
+
+            document.getElementById('contextInfo').innerHTML = `
+                <div class="context-badge ${contextClass}">
+                    🧠 Contexto: ${contextNames[result.specialized_type] || result.specialized_type.toUpperCase()}
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Confiança:</strong> ${result.confidence} pontos<br>
+                        <strong>Palavras-chave:</strong> ${result.context_analysis?.matched_keywords?.join(', ') || 'Nenhuma'}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Modelo:</strong> ${result.model}<br>
+                        <strong>Timestamp:</strong> ${new Date(result.timestamp).toLocaleString()}
+                    </div>
+                </div>
+            `;
+
+            // 2. TRANSCRIÇÃO
             document.getElementById('transcriptionText').innerHTML = 
-                result.transcription || 'Nenhuma transcrição disponível';
+                result.transcription || 'Nenhuma transcrição de áudio disponível';
 
-            // Documentos processados
-            let docsHtml = '';
-            if (result.documents && result.documents.length > 0) {
-                result.documents.forEach(doc => {
-                    docsHtml += `
-                        <div class="border rounded p-2 mb-2">
-                            <strong>${doc.file}</strong>
-                            <br><small class="text-muted">${doc.summary}</small>
-                        </div>
-                    `;
-                });
-            } else {
-                docsHtml = 'Nenhum documento processado';
-            }
-            document.getElementById('documentsProcessed').innerHTML = docsHtml;
+            // 3. ANAMNESE (NOVA!)
+            const anamnese = result.anamnese || 'Erro ao gerar anamnese';
+            document.getElementById('anamneseText').innerHTML = 
+                anamnese.replace(/\n/g, '<br>')
+                        .replace(/## (.*)/g, '<h6 class="text-success mt-3 mb-2">$1</h6>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-            // Laudo médico
-            const report = result.medical_report || 'Laudo não disponível';
-            document.getElementById('medicalReport').innerHTML = 
-                report.replace(/\n/g, '<br>')
-                      .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
-                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // 4. LAUDO ESPECIALIZADO
+            const laudo = result.laudo_medico || 'Erro ao gerar laudo';
+            document.getElementById('laudoText').innerHTML = 
+                laudo.replace(/\n/g, '<br>')
+                     .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
+                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
             // Mostrar resultados
             document.getElementById('results').style.display = 'block';
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
+            console.log("✅ Resultados inteligentes exibidos");
         }
 
-        function downloadReport() {
-            const reportContent = document.getElementById('medicalReport').innerText;
-            const blob = new Blob([reportContent], { type: 'text/plain' });
+        function copyAnamnese() {
+            const anamneseText = document.getElementById('anamneseText').innerText;
+            navigator.clipboard.writeText(anamneseText).then(() => {
+                alert('✅ Anamnese copiada! Cole no prontuário eletrônico.');
+            }).catch(() => {
+                alert('Erro ao copiar. Selecione e copie manualmente.');
+            });
+        }
+
+        function downloadLaudo() {
+            const laudoText = document.getElementById('laudoText').innerText;
+            const blob = new Blob([laudoText], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -372,29 +366,6 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        }
-
-        function editReport() {
-            const reportDiv = document.getElementById('medicalReport');
-            const currentContent = reportDiv.innerText;
-            
-            reportDiv.innerHTML = `
-                <textarea class="form-control" rows="20" id="editableReport">${currentContent}</textarea>
-                <div class="mt-2">
-                    <button class="btn btn-success btn-sm" onclick="saveReport()">Salvar</button>
-                    <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">Cancelar</button>
-                </div>
-            `;
-        }
-
-        function saveReport() {
-            const editableContent = document.getElementById('editableReport').value;
-            const reportDiv = document.getElementById('medicalReport');
-            reportDiv.innerHTML = editableContent.replace(/\n/g, '<br>');
-        }
-
-        function cancelEdit() {
-            location.reload(); // Simples reload para cancelar edição
         }
     </script>
 </body>
