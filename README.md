@@ -434,7 +434,7 @@ Content-Type: application/json
 ### **👩‍💻 Desenvolvedora Principal**
 
 **Raquel Fonseca**  
-*Especialista em IA Médica e Automação*
+*Analista de automacao*
 
 - 📧 **Email:** raquel.promptia@gmail.com
 - 💼 **LinkedIn:** [linkedin.com/in/raquel-fonseca](https://linkedin.com/in/raquel-fonseca)
