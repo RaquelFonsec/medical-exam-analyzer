@@ -599,7 +599,7 @@ POST /ai-consultation/
 Content-Type: multipart/form-data
 
 {
-  "patient_info": "Raquel 42 anos dor lombar",
+  "patient_info": "Raquel 35 anos dor lombar",
   "audio_file": file (opcional)
 }
 ```
@@ -678,7 +678,6 @@ GET /health
 
 #### **v3.0 - Q2 2026**
 - [ ] **IA Multimodal** (texto + imagem + áudio)
-- [ ] **Blockchain** para auditoria médica
 - [ ] **Federated Learning** entre instituições
 - [ ] **AR/VR** para consultas imersivas
 - [ ] **Edge Computing** para processamento local
@@ -724,12 +723,11 @@ GET /health
 ### **👩‍💻 Autora Principal**
 
 **Raquel Fonseca**  
-*Especialista em IA Médica e Sistemas de Saúde*
+*Analista de automacoes em IA *
 
 - 📧 **Email:** raquel.promptia@gmail.com
 - 💼 **LinkedIn:** [linkedin.com/in/raquel-fonseca](https://linkedin.com/in/raquel-fonseca)
 - 🐙 **GitHub:** [@RaquelFonsec](https://github.com/RaquelFonsec)
-- 🌐 **Portfolio:** [raquelfonseca.dev](https://raquelfonseca.dev)
 
 ### **🆘 Reportar Problemas**
 
@@ -772,12 +770,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 ---
 
-## 🙏 **Agradecimentos**
 
-### **🏥 Colaboradores Médicos**
-- Dr. João Silva - Cardiologia
-- Dra. Maria Santos - Radiologia  
-- Dr. Pedro Costa - Neurologia
 
 ### **🤖 Tecnologias Utilizadas**
 - [OpenAI](https://openai.com) - GPT-4 e Whisper
