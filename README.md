@@ -682,42 +682,9 @@ gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker -
 - 📧 **Email:** raquel.promptia@gmail.com
 - 💼 **LinkedIn:** [linkedin.com/in/raquel-fonseca](https://linkedin.com/in/raquel-fonseca)
 - 🐙 **GitHub:** [@RaquelFonsec](https://github.com/RaquelFonsec)
-- ☁️ **AWS:** Solutions Architect
-- 🌐 **Portfolio:** [raquelfonseca.dev](https://raquelfonseca.dev)
+-
 
-### **🆘 Reportar Problemas**
 
-- 🐛 **Bugs:** [GitHub Issues](https://github.com/RaquelFonsec/medical-exam-analyzer/issues)
-- ☁️ **AWS Issues:** [AWS Support](https://aws.amazon.com/support/)
-- 💡 **Feature Requests:** [GitHub Discussions](https://github.com/RaquelFonsec/medical-exam-analyzer/discussions)
-- 🔒 **Vulnerabilidades:** raquel.security@gmail.com
-
----
-
-## 🚀 **Roadmap**
-
-### **📅 Próximas Versões**
-
-#### **v2.0 - Q4 2025**
-- [ ] **Mobile App** nativo (iOS/Android)
-- [ ] **AWS Comprehend Medical** - NLP especializado
-- [ ] **Integração FHIR** para interoperabilidade
-- [ ] **Dashboard analytics** com métricas
-- [ ] **API de terceiros** para clínicas
-
-#### **v2.1 - Q1 2026**
-- [ ] **Multi-idioma** (Inglês, Espanhol)
-- [ ] **AWS HealthLake** - FHIR integration
-- [ ] **Amazon Transcribe Medical** - Áudio especializado
-- [ ] **Processamento em lote** de documentos
-- [ ] **Cache Redis** distribuído
-
-#### **v3.0 - Q2 2026**
-- [ ] **IA Multimodal** (texto + imagem + áudio simultâneo)
-- [ ] **AWS SageMaker** - ML customizado por especialidade
-- [ ] **Blockchain** para auditoria médica
-- [ ] **Edge computing** para processamento local
-- [ ] **AR/VR** para consultas imersivas
 
 ---
 
