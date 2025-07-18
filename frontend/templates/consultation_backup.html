@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PREVIDAS - Gerador de Laudos Médicos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .hero { 
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); 
+            color: white; 
+            padding: 3rem 0; 
+            margin-bottom: 2rem; 
+            border-radius: 12px; 
+        }
+        .card { 
+            border: none; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+            margin-bottom: 2rem;
+        }
+        .recording-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+        .recording-area.recording {
+            border-color: #ef4444;
+            background: #fef2f2;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        .btn-record {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 2rem;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .btn-record.recording {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+        .document-upload {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .results {
+            display: none;
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Hero Section -->
+        <div class="hero text-center">
+            <h1 class="display-5 fw-bold mb-3">
+                <i class="fas fa-stethoscope me-3"></i>
+                PREVIDAS - Gerador de Laudos Médicos
+            </h1>
+            <p class="lead">
+                Transcrição inteligente + Análise de documentos + IA especializada
+            </p>
+        </div>
+
+        <!-- Formulário Principal -->
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card p-4">
+                    <h3 class="text-primary mb-4">
+                        <i class="fas fa-microphone me-2"></i>
+                        Nova Consulta Médica
+                    </h3>
+
+                    <form id="consultationForm">
+                        <!-- Informações do Paciente -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Informações do Paciente</label>
+                            <textarea name="patient_info" class="form-control" rows="3" 
+                                placeholder="Nome, idade, queixa principal, histórico relevante..."></textarea>
+                        </div>
+
+                        <!-- Gravação de Áudio -->
+                        <div class="recording-area" id="recordingArea">
+                            <div style="font-size: 3rem; color: #1e40af; margin-bottom: 1rem;">
+                                <i class="fas fa-microphone"></i>
+                            </div>
+                            <h4 class="fw-semibold mb-3">Gravação da Consulta</h4>
+                            <button type="button" class="btn btn-primary btn-record" id="recordBtn">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <p class="mt-3 mb-0">
+                                <span id="recordingStatus">Clique para iniciar gravação</span>
+                                <br>
+                                <small class="text-muted">Duração: <span id="recordingTime">00:00</span></small>
+                            </p>
+                        </div>
+
+                        <!-- Upload de Documentos -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Documentos Médicos</label>
+                            <div class="document-upload">
+                                <input type="file" name="documents" class="form-control mb-2" 
+                                       accept=".pdf,.png,.jpg,.jpeg" multiple>
+                                <small class="text-muted">
+                                    Anexe exames, laudos, receitas, etc. (PDF, PNG, JPG)
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Botão Processar -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBtn">
+                                <i class="fas fa-magic me-2"></i>
+                                Gerar Laudo Médico
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Loading -->
+                    <div class="processing" id="processing">
+                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                        <h5>Processando Consulta</h5>
+                        <p class="text-muted">Transcrevendo áudio, analisando documentos e gerando laudo...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        <div class="results" id="results">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-microphone me-2"></i>
+                            Transcrição da Consulta
+                        </h5>
+                        <div class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">
+                            <div id="transcriptionText"></div>
+                        </div>
+                    </div>
+
+                    <div class="card p-4 mt-3">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-file-medical me-2"></i>
+                            Documentos Processados
+                        </h5>
+                        <div id="documentsProcessed"></div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-file-medical-alt me-2"></i>
+                            Laudo Médico Gerado
+                        </h5>
+                        <div id="medicalReport" style="line-height: 1.7; max-height: 600px; overflow-y: auto;"></div>
+
+                        <div class="mt-4 pt-3 border-top">
+                            <button class="btn btn-success me-2" onclick="downloadReport()">
+                                <i class="fas fa-download me-1"></i>Download PDF
+                            </button>
+                            <button class="btn btn-outline-primary me-2" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Imprimir
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="editReport()">
+                                <i class="fas fa-edit me-1"></i>Editar Laudo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let recordingTimer;
+        let recordingSeconds = 0;
+
+        // Elementos
+        const recordBtn = document.getElementById('recordBtn');
+        const recordingArea = document.getElementById('recordingArea');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const recordingTime = document.getElementById('recordingTime');
+        const consultationForm = document.getElementById('consultationForm');
+
+        // Inicializar gravação
+        recordBtn.addEventListener('click', toggleRecording);
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                recordingSeconds = 0;
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    // Anexar ao formulário
+                    const audioFile = new File([audioBlob], `consulta_${Date.now()}.wav`, { type: 'audio/wav' });
+                    // Armazenar para envio
+                    consultationForm.audioFile = audioFile;
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                // UI feedback
+                recordBtn.classList.add('recording');
+                recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+                recordingArea.classList.add('recording');
+                recordingStatus.textContent = 'Gravando... Clique para parar';
+
+                // Timer
+                recordingTimer = setInterval(() => {
+                    recordingSeconds++;
+                    const minutes = Math.floor(recordingSeconds / 60);
+                    const seconds = recordingSeconds % 60;
+                    recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }, 1000);
+
+            } catch (error) {
+                alert('Erro ao acessar microfone: ' + error.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                isRecording = false;
+
+                // UI feedback
+                recordBtn.classList.remove('recording');
+                recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                recordingArea.classList.remove('recording');
+                recordingStatus.textContent = 'Gravação concluída ✓';
+
+                clearInterval(recordingTimer);
+            }
+        }
+
+        // Form submission
+        consultationForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            
+            // Adicionar informações do paciente
+            const patientInfo = this.querySelector('textarea[name="patient_info"]').value;
+            formData.append('patient_info', patientInfo);
+
+            // Adicionar áudio se gravado
+            if (this.audioFile) {
+                formData.append('audio_file', this.audioFile);
+            }
+
+            // Adicionar documentos
+            const documentsInput = this.querySelector('input[name="documents"]');
+            if (documentsInput.files.length > 0) {
+                for (let file of documentsInput.files) {
+                    formData.append('documents', file);
+                }
+            }
+
+            // Mostrar loading
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('processing').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/process-consultation', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    alert('Erro: ' + result.error);
+                }
+
+            } catch (error) {
+                alert('Erro no processamento: ' + error.message);
+            } finally {
+                document.getElementById('processing').style.display = 'none';
+                document.getElementById('submitBtn').style.display = 'block';
+            }
+        });
+
+        function displayResults(result) {
+            // Transcrição
+            document.getElementById('transcriptionText').innerHTML = 
+                result.transcription || 'Nenhuma transcrição disponível';
+
+            // Documentos processados
+            let docsHtml = '';
+            if (result.documents && result.documents.length > 0) {
+                result.documents.forEach(doc => {
+                    docsHtml += `
+                        <div class="border rounded p-2 mb-2">
+                            <strong>${doc.file}</strong>
+                            <br><small class="text-muted">${doc.summary}</small>
+                        </div>
+                    `;
+                });
+            } else {
+                docsHtml = 'Nenhum documento processado';
+            }
+            document.getElementById('documentsProcessed').innerHTML = docsHtml;
+
+            // Laudo médico
+            const report = result.medical_report || 'Laudo não disponível';
+            document.getElementById('medicalReport').innerHTML = 
+                report.replace(/\n/g, '<br>')
+                      .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
+                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Mostrar resultados
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function downloadReport() {
+            const reportContent = document.getElementById('medicalReport').innerText;
+            const blob = new Blob([reportContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `laudo_medico_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function editReport() {
+            const reportDiv = document.getElementById('medicalReport');
+            const currentContent = reportDiv.innerText;
+            
+            reportDiv.innerHTML = `
+                <textarea class="form-control" rows="20" id="editableReport">${currentContent}</textarea>
+                <div class="mt-2">
+                    <button class="btn btn-success btn-sm" onclick="saveReport()">Salvar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">Cancelar</button>
+                </div>
+            `;
+        }
+
+        function saveReport() {
+            const editableContent = document.getElementById('editableReport').value;
+            const reportDiv = document.getElementById('medicalReport');
+            reportDiv.innerHTML = editableContent.replace(/\n/g, '<br>');
+        }
+
+        function cancelEdit() {
+            location.reload(); // Simples reload para cancelar edição
+        }
+    </script>
+</body>
+</html>

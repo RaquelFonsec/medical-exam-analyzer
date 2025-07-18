@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PREVIDAS - Consulta Médica</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .hero { 
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); 
+            color: white; 
+            padding: 3rem 0; 
+            margin-bottom: 2rem; 
+            border-radius: 12px; 
+        }
+        .card { 
+            border: none; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+            margin-bottom: 2rem;
+        }
+        .results {
+            display: none;
+            margin-top: 3rem;
+        }
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Hero Section -->
+        <div class="hero text-center">
+            <h1 class="display-5 fw-bold mb-3">
+                <i class="fas fa-stethoscope me-3"></i>
+                PREVIDAS - Sistema de Consulta
+            </h1>
+            <p class="lead">
+                Gravação + IA + Laudo Automático
+            </p>
+        </div>
+
+        <!-- Formulário -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card p-4">
+                    <h3 class="text-primary mb-4">
+                        <i class="fas fa-microphone me-2"></i>
+                        Nova Consulta Médica
+                    </h3>
+
+                    <form id="consultationForm">
+                        <!-- Informações do Paciente -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Informações do Paciente</label>
+                            <textarea name="patient_info" class="form-control" rows="3" 
+                                placeholder="Nome, idade, queixa principal, histórico relevante..."
+                                required>Raquel 42 anos dor na lombar há 3 meses</textarea>
+                        </div>
+
+                        <!-- Simulação de Gravação -->
+                        <div class="card bg-light mb-4">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">
+                                    <i class="fas fa-microphone me-2"></i>
+                                    Gravação da Consulta
+                                </h5>
+                                <button type="button" class="btn btn-primary btn-lg" id="recordBtn">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <p class="mt-2 mb-0" id="recordingStatus">
+                                    Clique para simular gravação
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Botão Processar -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-success btn-lg px-5" id="submitBtn">
+                                <i class="fas fa-magic me-2"></i>
+                                Gerar Laudo Médico com IA
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Loading -->
+                    <div class="processing" id="processing">
+                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                        <h5>Processando com IA</h5>
+                        <p class="text-muted">Analisando consulta e gerando laudo...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        <div class="results" id="results">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-microphone me-2"></i>
+                            Transcrição da Consulta
+                        </h5>
+                        <div class="bg-light p-3 rounded">
+                            <div id="transcriptionText"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-file-medical-alt me-2"></i>
+                            Laudo Médico Gerado
+                        </h5>
+                        <div id="medicalReport" style="line-height: 1.7;"></div>
+
+                        <div class="mt-4 pt-3 border-top">
+                            <button class="btn btn-success me-2" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Imprimir
+                            </button>
+                            <button class="btn btn-outline-primary" onclick="location.reload()">
+                                <i class="fas fa-plus me-1"></i>Nova Consulta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRecording = false;
+        const recordBtn = document.getElementById('recordBtn');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const consultationForm = document.getElementById('consultationForm');
+
+        // Simulação de gravação
+        recordBtn.addEventListener('click', function() {
+            if (!isRecording) {
+                isRecording = true;
+                recordBtn.classList.remove('btn-primary');
+                recordBtn.classList.add('btn-danger');
+                recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+                recordingStatus.textContent = 'Gravando... Clique para parar';
+                
+                setTimeout(() => {
+                    stopRecording();
+                }, 3000); // Para automaticamente após 3s
+            } else {
+                stopRecording();
+            }
+        });
+
+        function stopRecording() {
+            isRecording = false;
+            recordBtn.classList.remove('btn-danger');
+            recordBtn.classList.add('btn-success');
+            recordBtn.innerHTML = '<i class="fas fa-check"></i>';
+            recordingStatus.textContent = 'Gravação concluída ✓';
+        }
+
+        // Form submission - CORRIGIDO
+        consultationForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const patientInfo = this.querySelector('textarea[name="patient_info"]').value;
+
+            // Mostrar loading
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('processing').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                console.log('Enviando para backend:', patientInfo);
+                
+                const response = await fetch('http://localhost:8000/simple-consultation/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'patient_info=' + encodeURIComponent(patientInfo)
+                });
+
+                console.log('Response status:', response.status);
+                
+                const result = await response.json();
+                console.log('Result:', result);
+
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    alert('Erro: ' + result.error);
+                }
+
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro na comunicação: ' + error.message);
+            } finally {
+                document.getElementById('processing').style.display = 'none';
+                document.getElementById('submitBtn').style.display = 'block';
+            }
+        });
+
+        function displayResults(result) {
+            // Transcrição
+            document.getElementById('transcriptionText').textContent = 
+                result.transcription || 'Nenhuma transcrição disponível';
+
+            // Laudo médico
+            const report = result.medical_report || 'Laudo não disponível';
+            document.getElementById('medicalReport').innerHTML = 
+                report.replace(/\n/g, '<br>')
+                      .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
+                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // Mostrar resultados
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

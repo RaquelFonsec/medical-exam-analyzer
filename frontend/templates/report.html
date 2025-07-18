@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Relatório do Exame{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-file-medical me-2"></i>Relatório do Exame</h2>
+                <div>
+                    <button class="btn btn-success" onclick="window.print()">
+                        <i class="fas fa-print me-1"></i>Imprimir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informações do Arquivo
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Arquivo:</strong> {{ filename }}</p>
+                    <p><strong>Confiança:</strong> 
+                        <span class="badge {% if confidence >= 0.8 %}bg-success{% elif confidence >= 0.5 %}bg-warning{% else %}bg-danger{% endif %}">
+                            {{ "%.0f"|format(confidence * 100) }}%
+                        </span>
+                    </p>
+                    <p><strong>Status:</strong> Processado com sucesso</p>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-text-width me-2"></i>
+                        Texto Extraído
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 15px; font-family: 'Courier New', monospace; font-size: 0.9rem; max-height: 300px; overflow-y: auto;">
+                        {{ extracted_text }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-stethoscope me-2"></i>
+                        Relatório Médico
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div style="white-space: pre-line; line-height: 1.6;">{{ report }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info" role="alert">
+                <h6 class="alert-heading">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    Próximos Passos Recomendados
+                </h6>
+                <ul class="mb-0">
+                    <li>Consulte um médico para interpretação profissional dos resultados</li>
+                    <li>Leve o exame original e este relatório para a consulta</li>
+                    <li>Mantenha um histórico dos seus exames para acompanhamento</li>
+                    <li>Em caso de valores alterados, não deixe de buscar orientação médica</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12 text-center">
+            <a href="{{ url_for('upload_page') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>
+                Analisar Outro Exame
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-home me-2"></i>
+                Voltar ao Início
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

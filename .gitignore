@@ -1,0 +1,58 @@
+# Ambientes virtuais
+venv/
+env/
+.env
+
+# Arquivos Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Uploads e dados temporários
+backend/uploads/
+backend/reports/
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL
+*.sql
+*.dump
+*.backup
+pg_data/
+postgresql_data/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Chaves e segredos
+*.key
+*.pem
+config.json
+secrets.json
+
+# Node modules (se tiver)
+node_modules/
+
+# Arquivos de teste
+test_*.txt
+*.tmp
+
+# Arquivos de configuração sensíveis
+database.conf
+db_config.ini
+connection_string.txt

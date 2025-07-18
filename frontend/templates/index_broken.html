@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PREVIDAS - Analisador de Exames Médicos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1e40af;
+            --secondary-color: #3b82f6;
+            --accent-color: #06b6d4;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-color: #f8fafc;
+            --white: #ffffff;
+            --border-radius: 12px;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: var(--dark-color);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-md);
+            padding: 1rem 0;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--white) !important;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .navbar-brand i {
+            font-size: 1.75rem;
+            background: linear-gradient(45deg, #06b6d4, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-link {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-weight: 500;
+            padding: 0.5rem 1rem !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--white) !important;
+            transform: translateY(-1px);
+        }
+
+        /* Hero Section */
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 50%, var(--accent-color) 100%);
+            color: var(--white);
+            padding: 4rem 0;
+            margin-bottom: 3rem;
+            border-radius: var(--border-radius);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.95;
+            font-weight: 400;
+        }
+
+        .hero-btn {
+            background: var(--white);
+            color: var(--primary-color);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .hero-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+            color: var(--primary-color);
+        }
+
+        /* Feature Cards */
+        .feature-card {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 2.5rem 2rem;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+            border: none;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: var(--white);
+            box-shadow: var(--shadow-md);
+        }
+
+        .feature-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--dark-color);
+        }
+
+        .feature-description {
+            color: #64748b;
+            line-height: 1.7;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 3rem;
+            box-shadow: var(--shadow-lg);
+            margin: 3rem 0;
+        }
+
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: var(--border-radius);
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: #f8fafc;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: #f1f5f9;
+        }
+
+        .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: #eff6ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            display: none;
+            margin-top: 2rem;
+        }
+
+        .progress {
+            height: 12px;
+            border-radius: 6px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            transition: width 0.3s ease;
+        }
+
+        /* Results Section */
+        .results-section {
+            display: none;
+            margin-top: 3rem;
+        }
+
+        .result-card {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 2rem;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .result-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            color: var(--white);
+        }
+
+        /* Footer */
+        .footer {
+            background: var(--dark-color);
+            color: var(--white);
+            padding: 3rem 0 2rem;
+            margin-top: 5rem;
+        }
+
+        .footer-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .footer-description {
+            opacity: 0.8;
+            margin-bottom: 2rem;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-links a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--white);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .feature-card {
+                margin-bottom: 2rem;
+            }
+            
+            .upload-section {
+                padding: 2rem 1.5rem;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#home">
+                <i class="fas fa-shield-heart"></i>
+                PREVIDAS
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#home">
+                            <i class="fas fa-home me-1"></i>Início
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#upload">
+                            <i class="fas fa-upload me-1"></i>Análise
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#sobre">
+                            <i class="fas fa-info-circle me-1"></i>Sobre
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#contato">
+                            <i class="fas fa-phone me-1"></i>Contato
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-12 text-center hero-content animate-fade-in-up">
+                    <h1 class="hero-title">
+                        <i class="fas fa-microscope me-3"></i>
+                        Analisador de Exames Médicos
+                    </h1>
+                    <p class="hero-subtitle">
+                        Tecnologia de ponta em análise automatizada de exames médicos usando Inteligência Artificial
+                        <br>Desenvolvido pela PREVIDAS para profissionais de saúde
+                    </p>
+                    <a href="#upload" class="hero-btn">
+                        <i class="fas fa-rocket"></i>
+                        Iniciar Análise
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- Features Section -->
+        <section class="row g-4 mb-5">
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card animate-fade-in-up text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <h3 class="feature-title">OCR Avançado</h3>
+                    <p class="feature-description">
+                        Tecnologia de reconhecimento óptico de caracteres de última geração, 
+                        especializada em documentos médicos com precisão superior a 98%.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card animate-fade-in-up text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3 class="feature-title">IA Médica</h3>
+                    <p class="feature-description">
+                        Modelos de inteligência artificial especializados em interpretação médica, 
+                        treinados com milhares de exames e protocolos clínicos.
+                    </p>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6">
+                <div class="feature-card animate-fade-in-up text-center">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-medical-alt"></i>
+                    </div>
+                    <h3 class="feature-title">Relatórios Estruturados</h3>
+                    <p class="feature-description">
+                        Geração automática de relatórios médicos estruturados seguindo 
+                        padrões internacionais e protocolos clínicos estabelecidos.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Upload Section -->
+        <section id="upload" class="upload-section">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="text-center mb-4">
+                        <h2 class="display-6 fw-bold text-primary mb-3">
+                            <i class="fas fa-upload me-3"></i>
+                            Análise de Exame Médico
+                        </h2>
+                        <p class="lead text-muted">
+                            Faça upload de seu exame em PDF ou imagem para análise automatizada
+                        </p>
+                    </div>
+
+                    <form id="uploadForm" enctype="multipart/form-data">
+                        <!-- Tipo de Exame -->
+                        <div class="mb-4">
+                            <label for="examType" class="form-label fw-semibold">Tipo de Exame</label>
+                            <select class="form-select form-select-lg" id="examType" name="exam_type" required>
+                                <option value="">Selecione o tipo de exame</option>
+                                <option value="sangue">Exame de Sangue / Hemograma</option>
+                                <option value="urina">Exame de Urina</option>
+                                <option value="cardiologico">Exame Cardiológico / ECG</option>
+                                <option value="imagem">Exame de Imagem (Raio-X, TC, RM)</option>
+                                <option value="bioquimico">Exames Bioquímicos</option>
+                                <option value="hormonal">Exames Hormonais</option>
+                                <option value="outros">Outros Exames</option>
+                            </select>
+                        </div>
+
+                        <!-- Upload Area -->
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <h4 class="fw-semibold mb-2">Arraste o arquivo aqui ou clique para selecionar</h4>
+                            <p class="text-muted mb-3">
+                                Formatos aceitos: PDF, PNG, JPG, JPEG, TIFF
+                                <br>Tamanho máximo: 16MB
+                            </p>
+                            <input type="file" id="fileInput" name="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" hidden>
+                            <button type="button" class="btn btn-outline-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                                <i class="fas fa-folder-open me-2"></i>
+                                Selecionar Arquivo
+                            </button>
+                        </div>
+
+                        <div id="selectedFile" class="mt-3" style="display: none;">
+                            <div class="alert alert-info">
+                                <i class="fas fa-file-alt me-2"></i>
+                                <strong>Arquivo selecionado:</strong> <span id="fileName"></span>
+                                <span class="float-end">
+                                    <span id="fileSize"></span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearFile()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="progress-container" id="progressContainer">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="fw-semibold">Processando exame...</span>
+                                <span id="progressText">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                            </div>
+                            <p class="text-muted mt-2 text-center">
+                                <i class="fas fa-cog fa-spin me-2"></i>
+                                Aguarde enquanto analisamos seu exame...
+                            </p>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg px-5" id="submitBtn" disabled>
+                                <i class="fas fa-microscope me-2"></i>
+                                Analisar Exame
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" id="resultsSection">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i class="fas fa-info-circle"></i>
+                            </div>
+                            <div>
+                                <h4 class="mb-1">Informações do Exame</h4>
+                                <p class="text-muted mb-0">Dados sobre o arquivo processado</p>
+                            </div>
+                        </div>
+                        <div id="examInfo">
+                            <!-- Conteúdo será inserido via JavaScript -->
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i class="fas fa-text-width"></i>
+                            </div>
+                            <div>
+                                <h4 class="mb-1">Texto Extraído</h4>
+                                <p class="text-muted mb-0">Conteúdo identificado pelo OCR</p>
+                            </div>
+                        </div>
+                        <div class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                            <pre id="extractedText" class="mb-0" style="font-size: 0.9rem; white-space: pre-wrap;"></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                <i class="fas fa-stethoscope"></i>
+                            </div>
+                            <div>
+                                <h4 class="mb-1">Relatório Médico</h4>
+                                <p class="text-muted mb-0">Análise detalhada por IA</p>
+                            </div>
+                        </div>
+                        <div id="medicalReport" style="line-height: 1.7;">
+                            <!-- Conteúdo será inserido via JavaScript -->
+                        </div>
+                        
+                        <div class="mt-4 pt-3 border-top">
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" onclick="downloadReport()">
+                                    <i class="fas fa-download me-2"></i>Baixar Relatório
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="printReport()">
+                                    <i class="fas fa-print me-2"></i>Imprimir
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="newAnalysis()">
+                                    <i class="fas fa-plus me-2"></i>Nova Análise
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section id="sobre" class="my-5 py-5">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h2 class="display-6 fw-bold mb-4">Sobre a PREVIDAS</h2>
+                    <p class="lead mb-4">
+                        A PREVIDAS é uma empresa líder em soluções tecnológicas para a área da saúde, 
+                        especializada no desenvolvimento de sistemas inteligentes que auxiliam 
+                        profissionais médicos em suas atividades diárias.
+                    </p>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle text-success me-3 fs-5"></i>
+                                <span>Tecnologia de ponta</span>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle text-success me-3 fs-5"></i>
+                                <span>Segurança garantida</span>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle text-success me-3 fs-5"></i>
+                                <span>Suporte especializado</span>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle text-success me-3 fs-5"></i>
+                                <span>Compliance médico</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="bg-primary text-white p-5 rounded-3">
+                        <h3 class="fw-bold mb-4">Por que escolher nosso sistema?</h3>
+                        <ul class="list-unstyled">
+                            <li class="mb-3">
+                                <i class="fas fa-shield-alt me-3"></i>
+                                <strong>Segurança:</strong> Dados protegidos com criptografia de ponta
+                            </li>
+                            <li class="mb-3">
+                                <i class="fas fa-tachometer-alt me-3"></i>
+                                <strong>Velocidade:</strong> Processamento em segundos
+                            </li>
+                            <li class="mb-3">
+                                <i class="fas fa-accuracy me-3"></i>
+                                <strong>Precisão:</strong> Mais de 98% de acurácia
+                            </li>
+                            <li class="mb-0">
+                                <i class="fas fa-clock me-3"></i>
+                                <strong>Disponibilidade:</strong> 24/7 online
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" id="contato">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="footer-logo">
+                        <i class="fas fa-shield-heart me-2"></i>
+                        PREVIDAS
+                    </div>
+                    <p class="footer-description">
+                        Inovação em tecnologia médica para um futuro mais saudável. 
+                        Desenvolvemos soluções que conectam profissionais de saúde 
+                        à tecnologia de vanguarda.
+                    </p>
+                </div>
+                <div class="col-lg-2">
+                    <h6 class="fw-bold mb-3">Produto</h6>
+                    <ul class="footer-links">
+                        <li><a href="#upload">Análise de Exames</a></li>
+                        <li><a href="#sobre">Funcionalidades</a></li>
+                        <li><a href="#">Documentação</a></li>
+                        <li><a href="#">API</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2">
+                    <h6 class="fw-bold mb-3">Empresa</h6>
+                    <ul class="footer-links">
+                        <li><a href="#sobre">Sobre nós</a></li>
+                        <li><a href="#">Carreiras</a></li>
+                        <li><a href="#">Imprensa</a></li>
+                        <li><a href="#">Parceiros</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2">
+                    <h6 class="fw-bold mb-3">Suporte</h6>
+                    <ul class="footer-links">
+                        <li><a href="#">Central de Ajuda</a></li>
+                        <li><a href="#">Documentação</a></li>
+                        <li><a href="#">Status</a></li>
+                        <li><a href="#">Contato</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-2">
+                    <h6 class="fw-bold mb-3">Contato</h6>
+                    <ul class="footer-links">
+                        <li><i class="fas fa-envelope me-2"></i>contato@previdas.com</li>
+                        <li><i class="fas fa-phone me-2"></i>(11) 9999-9999</li>
+                        <li><i class="fas fa-map-marker-alt me-2"></i>São Paulo, SP</li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4" style="border-color: rgba(255,255,255,0.1);">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0 text-sm opacity-75">
+                        © 2024 PREVIDAS. Todos os direitos reservados.
+                    </p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <div class="d-flex justify-content-md-end gap-3">
+                        <a href="#" class="text-white-50">
+                            <i class="fab fa-linkedin fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-white-50">
+                            <i class="fab fa-twitter fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-white-50">
+                            <i class="fab fa-instagram fa-lg"></i>
+                        </a>
+                        <a href="#" class="text-white-50">
+                            <i class="fab fa-facebook fa-lg"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Disclaimer Modal -->
+    <div class="modal fade" id="disclaimerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Aviso Importante
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <h6 class="fw-bold">⚠️ Finalidade Educacional e de Demonstração</h6>
+                        <p class="mb-2">
+                            Este sistema foi desenvolvido pela <strong>PREVIDAS</strong> exclusivamente para fins 
+                            educacionais e de demonstração tecnológica. Os resultados gerados por esta ferramenta:
+                        </p>
+                        <ul class="mb-3">
+                            <li><strong>NÃO</strong> substituem a consulta médica profissional</li>
+                            <li><strong>NÃO</strong> devem ser utilizados para diagnósticos clínicos</li>
+                            <li><strong>NÃO</strong> devem basear decisões médicas ou terapêuticas</li>
+                            <li><strong>NÃO</strong> garantem 100% de precisão na interpretação</li>
+                        </ul>
+                    </div>
+                    
+                    <h6 class="fw-bold">📋 Recomendações Importantes:</h6>
+                    <ul class="mb-3">
+                        <li>Sempre consulte um médico qualificado para interpretação de exames</li>
+                        <li>Use este sistema apenas como ferramenta auxiliar de estudo</li>
+                        <li>Mantenha seus dados médicos sempre confidenciais</li>
+                        <li>Em caso de emergência médica, procure atendimento imediato</li>
+                    </ul>
+                    
+                    <div class="bg-light p-3 rounded">
+                        <small class="text-muted">
+                            <strong>Responsabilidade:</strong> A PREVIDAS não se responsabiliza por decisões 
+                            tomadas com base nas análises geradas por este sistema. O usuário assume total 
+                            responsabilidade pelo uso adequado desta ferramenta.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="acceptDisclaimer()">
+                        <i class="fas fa-check me-2"></i>
+                        Compreendo e Aceito
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="position-fixed w-100 h-100 bg-white bg-opacity-75 d-flex align-items-center justify-content-center" style="top: 0; left: 0; z-index: 9999; display: none !important;">
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="fw-bold">Processando Exame</h5>
+            <p class="text-muted">Aguarde enquanto analisamos seu arquivo...</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedFile = null;
+        let disclaimerAccepted = false;
+
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFileDiv = document.getElementById('selectedFile');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelection(files[0]);
+            }
+        });
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelection(file) {
+            const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/tiff'];
+            const maxSize = 16 * 1024 * 1024; // 16MB
+
+            if (!allowedTypes.includes(file.type)) {
+                showAlert('Tipo de arquivo não suportado. Use PDF, PNG, JPG ou TIFF.', 'danger');
+                return;
+            }
+
+            if (file.size > maxSize) {
+                showAlert('Arquivo muito grande. Máximo 16MB.', 'danger');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            selectedFileDiv.style.display = 'block';
+            
+            // Enable submit button if exam type is also selected
+            checkFormValid();
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            selectedFileDiv.style.display = 'none';
+            submitBtn.disabled = true;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Check if form is valid
+        function checkFormValid() {
+            const examType = document.getElementById('examType').value;
+            submitBtn.disabled = !(selectedFile && examType);
+        }
+
+        document.getElementById('examType').addEventListener('change', checkFormValid);
+
+        // Form submission
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!disclaimerAccepted) {
+                const modal = new bootstrap.Modal(document.getElementById('disclaimerModal'));
+                modal.show();
+                return;
+            }
+
+            await processExam();
+        });
+
+        function acceptDisclaimer() {
+            disclaimerAccepted = true;
+            const modal = bootstrap.Modal.getInstance(document.getElementById('disclaimerModal'));
+            modal.hide();
+            processExam();
+        }
+
+        async function processExam() {
+            if (!selectedFile) return;
+
+            const examType = document.getElementById('examType').value;
+            
+            // Show loading
+            showLoading();
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('exam_type', examType);
+
+                const response = await fetch('http://localhost:8000/upload-exam/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Erro no processamento');
+                }
+
+                const result = await response.json();
+                displayResults(result);
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert(`Erro no processamento: ${error.message}`, 'danger');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // Simulate progress
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            progressContainer.style.display = 'block';
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 95) {
+                    progress = 95;
+                    clearInterval(interval);
+                }
+                progressBar.style.width = progress + '%';
+                progressText.textContent = Math.round(progress) + '%';
+            }, 500);
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            
+            // Complete progress
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressBar.style.width = '100%';
+            progressText.textContent = '100%';
+            
+            setTimeout(() => {
+                document.getElementById('progressContainer').style.display = 'none';
+                progressBar.style.width = '0%';
+                progressText.textContent = '0%';
+            }, 1000);
+        }
+
+        function displayResults(result) {
+            // Show results section
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Populate exam info
+            const examInfo = document.getElementById('examInfo');
+            examInfo.innerHTML = `
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <strong>Arquivo:</strong><br>
+                        <span class="text-muted">${result.filename}</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <strong>Confiança:</strong><br>
+                        <span class="badge bg-${getConfidenceColor(result.confidence)} fs-6">
+                            ${Math.round(result.confidence * 100)}%
+                        </span>
+                    </div>
+                    <div class="col-12">
+                        <strong>Status:</strong><br>
+                        <span class="text-success">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Processado com sucesso
+                        </span>
+                    </div>
+                </div>
+            `;
+            
+            // Populate extracted text
+            document.getElementById('extractedText').textContent = result.extracted_text;
+            
+            // Populate medical report
+            document.getElementById('medicalReport').innerHTML = formatReport(result.report);
+            
+            // Scroll to results
+            document.getElementById('resultsSection').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+            
+            // Show success message
+            showAlert('Exame processado com sucesso!', 'success');
+        }
+
+        function getConfidenceColor(confidence) {
+            if (confidence >= 0.8) return 'success';
+            if (confidence >= 0.5) return 'warning';
+            return 'danger';
+        }
+
+        function formatReport(report) {
+            // Convert markdown-like formatting to HTML
+            return report
+                .replace(/## (.*)/g, '<h5 class="text-primary mt-4 mb-3"><i class="fas fa-chevron-right me-2"></i>$1</h5>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p>')
+                .replace(/$/, '</p>');
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 100px; right: 20px; z-index: 9999; min-width: 300px;';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+
+        // Report actions
+        function downloadReport() {
+            const reportContent = document.getElementById('medicalReport').innerText;
+            const blob = new Blob([reportContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `relatorio_${selectedFile.name}_${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function newAnalysis() {
+            // Reset form
+            clearFile();
+            document.getElementById('examType').value = '';
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            // Scroll to upload section
+            document.getElementById('upload').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+
+        // Add animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-fade-in-up');
+                }
+            });
+        }, observerOptions);
+
+        // Observe all feature cards
+        document.querySelectorAll('.feature-card').forEach(card => {
+            observer.observe(card);
+        });
+
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
+</body>
+</html>

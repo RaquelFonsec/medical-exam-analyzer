@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PREVIDAS - Analisador de Exames Médicos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .hero { 
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); 
+            color: white; 
+            padding: 4rem 0; 
+            margin-bottom: 3rem; 
+            border-radius: 12px; 
+        }
+        .card { 
+            border: none; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+            margin-bottom: 2rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+        }
+        .feature-card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            margin-bottom: 2rem;
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem;
+            background: linear-gradient(135deg, #1e40af, #06b6d4);
+            color: white;
+        }
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .results {
+            display: none;
+            margin-top: 3rem;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #1e40af;
+            background: #f1f5f9;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+        <div class="container">
+            <a class="navbar-brand text-white" href="#">
+                <i class="fas fa-shield-heart me-2"></i>
+                PREVIDAS
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Hero Section -->
+        <div class="hero text-center">
+            <h1 class="display-4 fw-bold mb-4">
+                <i class="fas fa-microscope me-3"></i>
+                Analisador de Exames Médicos
+            </h1>
+            <p class="lead mb-4">
+                Tecnologia de ponta em análise automatizada usando Inteligência Artificial
+                <br>Desenvolvido pela PREVIDAS para profissionais de saúde
+            </p>
+            <a href="#upload" class="btn btn-light btn-lg">
+                <i class="fas fa-rocket me-2"></i>
+                Iniciar Análise
+            </a>
+        </div>
+
+        <!-- Features Section -->
+        <div class="row mb-5">
+            <div class="col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <h4>OCR Avançado</h4>
+                    <p>Tecnologia de reconhecimento óptico de caracteres especializada em documentos médicos com precisão superior a 98%.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h4>IA Médica</h4>
+                    <p>Modelos de inteligência artificial especializados em interpretação médica, treinados com protocolos clínicos.</p>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-medical-alt"></i>
+                    </div>
+                    <h4>Relatórios Estruturados</h4>
+                    <p>Geração automática de relatórios médicos seguindo padrões internacionais e protocolos estabelecidos.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <section id="upload">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card p-4">
+                        <div class="text-center mb-4">
+                            <h2 class="display-6 fw-bold text-primary mb-3">
+                                <i class="fas fa-upload me-3"></i>
+                                Análise de Exame Médico
+                            </h2>
+                            <p class="lead text-muted">
+                                Faça upload de seu exame em PDF ou imagem para análise automatizada
+                            </p>
+                        </div>
+
+                        <form id="examForm">
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Tipo de Exame</label>
+                                <select name="exam_type" class="form-select form-select-lg" required>
+                                    <option value="">Selecione o tipo de exame</option>
+                                    <option value="sangue">Exame de Sangue / Hemograma</option>
+                                    <option value="urina">Exame de Urina</option>
+                                    <option value="cardiologico">Exame Cardiológico / ECG</option>
+                                    <option value="imagem">Exame de Imagem (Raio-X, TC, RM)</option>
+                                    <option value="bioquimico">Exames Bioquímicos</option>
+                                    <option value="hormonal">Exames Hormonais</option>
+                                    <option value="outros">Outros Exames</option>
+                                </select>
+                            </div>
+
+                            <div class="upload-area">
+                                <div style="font-size: 3rem; color: #1e40af; margin-bottom: 1rem;">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <h4 class="fw-semibold mb-2">Arraste o arquivo aqui ou clique para selecionar</h4>
+                                <p class="text-muted mb-3">
+                                    Formatos aceitos: PDF, PNG, JPG, JPEG, TIFF
+                                    <br>Tamanho máximo: 16MB
+                                </p>
+                                <input type="file" name="file" id="fileInput" class="d-none" accept=".pdf,.png,.jpg,.jpeg,.tiff" required>
+                                <button type="button" class="btn btn-outline-primary btn-lg" onclick="document.getElementById('fileInput').click()">
+                                    <i class="fas fa-folder-open me-2"></i>
+                                    Selecionar Arquivo
+                                </button>
+                            </div>
+
+                            <div id="selectedFile" style="display: none;" class="mb-3">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    <strong>Arquivo selecionado:</strong> <span id="fileName"></span>
+                                    <span class="float-end">
+                                        <span id="fileSize"></span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearFile()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary btn-lg px-5" id="submitBtn">
+                                    <i class="fas fa-microscope me-2"></i>
+                                    Analisar Exame
+                                </button>
+                            </div>
+                        </form>
+
+                        <div class="processing" id="processing">
+                            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                            <h5>Processando Exame</h5>
+                            <p class="text-muted">Aguarde enquanto analisamos seu arquivo...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <div class="results" id="results">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Informações do Exame
+                        </h5>
+                        <div id="examInfo"></div>
+
+                        <h6 class="mt-4 mb-3">
+                            <i class="fas fa-text-width me-2"></i>
+                            Texto Extraído
+                        </h6>
+                        <pre id="extractedText"></pre>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card p-4">
+                        <h5 class="text-primary mb-3">
+                            <i class="fas fa-stethoscope me-2"></i>
+                            Relatório Médico
+                        </h5>
+                        <div id="medicalReport" style="line-height: 1.7;"></div>
+
+                        <div class="mt-4 pt-3 border-top">
+                            <button class="btn btn-success me-2" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Imprimir
+                            </button>
+                            <button class="btn btn-outline-primary" onclick="location.reload()">
+                                <i class="fas fa-plus me-1"></i>Nova Análise
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Section -->
+        <section class="my-5 py-5">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h2 class="display-6 fw-bold mb-4">Sobre a PREVIDAS</h2>
+                    <p class="lead mb-4">
+                        A PREVIDAS é uma empresa líder em soluções tecnológicas para a área da saúde, 
+                        especializada no desenvolvimento de sistemas inteligentes que auxiliam 
+                        profissionais médicos em suas atividades diárias.
+                    </p>
+                </div>
+                <div class="col-lg-6">
+                    <div class="bg-primary text-white p-5 rounded-3">
+                        <h3 class="fw-bold mb-4">Por que escolher nosso sistema?</h3>
+                        <ul class="list-unstyled">
+                            <li class="mb-3">
+                                <i class="fas fa-shield-alt me-3"></i>
+                                <strong>Segurança:</strong> Dados protegidos com criptografia
+                            </li>
+                            <li class="mb-3">
+                                <i class="fas fa-tachometer-alt me-3"></i>
+                                <strong>Velocidade:</strong> Processamento em segundos
+                            </li>
+                            <li class="mb-3">
+                                <i class="fas fa-accuracy me-3"></i>
+                                <strong>Precisão:</strong> Mais de 98% de acurácia
+                            </li>
+                            <li>
+                                <i class="fas fa-clock me-3"></i>
+                                <strong>Disponibilidade:</strong> 24/7 online
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center">
+            <div class="mb-3">
+                <i class="fas fa-shield-heart me-2"></i>
+                <strong>PREVIDAS</strong>
+            </div>
+            <p class="mb-0">&copy; 2024 PREVIDAS. Todos os direitos reservados.</p>
+            <small class="text-muted">Para fins educacionais - Não substitui consulta médica</small>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedFile = null;
+
+        // File input handling
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelection(file) {
+            const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/tiff'];
+            const maxSize = 16 * 1024 * 1024; // 16MB
+
+            if (!allowedTypes.includes(file.type)) {
+                alert('Tipo de arquivo não suportado. Use PDF, PNG, JPG ou TIFF.');
+                return;
+            }
+
+            if (file.size > maxSize) {
+                alert('Arquivo muito grande. Máximo 16MB.');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('selectedFile').style.display = 'block';
+        }
+
+        function clearFile() {
+            selectedFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('selectedFile').style.display = 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Form submission
+        document.getElementById('examForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const examType = this.querySelector('select[name="exam_type"]').value;
+            const fileInput = this.querySelector('input[name="file"]');
+            
+            if (!fileInput.files[0]) {
+                alert('Por favor, selecione um arquivo.');
+                return;
+            }
+            
+            if (!examType) {
+                alert('Por favor, selecione o tipo de exame.');
+                return;
+            }
+
+            formData.append('file', fileInput.files[0]);
+            formData.append('exam_type', examType);
+
+            const submitBtn = document.getElementById('submitBtn');
+            const processing = document.getElementById('processing');
+            const results = document.getElementById('results');
+
+            // Show loading
+            submitBtn.style.display = 'none';
+            processing.style.display = 'block';
+            results.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/upload-exam', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Show exam info
+                    document.getElementById('examInfo').innerHTML = `
+                        <p><strong>Arquivo:</strong> ${result.filename || fileInput.files[0].name}</p>
+                        <p><strong>Confiança:</strong> 
+                            <span class="badge bg-success">${Math.round((result.confidence || 0) * 100)}%</span>
+                        </p>
+                        <p><strong>Status:</strong> 
+                            <span class="text-success">
+                                <i class="fas fa-check-circle"></i> Processado com sucesso
+                            </span>
+                        </p>
+                    `;
+
+                    // Show extracted text
+                    document.getElementById('extractedText').textContent = result.extracted_text || 'Nenhum texto extraído';
+
+                    // Show medical report
+                    const report = (result.report || 'Relatório não disponível')
+                        .replace(/\n/g, '<br>')
+                        .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2"><i class="fas fa-chevron-right me-2"></i>$1</h6>')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    document.getElementById('medicalReport').innerHTML = report;
+
+                    // Show results
+                    results.style.display = 'block';
+                    results.scrollIntoView({ behavior: 'smooth' });
+
+                } else {
+                    alert('Erro: ' + (result.error || 'Erro desconhecido'));
+                }
+
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro no processamento: ' + error.message);
+            } finally {
+                // Hide loading
+                processing.style.display = 'none';
+                submitBtn.style.display = 'block';
+            }
+        });
+
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

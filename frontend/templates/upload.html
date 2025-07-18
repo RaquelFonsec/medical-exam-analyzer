@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Upload de Exame{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-upload me-2"></i>Upload de Exame Médico</h4>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" action="{{ url_for('process_exam') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="examType" class="form-label">Tipo de Exame</label>
+                        <select class="form-select" id="examType" name="exam_type" required>
+                            <option value="geral">Exame Geral</option>
+                            <option value="sangue">Exame de Sangue</option>
+                            <option value="urina">Exame de Urina</option>
+                            <option value="imagem">Exame de Imagem</option>
+                            <option value="cardiologico">Exame Cardiológico</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="fileInput" class="form-label">Arquivo do Exame</label>
+                        <input type="file" class="form-control" id="fileInput" name="file" 
+                               accept=".pdf,.png,.jpg,.jpeg,.tiff" required>
+                        <div class="form-text">
+                            Formatos aceitos: PDF, PNG, JPG, JPEG, TIFF (máx. 16MB)
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="alert alert-warning" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Aviso:</strong> Este sistema é apenas para fins educacionais. 
+                            Os resultados não substituem a consulta médica profissional.
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-cogs me-2"></i>
+                            Processar Exame
+                        </button>
+                    </div>
+                </form>
+
+                <div id="loadingDiv" class="text-center mt-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Processando...</span>
+                    </div>
+                    <p class="mt-2">Processando exame... Isso pode levar alguns minutos.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function() {
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('loadingDiv').style.display = 'block';
+});
+</script>
+{% endblock %}
