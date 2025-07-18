@@ -725,15 +725,3 @@ Este projeto foi inspirado pela necessidade real de automatizar processos médic
 
 [![Star on GitHub](https://img.shields.io/github/stars/RaquelFonsec/medical-exam-analyzer?style=social)](https://github.com/RaquelFonsec/medical-exam-analyzer)
 
-**🎤 Audio Transcription • 📄 Document Analysis • 🤖 AI Medical Reports • ☁️ Enterprise AWS**
-
-**Sistema Real Funcionando:**
-- ✅ Gravação de consultas via WebRTC
-- ✅ Transcrição automática com Whisper  
-- ✅ Geração de laudos com GPT-4
-- ✅ OCR enterprise com AWS Textract
-- ✅ Interface profissional completa
-- ✅ Download PDF e impressão
-- ✅ Banco PostgreSQL integrado
-
-</div>
