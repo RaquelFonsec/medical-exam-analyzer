@@ -1,5 +1,6 @@
 import re
 from typing import Dict, List, Tuple
+from datetime import datetime
 
 class ContextClassifierService:
     """Classifica o tipo de consulta/laudo baseado no contexto"""
@@ -17,13 +18,26 @@ class ContextClassifierService:
                 'auxilio doenca', 'aposentadoria por invalidez', 'incapacidade temporaria',
                 'incapacidade laboral', 'inss', 'beneficio por incapacidade',
                 'afastamento do trabalho', 'incapaz para o trabalho', 'pedreiro',
-                'trabalho', 'profissao', 'funcao', 'atividade laboral', 'carregar peso'
+                'trabalho', 'profissao', 'funcao', 'atividade laboral', 'carregar peso',
+                'afastamento', 'previdenciario', 'pericia medica'
+            ],
+            'auxilio_acidente': [
+                'auxilio acidente', 'reducao da capacidade', 'acidente de trabalho',
+                'sequela', 'incapacidade parcial', 'redução laboral',
+                'capacidade reduzida', 'limitacao parcial'
             ],
             'pericia': [
                 'pericia medica', 'avaliacao pericial', 'junta medica',
                 'exame pericial', 'laudo pericial', 'capacidade laboral',
                 'nexo causal', 'acidente de trabalho', 'dano corporal',
-                'sequela', 'invalidez', 'incapacidade', 'grau de comprometimento'
+                'sequela', 'invalidez', 'processo', 'advogado', 'judicial'
+            ],
+            'isencao_ir': [
+                'isencao', 'imposto de renda', 'ir', 'receita federal',
+                'doenca grave', 'neoplasia', 'cancer', 'cardiopatia',
+                'nefropatia', 'hepatopatia', 'moléstia profissional',
+                'tuberculose', 'alienacao mental', 'esclerose multipla',
+                'cegueira', 'hanseníase', 'paralisia', 'aids', 'hiv'
             ],
             'clinica': [
                 'consulta medica', 'acompanhamento', 'tratamento',
@@ -70,416 +84,420 @@ class ContextClassifierService:
         }
     
     def get_specialized_prompt(self, context_type: str, patient_info: str, transcription: str) -> Dict:
-        """Retorna prompts especializados baseados no contexto"""
+        """Retorna prompts especializados - SEGUINDO ORIENTAÇÕES ESPECÍFICAS"""
         
         prompts = {
             'bpc': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE ESPECÍFICA PARA BPC (Benefício de Prestação Continuada):
+Gere uma ANAMNESE PARA BPC seguindo EXATAMENTE o modelo estabelecido:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS FORNECIDOS: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-ESTRUTURA OBRIGATÓRIA PARA BPC:
+ESTRUTURA OBRIGATÓRIA:
 
-## 📋 IDENTIFICAÇÃO SOCIAL
-- Nome completo: [extrair dos dados]
-- Idade: [extrair dos dados]
-- RG/CPF: [se disponível]
-- Composição familiar: [investigar se mencionado]
-- Renda familiar per capita: [investigar se mencionado]
+## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
+- **Nome:** [extrair dos dados fornecidos]
+- **Idade:** [extrair dos dados]
+- **Sexo:** [extrair ou inferir dos dados]
+- **Profissão:** [extrair se mencionado]
+- **Documento de identificação:** [RG/CPF se fornecido]
+- **Número de processo ou referência:** [se mencionado na transcrição]
 
-## 🏥 DEFICIÊNCIA/INCAPACIDADE IDENTIFICADA
-- Tipo de deficiência: [física/mental/intelectual/sensorial baseado na transcrição]
-- CID-10 principal: [código específico da condição]
-- Data de início da condição: [quando começou conforme relato]
-- Evolução: [progressiva/estável/regressiva]
+## 2. 🗣️ QUEIXA PRINCIPAL
+- **Motivo da consulta:** [extrair da transcrição - ex.: BPC, afastamento, isenção IR]
+- **Solicitação específica:** [detalhar pedido baseado na transcrição]
+- **Solicitação do advogado:** [se houver menção]
 
-## 🏠 AVALIAÇÃO DA VIDA INDEPENDENTE
-- Atividades básicas de vida diária (ABVD):
-  * Alimentação: [consegue/não consegue/precisa ajuda]
-  * Higiene pessoal: [consegue/não consegue/precisa ajuda]
-  * Vestir-se: [consegue/não consegue/precisa ajuda]
-  * Locomoção: [consegue/não consegue/precisa ajuda]
-  * Controle esfincteriano: [consegue/não consegue/precisa ajuda]
+## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
+- **Data de início dos sintomas e/ou diagnóstico:** [extrair da transcrição]
+- **Fatores desencadeantes ou agravantes:** [ex.: acidente, agravamento laboral]
+- **Tratamentos realizados e resultados:** [medicações, cirurgias, fisioterapia]
+- **Situação atual:** [limitações, sintomas persistentes]
 
-- Atividades instrumentais de vida diária (AIVD):
-  * Preparar refeições: [consegue/não consegue]
-  * Fazer compras: [consegue/não consegue]
-  * Gerenciar medicações: [consegue/não consegue]
-  * Usar transporte: [consegue/não consegue]
+## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
+- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
+- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
 
-## 👥 NECESSIDADE DE CUIDADOR
-- Necessita de cuidador: [SIM/NÃO]
-- Tipo de cuidado necessário: [total/parcial/supervisão]
-- Quem é o cuidador atual: [familiar/profissional/ninguém]
+## 5. 📄 DOCUMENTAÇÃO APRESENTADA
+- **Exames complementares, relatórios, prontuários:** [documentos anexados]
+- **Observação:** [suficiência e consistência dos documentos]
 
-## 🏡 IMPACTO SOCIAL
-- Consegue viver sozinho: [SIM/NÃO]
-- Impedimentos para vida independente: [listar específicos]
-- Adaptações ambientais necessárias: [se aplicável]
+## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
+- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
+- **Observação visual por vídeo:** [quando possível]
+- **Limitações funcionais observadas ou relatadas:** [especificar]
 
-FOCO ESPECÍFICO BPC: Avaliar impedimentos para VIDA INDEPENDENTE, não capacidade laboral.
+## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
+- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
+
+**MODALIDADE:** Telemedicina - Consulta para avaliação de BPC
+**DATA:** {datetime.now().strftime('%d/%m/%Y')}
 """,
                 'laudo_prompt': f"""
-Gere um LAUDO MÉDICO ESPECÍFICO PARA BPC (LOAS):
+Gere um LAUDO MÉDICO PARA BPC seguindo EXATAMENTE a estrutura de 6 pontos:
 
-CONTEXTO: Benefício de Prestação Continuada - Assistência Social
 DADOS: {patient_info}
 TRANSCRIÇÃO: {transcription}
 
-ESTRUTURA OBRIGATÓRIA PARA BPC:
+## 🏥 LAUDO MÉDICO PARA BPC/LOAS
 
-## 🏥 IDENTIFICAÇÃO E DIAGNÓSTICO
-- **Paciente:** [nome e dados básicos]
-- **CID-10 Principal:** [código específico da deficiência]
-- **Diagnósticos Secundários:** [se relevantes]
-- **Data de início da condição:** [baseado no relato]
+### 📋 IDENTIFICAÇÃO
+- **Paciente:** [nome completo extraído dos dados]
+- **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
+- **Modalidade:** Teleconsulta médica
+- **Finalidade:** Benefício de Prestação Continuada (BPC/LOAS)
 
-## 🔍 DESCRIÇÃO DA DEFICIÊNCIA
-- **Natureza da deficiência:** [física/mental/intelectual/sensorial]
-- **Grau de comprometimento:** [leve/moderado/grave/total]
-- **Característica:** [permanente/temporária]
-- **Prognóstico:** [reversível/irreversível/estável/progressivo]
+### 1. 📖 HISTÓRIA CLÍNICA
+Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível:
 
-## 🏠 AVALIAÇÃO FUNCIONAL PARA VIDA INDEPENDENTE
-### Atividades Básicas de Vida Diária (ABVD):
-- **Alimentação:** [independente/dependente/supervisão necessária]
-- **Higiene corporal:** [independente/dependente/supervisão necessária]
-- **Vestuário:** [independente/dependente/supervisão necessária]
-- **Mobilidade:** [independente/dependente/supervisão necessária]
-- **Transferências:** [independente/dependente/supervisão necessária]
+[Desenvolver narrativa detalhada baseada na transcrição, incluindo:]
+- Início dos sintomas com data específica quando mencionada
+- Evolução da condição ao longo do tempo
+- Antecedentes médicos relevantes
+- Contexto das limitações atuais
 
-### Atividades Instrumentais de Vida Diária (AIVD):
-- **Preparo de refeições:** [capaz/incapaz]
-- **Gerenciamento de medicações:** [capaz/incapaz]
-- **Atividades domésticas:** [capaz/incapaz]
-- **Manejo financeiro:** [capaz/incapaz]
+### 2. 🚫 LIMITAÇÃO FUNCIONAL
+Descrição clara das limitações nas atividades diárias:
 
-## 👥 NECESSIDADE DE CUIDADOS DE TERCEIROS
-- **Necessita de cuidador:** SIM/NÃO
-- **Tipo de cuidado:** [total/parcial/supervisão/orientação]
-- **Frequência:** [24h/diário/ocasional]
-- **Atividades que necessita ajuda:** [especificar]
+[Baseado na transcrição, detalhar:]
+- Atividades básicas de vida diária comprometidas
+- Dependência para cuidados pessoais
+- Restrições na participação social
+- Grau de autonomia atual
+- Necessidade de cuidador
 
-## ⚖️ CONCLUSÃO PERICIAL PARA BPC
-### Critérios LOAS - Lei 8.742/93:
-1. **A pessoa possui deficiência que a impede de vida independente?** 
-   - **RESPOSTA:** SIM/NÃO
-   - **Justificativa:** [baseada na avaliação funcional]
+### 3. 🔬 EXAMES (Quando Houver)
+[Se documentos foram anexados:]
+- Lista e análise objetiva dos exames apresentados, citando sempre a data de realização
+- Resultados relevantes para o diagnóstico
+- Consistência com o quadro clínico
 
-2. **A deficiência é de longo prazo (mínimo 2 anos)?**
-   - **RESPOSTA:** SIM/NÃO
-   - **Justificativa:** [baseada no prognóstico]
+[Se não há exames:] Nenhum exame complementar apresentado na consulta.
 
-3. **Há impedimento de participação plena e efetiva na sociedade?**
-   - **RESPOSTA:** SIM/NÃO
-   - **Justificativa:** [baseada nas limitações identificadas]
+### 4. 💊 TRATAMENTO
+Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas:
 
-## 📋 RECOMENDAÇÃO FINAL
-- **PARECER:** FAVORÁVEL/DESFAVORÁVEL ao deferimento do BPC
-- **CID-10 para fins de benefício:** [código principal]
-- **Necessidade de reavaliação:** SIM/NÃO
-- **Prazo para reavaliação:** [se aplicável]
+[Baseado na transcrição, incluir:]
+- Medicações utilizadas e duração
+- Cirurgias ou procedimentos realizados
+- Fisioterapia ou reabilitação
+- Resposta aos tratamentos
+- Orientações médicas atuais
 
-## ⚠️ OBSERVAÇÕES IMPORTANTES
-- Avaliação baseada exclusivamente em critérios de vida independente
-- Não considera capacidade laboral (critério diferente do auxílio-doença)
-- Laudo específico para fins de BPC/LOAS conforme legislação vigente
+### 5. 🔮 PROGNÓSTICO
+Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações:
 
-**IMPORTANTE:** Este laudo atesta especificamente os impedimentos para vida independente, critério essencial para concessão do BPC.
+[Avaliar baseado no caso:]
+- Possibilidade de recuperação funcional
+- Caráter permanente das limitações
+- Progressão esperada da condição
+- Necessidade de cuidados continuados
+
+### 6. ⚖️ CONCLUSÃO - ALINHADA AO BENEFÍCIO BPC
+
+**CID-10:** [código específico da condição]
+
+**Para BPC/LOAS - Modelo EXATO conforme orientação:**
+
+O paciente apresenta **impedimento de longo prazo**, de natureza **[física/mental/intelectual/sensorial]**, com **restrição permanente para o desempenho de atividades de vida diária e participação social**. 
+
+Tais limitações, iniciadas em **[data quando disponível]**, enquadram-se nos critérios exigidos para o benefício assistencial.
+
+**IMPORTANTE:** Evitar menção à incapacidade laboral. Focar em vida independente e participação social.
+
+**PARECER:** FAVORÁVEL ao deferimento do BPC/LOAS.
+
+### ⚠️ OBSERVAÇÕES TELEMEDICINA
+- Avaliação baseada em relato do paciente via teleconsulta
+- Limitações inerentes ao exame remoto
+- Documentação complementar recomendada quando necessário
+
+**Médico Responsável:** ________________________
+**CRM:** ________________________
+**Data:** {datetime.now().strftime('%d/%m/%Y')}
 """
             },
             
             'incapacidade': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE ESPECÍFICA PARA INCAPACIDADE LABORAL:
+Gere uma ANAMNESE PARA INCAPACIDADE LABORAL seguindo EXATAMENTE o modelo:
 
 DADOS: {patient_info}
 TRANSCRIÇÃO: {transcription}
 
-ESTRUTURA PARA PERÍCIA DE INCAPACIDADE:
+ESTRUTURA OBRIGATÓRIA:
 
-## 👤 IDENTIFICAÇÃO TRABALHISTA
-- Nome: [extrair dos dados]
-- Idade: [extrair dos dados]
-- Profissão/Função: [atividade laboral exercida]
-- Empresa/Local de trabalho: [se mencionado]
-- Tempo na função atual: [anos/meses se relatado]
-- Tempo total de trabalho: [se disponível]
+## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
+- **Nome:** [extrair dos dados]
+- **Idade:** [extrair]
+- **Sexo:** [extrair/inferir]
+- **Profissão:** [atividade laboral exercida]
+- **Documento de identificação:** [RG/CPF se disponível]
+- **Número de processo ou referência:** [se mencionado]
 
-## 💼 DESCRIÇÃO DA ATIVIDADE LABORAL
-- Função exercida: [detalhes do trabalho]
-- Atividades principais: [o que faz no trabalho]
-- Esforço físico exigido: [leve/moderado/pesado]
-- Posturas predominantes: [em pé/sentado/agachado/etc]
-- Carga horária: [se mencionada]
-- Ambiente de trabalho: [condições se relatadas]
+## 2. 🗣️ QUEIXA PRINCIPAL
+- **Motivo da consulta:** [afastamento, auxílio-doença, aposentadoria]
+- **Solicitação específica do advogado:** [se houver]
 
-## 🏥 INCAPACIDADE LABORAL ATUAL
-- Data de início dos sintomas: [quando começou]
-- Relação com o trabalho: [ocupacional/agravamento/sem relação]
-- Sintomas que impedem o trabalho: [listar específicos da transcrição]
-- Limitações funcionais específicas: [o que não consegue fazer]
-- Dor durante atividade laboral: [intensidade e características]
+## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
+- **Data de início dos sintomas e/ou diagnóstico:** [quando começaram]
+- **Fatores desencadeantes ou agravantes:** [acidente de trabalho, esforço repetitivo]
+- **Tratamentos realizados e resultados:** [medicações, fisioterapia, cirurgias]
+- **Situação atual:** [limitações, sintomas persistentes]
 
-## ⚖️ AVALIAÇÃO DA CAPACIDADE LABORAL
-- Consegue exercer a função habitual? [SIM/NÃO]
-- Limitações para função específica: [detalhar impedimentos]
-- Consegue exercer outra função? [SIM/NÃO]
-- Limitações para qualquer trabalho: [se aplicável]
-- Necessidade de afastamento: [temporário/permanente]
+## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
+- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
+- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
 
-## 🔄 PROGNÓSTICO LABORAL
-- Tempo estimado para recuperação: [dias/meses/indefinido]
-- Possibilidade de retorno à função: [provável/improvável/impossível]
-- Necessidade de reabilitação: [SIM/NÃO]
-- Mudança de função necessária: [SIM/NÃO]
+## 5. 📄 DOCUMENTAÇÃO APRESENTADA
+- **Exames complementares, relatórios, prontuários:** [documentos anexados]
+- **Observação:** [suficiência e consistência dos documentos]
 
-FOCO: Capacidade/incapacidade específica para o TRABALHO e atividade laboral.
+## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
+- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
+- **Observação visual por vídeo:** [quando possível]
+- **Limitações funcionais observadas ou relatadas:** [específicas para o trabalho]
+
+## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
+- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
+
+**MODALIDADE:** Telemedicina - Avaliação de incapacidade laboral
+**DATA:** {datetime.now().strftime('%d/%m/%Y')}
 """,
                 'laudo_prompt': f"""
-Gere um LAUDO MÉDICO PARA INCAPACIDADE LABORAL (INSS):
+LAUDO PARA INCAPACIDADE LABORAL - ESTRUTURA DE 6 PONTOS:
 
-CONTEXTO: Perícia para Auxílio-Doença/Aposentadoria por Invalidez
 DADOS: {patient_info}
 TRANSCRIÇÃO: {transcription}
 
-ESTRUTURA PARA PERÍCIA INSS:
+## 🏥 LAUDO PARA BENEFÍCIO POR INCAPACIDADE LABORATIVA
 
-## 🏥 DIAGNÓSTICO MÉDICO OCUPACIONAL
-- **CID-10 Principal:** [código relacionado à incapacidade]
-- **CID-10 Secundários:** [se relevantes para incapacidade]
-- **Natureza da doença:** [ocupacional/comum/acidente de trabalho]
-- **Evolução:** [aguda/crônica/progressiva/estável]
-- **Data do início:** [quando começaram os sintomas]
+### 📋 IDENTIFICAÇÃO
+- **Segurado:** [nome completo]
+- **Data:** {datetime.now().strftime('%d/%m/%Y')}
+- **Modalidade:** Teleconsulta médica
+- **Finalidade:** Auxílio-doença/Aposentadoria por invalidez
 
-## 💼 ANÁLISE DA ATIVIDADE LABORAL
-- **Profissão:** [função exercida]
-- **Demandas físicas da função:** [esforços exigidos]
-- **Posturas de trabalho:** [predominantes na atividade]
-- **Movimentos repetitivos:** [se presentes]
-- **Carga de trabalho:** [física/mental]
+### 1. 📖 HISTÓRIA CLÍNICA
+Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível:
 
-## ⚖️ AVALIAÇÃO DA CAPACIDADE LABORAL
-### Para a função habitual:
-- **Capaz de exercer função habitual:** SIM/NÃO
-- **Limitações específicas:** [impedimentos para a profissão]
-- **Movimentos limitados:** [quais não consegue realizar]
-- **Carga de peso suportada:** [limitações específicas]
+[Narrativa baseada na transcrição]
 
-### Para qualquer trabalho:
-- **Capaz de exercer qualquer trabalho:** SIM/NÃO
-- **Limitações gerais:** [impedimentos para qualquer atividade]
-- **Adaptações necessárias:** [se aplicável]
+### 2. 🚫 LIMITAÇÃO FUNCIONAL
+Descrição clara das limitações nas atividades diárias.
 
-## 📊 CLASSIFICAÇÃO DA INCAPACIDADE
-- **Tipo:** Temporária/Permanente
-- **Grau:** Parcial/Total
-- **Para função habitual:** Incapaz/Capaz com restrições/Capaz
-- **Para qualquer trabalho:** Incapaz/Capaz com restrições/Capaz
+**CORRELAÇÃO OBRIGATÓRIA COM A PROFISSÃO:**
+As limitações atuais impedem o exercício da função de **[profissão extraída dos dados]**, especialmente para atividades que demandam **[especificar baseado na transcrição: levantamento de peso, longos períodos em pé, movimentos repetitivos, etc.]**.
 
-## 🔄 PROGNÓSTICO OCUPACIONAL
-- **Recuperação esperada:** [tempo estimado]
-- **Retorno ao trabalho:** Provável/Improvável/Impossível
-- **Mesma função:** Sim/Não/Com adaptações
-- **Reabilitação profissional:** Necessária/Desnecessária
-- **Readaptação funcional:** Indicada/Contraindicada
+### 3. 🔬 EXAMES (Quando Houver)
+Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
 
-## ⚖️ CONCLUSÃO PERICIAL INSS
-### Parecer Final:
-- **APTO/INAPTO** para o trabalho
-- **Tempo de afastamento necessário:** [dias/meses/indefinido]
-- **Data estimada de retorno:** [se aplicável]
-- **Incapacidade:** Temporária/Permanente
-- **Grau:** Parcial/Total
+[Se não há exames:] Nenhum exame complementar apresentado na consulta.
 
-### Recomendações Previdenciárias:
-- **Auxílio-doença:** Indicado/Não indicado
-- **Aposentadoria por invalidez:** Indicada/Não indicada
-- **Reabilitação profissional:** Necessária/Desnecessária
+### 4. 💊 TRATAMENTO
+Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
 
-## 📋 CID-10 PARA FINS PREVIDENCIÁRIOS
-- **Principal:** [código para benefício]
-- **Secundários:** [se influenciarem na incapacidade]
+### 5. 🔮 PROGNÓSTICO
+Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
 
-**IMPORTANTE:** Laudo específico para avaliação de capacidade laboral conforme critérios do INSS.
+### 6. ⚖️ CONCLUSÃO - INCAPACIDADE LABORATIVA
+
+**CID-10:** [código específico da condição]
+
+**Modelo EXATO conforme orientação:**
+
+Diante do quadro clínico, **[exames quando houver]** e limitação funcional descritos, conclui-se que o(a) paciente encontra-se **incapacitado(a) para o exercício de sua atividade habitual** desde **[data quando disponível]**, recomendando-se afastamento das funções laborativas por **[tempo determinado/indeterminado]**, com reavaliação periódica.
+
+**Justificativa:** Fundamentar a incapacidade para o trabalho exercido, justificando o nexo entre a doença, as limitações e a impossibilidade de desempenho das funções profissionais.
+
+### ⚠️ OBSERVAÇÕES TELEMEDICINA
+- Avaliação baseada em anamnese e observação remota
+- Limitações do exame físico à distância
+
+**CRM:** ________________________
+**Especialidade:** [área de atuação]
+**Data:** {datetime.now().strftime('%d/%m/%Y')}
+"""
+            },
+            
+            'auxilio_acidente': {
+                'anamnese_prompt': f"""
+ANAMNESE PARA AUXÍLIO-ACIDENTE seguindo o modelo estabelecido:
+
+DADOS: {patient_info}
+TRANSCRIÇÃO: {transcription}
+
+[Mesma estrutura de 7 pontos, focando em sequelas de acidente de trabalho]
+""",
+                'laudo_prompt': f"""
+LAUDO PARA AUXÍLIO-ACIDENTE - ESTRUTURA DE 6 PONTOS:
+
+### 6. ⚖️ CONCLUSÃO - AUXÍLIO-ACIDENTE
+
+**CID-10:** [código específico da sequela]
+
+**Modelo EXATO conforme orientação:**
+
+Há **redução permanente da capacidade laborativa**, com diminuição do desempenho para atividades que exigem **[especificar tipo de esforço baseado na transcrição]**, embora ainda possível exercer parte das funções, com necessidade de adaptações e restrição de determinadas tarefas.
+
+**Pontos obrigatórios:**
+- Redução da capacidade laboral residual
+- Tipo de redução e se permite exercício parcial
+- Impacto econômico
+
+**PARECER:** FAVORÁVEL ao auxílio-acidente pela redução da capacidade laborativa.
+"""
+            },
+            
+            'isencao_ir': {
+                'anamnese_prompt': f"""
+ANAMNESE PARA ISENÇÃO DE IMPOSTO DE RENDA seguindo o modelo:
+
+DADOS: {patient_info}
+TRANSCRIÇÃO: {transcription}
+
+[Estrutura de 7 pontos focando em doença grave]
+""",
+                'laudo_prompt': f"""
+LAUDO PARA ISENÇÃO DE IMPOSTO DE RENDA - ESTRUTURA DE 6 PONTOS:
+
+### 6. ⚖️ CONCLUSÃO - ISENÇÃO IMPOSTO DE RENDA
+
+**CID-10:** [código específico]
+
+**Modelo EXATO conforme orientação:**
+
+O paciente é portador de **[nome da doença extraída da transcrição]**, diagnosticada em **[data do diagnóstico quando mencionada]**, condição esta que se enquadra no rol de doenças graves previstas na legislação, justificando a solicitação de isenção do imposto de renda.
+
+**Pontos obrigatórios:**
+- Tempo da doença
+- Diagnóstico específico
+- Correspondência com rol legal
+- Evitar linguagem subjetiva
+
+**PARECER:** FAVORÁVEL à isenção de imposto de renda.
 """
             },
             
             'pericia': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE PERICIAL MÉDICA LEGAL:
+ANAMNESE PERICIAL seguindo o modelo estabelecido:
 
 DADOS: {patient_info}
 TRANSCRIÇÃO: {transcription}
 
-ESTRUTURA PERICIAL COMPLETA:
-
-## 👤 IDENTIFICAÇÃO DO PERICIANDO
-- Nome completo: [extrair dos dados]
-- Idade: [extrair dos dados]
-- Documento de identidade: [se disponível]
-- Motivo da perícia: [determinar baseado no contexto]
-- Quesitos a responder: [se mencionados]
-- Data do evento: [se relatado acidente/doença]
-
-## 📋 HISTÓRIA CLÍNICA PERICIAL
-- Fatos médicos relevantes para perícia: [cronologia baseada na transcrição]
-- Data e circunstâncias do evento: [acidente/doença/lesão]
-- Evolução desde o evento: [melhora/piora/estabilidade]
-- Tratamentos realizados: [se mencionados]
-- Sequelas apresentadas: [atuais]
-
-## 🔍 EXAME PERICIAL ATUAL
-- Estado geral atual: [baseado nos relatos]
-- Sequelas identificadas: [físicas/mentais/funcionais]
-- Limitações funcionais: [específicas encontradas]
-- Grau de comprometimento: [leve/moderado/grave]
-- Capacidade funcional residual: [o que ainda consegue fazer]
-
-## ⚖️ NEXO CAUSAL PERICIAL
-- Relação entre evento e lesão/doença: [investigar]
-- Nexo temporal: [compatibilidade de datas]
-- Nexo topográfico: [local da lesão compatível]
-- Nexo etiológico: [causa compatível com efeito]
-
-FOCO: Estabelecer NEXO CAUSAL e avaliar grau de comprometimento/sequelas.
+[Estrutura de 7 pontos para perícia legal]
 """,
                 'laudo_prompt': f"""
-Gere um LAUDO PERICIAL MÉDICO LEGAL:
+LAUDO PERICIAL - ESTRUTURA DE 6 PONTOS:
 
-CONTEXTO: Perícia Médica Legal/Judicial
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+### 1. 📖 HISTÓRIA CLÍNICA
+Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível.
 
-ESTRUTURA TÉCNICA PERICIAL:
+### 2. 🚫 LIMITAÇÃO FUNCIONAL
+Descrição clara das limitações nas atividades diárias.
+Correlacionar com a profissão quando pertinente.
 
-## 🏥 DIAGNÓSTICO PERICIAL
-- **CID-10 Principal:** [código da condição periciada]
-- **CID-10 Secundários:** [se relevantes]
-- **Natureza da lesão/doença:** [traumática/degenerativa/ocupacional]
-- **Data do evento:** [quando ocorreu]
-- **Data do exame pericial:** [atual]
+### 3. 🔬 EXAMES (Quando Houver)
+Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
 
-## 🔍 DESCRIÇÃO DAS SEQUELAS
-- **Sequelas anatômicas:** [alterações estruturais permanentes]
-- **Sequelas funcionais:** [limitações de movimento/força]
-- **Sequelas estéticas:** [deformidades visíveis]
-- **Sequelas psíquicas:** [se aplicável]
+### 4. 💊 TRATAMENTO
+Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
 
-## ⚖️ ANÁLISE DO NEXO CAUSAL
-### Nexo Temporal:
-- **Compatibilidade temporal:** SIM/NÃO
-- **Justificativa:** [análise das datas]
+### 5. 🔮 PROGNÓSTICO
+Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
 
-### Nexo Topográfico:
-- **Compatibilidade anatômica:** SIM/NÃO
-- **Justificativa:** [relação local evento/lesão]
-
-### Nexo Etiológico:
-- **Causa compatível com efeito:** SIM/NÃO
-- **Justificativa:** [mecanismo lesional]
-
-### Nexo Causal Estabelecido:
-- **CONCLUSÃO:** SIM/NÃO/PROVÁVEL/IMPROVÁVEL
-
-## 📊 AVALIAÇÃO DO DANO CORPORAL
-- **Grau de incapacidade:** [percentual se aplicável]
-- **Tipo de incapacidade:** Temporária/Permanente
-- **Extensão:** Parcial/Total
-- **Natureza:** Reversível/Irreversível
-
-## 💼 REPERCUSSÃO LABORAL
-- **Incapacidade para trabalho habitual:** SIM/NÃO
-- **Incapacidade para qualquer trabalho:** SIM/NÃO
-- **Necessidade de mudança de função:** SIM/NÃO
-- **Redução da capacidade laborativa:** [percentual]
-
-## 🔄 PROGNÓSTICO PERICIAL
-- **Estabilização das sequelas:** Sim/Não/Parcial
-- **Possibilidade de melhora:** Sim/Não/Limitada
-- **Necessidade de tratamento continuado:** Sim/Não
-- **Consolidação das lesões:** Completa/Incompleta
-
-## ⚖️ CONCLUSÕES PERICIAIS
-### Respostas aos Quesitos (se aplicável):
-1. **Há dano corporal?** SIM/NÃO
-2. **Existe nexo causal?** SIM/NÃO
-3. **Qual o grau de incapacidade?** [percentual]
-4. **A incapacidade é permanente?** SIM/NÃO
-5. **Há necessidade de tratamento?** SIM/NÃO
-
-### Classificação Legal do Dano:
-- **Dano corporal:** [tipo e extensão]
-- **Incapacidade laborativa:** [grau e natureza]
-- **Invalidez:** [parcial/total se aplicável]
-
-## 📋 CONSIDERAÇÕES FINAIS
-- **CID-10 para fins periciais:** [código principal]
-- **Consolidação das sequelas:** [data estimada]
-- **Necessidade de nova avaliação:** SIM/NÃO
-- **Prazo para reavaliação:** [se aplicável]
-
-**IMPORTANTE:** Laudo elaborado com imparcialidade técnica e fundamentação científica conforme princípios da medicina legal.
+### 6. ⚖️ CONCLUSÃO PERICIAL
+[Conclusão específica baseada no caso, respondendo aos quesitos]
 """
             },
             
             'clinica': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE CLÍNICA GERAL:
+ANAMNESE CLÍNICA seguindo EXATAMENTE o modelo estabelecido:
 
 DADOS: {patient_info}
-TRANSCR.: {transcription}
+TRANSCRIÇÃO: {transcription}
 
-ESTRUTURA:
+ESTRUTURA OBRIGATÓRIA:
 
-## IDENTIFICAÇÃO
-- Nome: [extrair dos dados]
-- Idade: [extrair dos dados]
-- Sexo: [se mencionado]
+## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
+- **Nome:** [extrair dos dados]
+- **Idade:** [extrair]
+- **Sexo:** [extrair/inferir]
+- **Profissão:** [se mencionada]
+- **Documento de identificação:** [RG/CPF se fornecido]
+- **Número de processo ou referência:** [se aplicável]
 
-## QUEIXA PRINCIPAL
-[Extrair da transcrição o motivo da consulta]
+## 2. 🗣️ QUEIXA PRINCIPAL
+- **Motivo da consulta:** [extrair da transcrição]
+- **Solicitação específica do advogado:** [se houver]
 
-## HISTÓRIA DA DOENÇA ATUAL
-[Cronologia dos sintomas baseada na transcrição]
+## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
+- **Data de início dos sintomas e/ou diagnóstico:** [extrair da transcrição]
+- **Fatores desencadeantes ou agravantes:** [ex.: acidente, agravamento laboral]
+- **Tratamentos realizados e resultados:** [medicações, cirurgias, fisioterapia]
+- **Situação atual:** [limitações, sintomas persistentes]
 
-## REVISÃO DE SISTEMAS
-[Sintomas mencionados por sistemas]
+## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
+- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
+- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
 
-## EXAME FÍSICO
-[Se mencionado na transcrição]
+## 5. 📄 DOCUMENTAÇÃO APRESENTADA
+- **Exames complementares, relatórios, prontuários:** [documentos anexados]
+- **Observação:** [suficiência e consistência dos documentos]
 
-## MEDICAÇÕES EM USO
-[Se mencionadas]
+## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
+- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
+- **Observação visual por vídeo:** [quando possível]
+- **Limitações funcionais observadas ou relatadas:** [especificar]
 
-FOCO: Consulta médica geral e acompanhamento.
+## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
+- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
+
+**MODALIDADE:** Teleconsulta médica
+**DATA:** {datetime.now().strftime('%d/%m/%Y')}
 """,
                 'laudo_prompt': f"""
-Gere um LAUDO CLÍNICO GERAL:
+RELATÓRIO MÉDICO - TELECONSULTA seguindo ESTRUTURA DE 6 PONTOS:
 
-CONTEXTO: Consulta Médica Regular
-DADOS: {patient_info}
+## 🏥 RELATÓRIO DE TELECONSULTA
 
-ESTRUTURA:
+### 📋 IDENTIFICAÇÃO
+- **Paciente:** [nome completo]
+- **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
+- **Modalidade:** Telemedicina
+- **Tipo:** Consulta clínica geral
 
-## DIAGNÓSTICO CLÍNICO
-[Baseado nos sintomas e dados fornecidos]
+### 1. 📖 HISTÓRIA CLÍNICA
+Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível.
 
-## AVALIAÇÃO
-[Estado geral do paciente]
+### 2. 🚫 LIMITAÇÃO FUNCIONAL
+Descrição clara das limitações nas atividades diárias.
 
-## PLANO TERAPÊUTICO
-[Tratamento recomendado]
+### 3. 🔬 EXAMES (Quando Houver)
+Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
 
-## SEGUIMENTO
-[Orientações de acompanhamento]
+### 4. 💊 TRATAMENTO
+Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
 
-## OBSERVAÇÕES
-[Informações adicionais relevantes]
+### 5. 🔮 PROGNÓSTICO
+Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
 
-IMPORTANTE: Linguagem médica adequada para consulta clínica.
+### 6. ⚖️ CONCLUSÃO CLÍNICA
+
+**CID-10:** [código da condição]
+
+[Conclusão baseada na avaliação clínica]
+
+### ⚠️ LIMITAÇÕES DA TELEMEDICINA
+- Exame físico restrito à observação visual
+- Recomenda-se consulta presencial se necessário
+
+**Médico Responsável:** ________________________
+**CRM:** ________________________
+**Data:** {datetime.now().strftime('%d/%m/%Y')}
 """
             }
         }
