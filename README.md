@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![PREVIDAS Intelligence](https://img.shields.io/badge/PREVIDAS-Intelligence%20v3.0-blue?style=for-the-badge&logo=medical-cross)
+![PREVIDAS Intelligence](https://img.shields.io/badge/PREVIDAS-Intelligence%20v2.0-blue?style=for-the-badge&logo=medical-cross)
 ![GPT-4](https://img.shields.io/badge/GPT--4-Medical%20AI-green?style=for-the-badge&logo=openai)
 ![Whisper](https://img.shields.io/badge/Whisper-Real%20Time-purple?style=for-the-badge&logo=openai)
 ![AWS Textract](https://img.shields.io/badge/AWS-Textract%20OCR-orange?style=for-the-badge&logo=amazon-aws)
@@ -22,7 +22,7 @@
 
 O **PREVIDAS Intelligence** é um sistema revolucionário que combina **Inteligência Artificial especializada** com **classificação automática de contexto** para gerar laudos médicos específicos para cada tipo de perícia:
 
-### **🧠 Principais Inovações v3.0**
+### **🧠 Principais Inovações v2.0**
 
 | Funcionalidade | Descrição | Tecnologia |
 |----------------|-----------|------------|
@@ -52,11 +52,75 @@ O **PREVIDAS Intelligence** é um sistema revolucionário que combina **Intelig�
 - **Sequelas** e invalidez
 - Laudos para **processos judiciais**
 
+#### **💰 Isenção de Imposto de Renda**
+- Doenças graves conforme **Lei 7.713/88**
+- **Correspondência com rol legal**
+- **Tempo da doença** documentado
+
+#### **🔧 Auxílio-Acidente**
+- **Redução da capacidade laborativa**
+- Exercício **parcial** da atividade
+- **Impacto econômico** avaliado
+
 #### **🏥 Consulta Clínica Geral**
 - Anamnese estruturada
 - Diagnóstico com **CID-10**
 - Plano terapêutico
 - Acompanhamento médico
+
+---
+
+## 📋 **Modelo Profissional de Telemedicina**
+
+### **🏥 Estrutura de Anamnese (7 pontos obrigatórios):**
+1. **📋 Identificação do Paciente** - Nome, idade, sexo, profissão, documentos, processo
+2. **🗣️ Queixa Principal** - Motivo da consulta, solicitação específica do advogado
+3. **📖 História da Doença Atual** - Data início, fatores desencadeantes, tratamentos, situação atual
+4. **🏥 Antecedentes** - Doenças prévias, histórico ocupacional e previdenciário
+5. **📄 Documentação** - Exames, relatórios, observação sobre suficiência e consistência
+6. **🎥 Exame Clínico** - Autoavaliação guiada, observação visual, limitações funcionais
+7. **⚕️ Assessment** - Hipótese diagnóstica ou confirmação de CID-10
+
+### **📄 Estrutura de Laudo (6 pontos obrigatórios):**
+1. **📖 História Clínica** - Relato detalhado com datas sempre que possível
+2. **🚫 Limitação Funcional** - Correlacionada com profissão quando pertinente
+3. **🔬 Exames** - Lista e análise objetiva com datas de realização
+4. **💊 Tratamento** - Duração, resposta, mudanças de conduta com datas
+5. **🔮 Prognóstico** - Expectativa de evolução, recuperação ou agravamento
+6. **⚖️ Conclusão** - Alinhada ao benefício específico solicitado
+
+### **🎯 Conclusões Especializadas:**
+
+#### **🏠 BPC/LOAS:**
+```
+"O paciente apresenta impedimento de longo prazo, de natureza física, 
+com restrição permanente para o desempenho de atividades de vida diária 
+e participação social. Tais limitações, iniciadas em XX/XX/XXXX, 
+enquadram-se nos critérios exigidos para o benefício assistencial."
+```
+
+#### **💼 Incapacidade Laboral:**
+```
+"Diante do quadro clínico, exames e limitação funcional descritos, 
+conclui-se que o paciente encontra-se incapacitado para o exercício 
+de sua atividade habitual desde XX/XX/XXXX, recomendando-se afastamento 
+das funções laborativas por tempo indeterminado, com reavaliação periódica."
+```
+
+#### **🔧 Auxílio-Acidente:**
+```
+"Há redução permanente da capacidade laborativa, com diminuição do 
+desempenho para atividades que exigem esforço físico, embora ainda 
+possível exercer parte das funções, com necessidade de adaptações 
+e restrição de determinadas tarefas."
+```
+
+#### **💰 Isenção IR:**
+```
+"O paciente é portador de neoplasia maligna, diagnosticada em XX/XX/XXXX, 
+condição esta que se enquadra no rol de doenças graves previstas na 
+legislação, justificando a solicitação de isenção do imposto de renda."
+```
 
 ---
 
@@ -92,7 +156,7 @@ graph TD
 
 ### IDENTIFICAÇÃO E DIAGNÓSTICO
 - **Paciente:** Maria Silva, 52 anos
-- **CID-10 Principal:** G93.1 - Sequelas de AVC
+- **CID-10 Principal:** I63 - Sequelas de AVC
 - **Data de início:** Há 3 anos
 
 ### AVALIAÇÃO FUNCIONAL PARA VIDA INDEPENDENTE
@@ -103,13 +167,12 @@ graph TD
 - **Mobilidade:** Limitada
 
 ### CONCLUSÃO PERICIAL PARA BPC
-1. **A pessoa possui deficiência que a impede de vida independente?** 
-   - **RESPOSTA:** SIM
-2. **A deficiência é de longo prazo (mínimo 2 anos)?**
-   - **RESPOSTA:** SIM
+O paciente apresenta impedimento de longo prazo, de natureza física, 
+com restrição permanente para o desempenho de atividades de vida diária 
+e participação social. Enquadra-se nos critérios exigidos para o 
+benefício assistencial.
 
-### RECOMENDAÇÃO FINAL
-- **PARECER:** FAVORÁVEL ao deferimento do BPC
+### PARECER: FAVORÁVEL ao deferimento do BPC
 ```
 
 #### **Exemplo - Laudo Incapacidade Laboral:**
@@ -120,15 +183,15 @@ graph TD
 - **CID-10 Principal:** M75.1 - Síndrome do manguito rotador
 - **Profissão:** Pedreiro (15 anos)
 
-### AVALIAÇÃO DA CAPACIDADE LABORAL
-- **Capaz de exercer função habitual:** NÃO
-- **Limitações específicas:** Incapacidade de carregar peso
-- **Capaz de exercer qualquer trabalho:** NÃO
+### LIMITAÇÃO FUNCIONAL
+As limitações atuais impedem o exercício da função de pedreiro, 
+especialmente para atividades que demandam levantamento de peso, 
+longos períodos em pé ou movimentos repetitivos.
 
 ### CONCLUSÃO PERICIAL INSS
-- **INAPTO** para o trabalho
-- **Tempo de afastamento:** 90 dias
-- **Reabilitação profissional:** Necessária
+Conclui-se que o paciente encontra-se incapacitado para o exercício 
+de sua atividade habitual desde a data do acidente, recomendando-se 
+afastamento das funções laborativas por 90 dias, com reavaliação periódica.
 ```
 
 ---
@@ -151,7 +214,7 @@ graph TD
 
 ---
 
-## 🏗️ **Arquitetura Intelligence v3.0**
+## 🏗️ **Arquitetura Intelligence v2.0**
 
 ```
 medical-exam-analyzer/
@@ -304,7 +367,7 @@ python app.py
    ```
 3. **Gravação de Áudio:**
    ```
-   "Olá doutor, meu nome é Maria dos Santos, tenho 52 anos. 
+   "Olá doutor, meu nome é Maria Silva, tenho 52 anos. 
    Eu tive um AVC há 3 anos que me deixou com sequelas no lado direito. 
    Minha mão direita não tem mais força, não consigo segurar as coisas. 
    Para me vestir preciso da ajuda da minha filha, para tomar banho também. 
@@ -338,7 +401,7 @@ python app.py
 
 ---
 
-## 📊 **Performance Intelligence v3.0**
+## 📊 **Performance Intelligence v2.0**
 
 ### **⚡ Métricas Reais**
 
@@ -350,7 +413,7 @@ python app.py
 | **📄 AWS Textract OCR** | 2-5s | 99%+ |
 | **🌐 Interface Response** | < 2s | 100% |
 
-### **🔍 Funcionalidades Testadas v3.0**
+### **🔍 Funcionalidades Testadas v2.0**
 
 - ✅ **Sistema de Login** (12345/senha123)
 - ✅ **Context Intelligence** automático
@@ -359,6 +422,8 @@ python app.py
 - ✅ **Interface responsiva** na porta 5003
 - ✅ **Análise multimodal** completa
 - ✅ **Segurança e auditoria** LGPD
+- ✅ **Modelo profissional** de telemedicina
+- ✅ **Campos genéricos** para assinatura médica
 
 ---
 
@@ -381,7 +446,7 @@ Content-Type: multipart/form-data
 {
   "success": true,
   "transcription": "Paciente relata deficiência que impede vida independente...",
-  "anamnese": "## 📋 IDENTIFICAÇÃO SOCIAL\n- Nome: Maria Silva...",
+  "anamnese": "## 📋 IDENTIFICAÇÃO\n- Nome: Maria Silva...",
   "laudo_medico": "## 🏥 LAUDO ESPECÍFICO PARA BPC...",
   "context_analysis": {
     "main_context": "bpc",
@@ -408,7 +473,7 @@ Content-Type: application/json
 
 ---
 
-## 🌟 **Novidades v3.0**
+## 🌟 **Novidades v2.0**
 
 ### **🧠 Context Intelligence**
 - **Classificação automática** baseada em palavras-chave
@@ -419,7 +484,15 @@ Content-Type: application/json
 - **BPC:** Foco em vida independente e necessidade de cuidador
 - **Incapacidade:** Avaliação de capacidade laboral
 - **Perícia Legal:** Nexo causal e grau de comprometimento
+- **Isenção IR:** Doença grave e correspondência legal
+- **Auxílio-Acidente:** Redução da capacidade laborativa
 - **Clínica:** Consulta médica tradicional
+
+### **📋 Modelo Profissional**
+- **Anamnese estruturada** em 7 pontos obrigatórios
+- **Laudos especializados** em 6 pontos específicos
+- **Conclusões técnicas** conforme legislação
+- **Campos genéricos** para assinatura médica
 
 ### **🔐 Segurança Enterprise**
 - Sistema de **login obrigatório**
@@ -434,7 +507,7 @@ Content-Type: application/json
 ### **👩‍💻 Desenvolvedora Principal**
 
 **Raquel Fonseca**  
-*Analista de automacao*
+*Analista de Automação em IA*
 
 - 📧 **Email:** raquel.promptia@gmail.com
 - 💼 **LinkedIn:** [linkedin.com/in/raquel-fonseca](https://linkedin.com/in/raquel-fonseca)
@@ -474,6 +547,15 @@ print('✅ OpenAI conectado')
 "
 ```
 
+#### **Problema: Campos de assinatura com dados fictícios**
+```bash
+# Verificar se context_classifier foi atualizado
+grep -n "Dr. João da Silva" backend/app/services/context_classifier_service.py
+
+# Deve retornar vazio. Se aparecer, atualizar:
+# Trocar por: ________________________
+```
+
 ---
 
 ## 📄 **Licença e Compliance**
@@ -482,18 +564,52 @@ Este projeto está licenciado sob a **MIT License**.
 
 ### **🏥 Compliance Médico**
 - ✅ **LGPD** - Lei Geral de Proteção de Dados
-- ✅ **CFM** - Conselho Federal de Medicina
+- ✅ **CFM** - Conselho Federal de Medicina (Resolução 2.314/2022)
 - ✅ **TISS** - Padrão para Troca de Informações
 - ✅ **ICD-10** - Classificação Internacional de Doenças
+- ✅ **LOAS** - Lei Orgânica da Assistência Social (8.742/93)
+- ✅ **Lei 7.713/88** - Isenção IR por doença grave
 
 ### **⚠️ Disclaimer Médico**
 Este sistema é uma **ferramenta de apoio** para profissionais médicos. Os laudos gerados devem sempre ser **revisados por médico habilitado** antes do uso clínico.
+
+**📋 Assinatura Médica:**
+```
+**Médico Responsável:** ________________________
+
+**CRM:** ________________________ - **UF:** ______
+
+**Especialidade:** ________________________
+
+**Data:** DD/MM/AAAA
+
+**Assinatura:** ________________________
+```
+
+---
+
+## 🔄 **Versionamento**
+
+### **📋 Histórico de Versões**
+
+| Versão | Data | Principais Mudanças |
+|--------|------|-------------------|
+| **v2.0** | Jul/2025 | Context Intelligence + Modelo Profissional |
+| **v1.5** | Jun/2025 | Login seguro + Multi-OCR |
+| **v1.0** | Mai/2025 | Sistema base com GPT-4 + Whisper |
+
+### **🚀 Roadmap v2.1**
+- [ ] **Interface mobile** responsiva
+- [ ] **Múltiplos idiomas** (inglês, espanhol)
+- [ ] **Banco de dados** PostgreSQL
+- [ ] **Dashboard analytics** para médicos
+- [ ] **Integração TISS** para convênios
 
 ---
 
 <div align="center">
 
-### 🧠 **PREVIDAS Intelligence v3.0**
+### 🧠 **PREVIDAS Intelligence v2.0**
 
 **A evolução da IA médica especializada**
 
@@ -505,6 +621,14 @@ Este sistema é uma **ferramenta de apoio** para profissionais médicos. Os laud
 **🔐 Acesso:** http://localhost:5003/login (12345/senha123)  
 **🧠 Sistema:** http://localhost:5003/consultation  
 **📋 API:** http://localhost:8000/docs
+
+---
+
+**⭐ Se este projeto foi útil, deixe uma estrela no GitHub!**
+
+[![GitHub stars](https://img.shields.io/github/stars/RaquelFonsec/medical-exam-analyzer?style=social)](https://github.com/RaquelFonsec/medical-exam-analyzer)
+
+</div>
 
 [![Star on GitHub](https://img.shields.io/github/stars/RaquelFonsec/medical-exam-analyzer?style=social)](https://github.com/RaquelFonsec/medical-exam-analyzer)
 
