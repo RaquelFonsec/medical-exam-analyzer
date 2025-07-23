@@ -101,37 +101,37 @@ CONTEXTO CLÍNICO:
 
 Gere um LAUDO MÉDICO ESTRUTURADO seguindo este formato:
 
-## 📋 IDENTIFICAÇÃO
+##  IDENTIFICAÇÃO
 - Paciente: [extrair das informações disponíveis]
 - Data da consulta: [data atual ou fornecida]
 - Modalidade: [teleconsulta/presencial]
 
-## 🗣️ QUEIXA PRINCIPAL
+##  QUEIXA PRINCIPAL
 [Extrair da transcrição a queixa principal do paciente]
 
-## 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
+##  HISTÓRIA DA DOENÇA ATUAL (HDA)
 [Descrever cronologicamente o quadro atual com:
 - Data de início dos sintomas
 - Evolução dos sintomas
 - Fatores agravantes/atenuantes
 - Tratamentos já realizados]
 
-## 🔍 ACHADOS DE EXAME FÍSICO/DOCUMENTAL
+##  ACHADOS DE EXAME FÍSICO/DOCUMENTAL
 [Consolidar achados de exames anexados e exame físico mencionado]
 
-## 💊 TRATAMENTO ATUAL
+##  TRATAMENTO ATUAL
 [Medicações e terapias em uso]
 
-## 🎯 DIAGNÓSTICO CLÍNICO
+##  DIAGNÓSTICO CLÍNICO
 [Diagnóstico baseado nos achados]
 
-## 📊 PROGNÓSTICO
+## PROGNÓSTICO
 [Expectativa de evolução do quadro]
 
-## 🏥 CONCLUSÃO
+## CONCLUSÃO
 [Síntese para fins de benefício/pleito se aplicável]
 
-## 🔢 CID-10
+##  CID-10
 [Códigos CID-10 compatíveis com o diagnóstico]
 
 ---

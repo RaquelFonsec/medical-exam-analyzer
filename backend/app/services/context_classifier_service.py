@@ -3,55 +3,319 @@ from typing import Dict, List, Tuple
 from datetime import datetime
 
 class ContextClassifierService:
-    """Classifica o tipo de consulta/laudo baseado no contexto"""
+    """Classificador APRIMORADO para alinhar perfeitamente com LaudoTemplatesExatos"""
     
     def __init__(self):
-        # Palavras-chave EXPANDIDAS para cada tipo de contexto
+        # PALAVRAS-CHAVE REFINADAS E EXPANDIDAS
         self.context_keywords = {
             'bpc': [
-                'bpc', 'beneficio de prestacao continuada', 'prestacao continuada',
-                'loas', 'assistencia social', 'deficiencia', 'incapacidade permanente',
-                'renda per capita', 'vulnerabilidade social', 'vida independente',
-                'cuidador', 'autonomia', 'atividades basicas', 'higiene pessoal'
+                # Termos diretos BPC/LOAS
+                'bpc', 'beneficio de prestacao continuada', 'loas', 'assistencia social',
+                'vida independente', 'cuidador', 'autonomia', 'atividades basicas',
+                'higiene pessoal', 'participacao social', 'impedimento longo prazo',
+                
+                # Indicadores de dependência severa (BPC)
+                'nao consegue cuidar', 'precisa de ajuda para tudo', 'dependente para',
+                'nao tem como se cuidar', 'sem autonomia', 'nao consegue sozinho',
+                'vulnerabilidade social', 'sem renda familiar', 'familia pobre',
+                'deficiencia grave', 'limitacao severa', 'incapacidade total',
+                
+                # Crianças/jovens (BPC específico)
+                'crianca', 'menor de idade', 'adolescente', 'desenvolvimento atrasado',
+                'necessidades especiais', 'cuidados especiais'
             ],
+            
             'incapacidade': [
-                'auxilio doenca', 'aposentadoria por invalidez', 'incapacidade temporaria',
-                'incapacidade laboral', 'inss', 'beneficio por incapacidade',
-                'afastamento do trabalho', 'incapaz para o trabalho', 'pedreiro',
-                'trabalho', 'profissao', 'funcao', 'atividade laboral', 'carregar peso',
-                'afastamento', 'previdenciario', 'pericia medica'
+                # Termos diretos de incapacidade laboral
+                'auxilio doenca', 'aposentadoria por invalidez', 'incapacidade laboral',
+                'inss', 'beneficio por incapacidade', 'afastamento do trabalho',
+                'seguro social', 'previdencia social', 'pericia inss',
+                
+                # Impossibilidade explícita para trabalhar
+                'nao consigo mais trabalhar', 'nao consigo mais atender', 
+                'nao consigo mais exercer', 'nao consigo mais segurar',
+                'nao tenho mais precisao', 'nao aguento mais trabalhar',
+                'impossivel trabalhar', 'incapaz de trabalhar',
+                'limitacao para trabalhar', 'dificuldade para trabalhar',
+                'nao posso mais', 'nao aguento esforco',
+                
+                # Correlações profissão-limitação
+                'profissao exige', 'trabalho requer', 'funcao demanda',
+                'atividade profissional', 'capacidade de trabalho',
+                'precisao manual', 'esforco fisico', 'concentracao',
+                'atender pacientes', 'segurar instrumentos', 'dar aula',
+                'dirigir veiculo', 'carregar peso', 'ficar em pe',
+                'trabalhar sob pressao', 'tomar decisoes', 'plantao',
+                'comunicacao telefonica', 'uso de headset', 'fones de ouvido',
+                
+                # Especiais para atendimento/telemarketing
+                'atendimento ao cliente', 'call center', 'telemarketing',
+                'nao consigo escutar cliente', 'nao consigo atender telefone',
+                'custom service', 'headset machuca', 'fone de ouvido dói'
             ],
+            
             'auxilio_acidente': [
                 'auxilio acidente', 'reducao da capacidade', 'acidente de trabalho',
-                'sequela', 'incapacidade parcial', 'redução laboral',
-                'capacidade reduzida', 'limitacao parcial'
+                'sequela', 'incapacidade parcial', 'capacidade reduzida',
+                'acidente na fabrica', 'acidente na empresa', 'lesao no trabalho',
+                'cat', 'comunicacao de acidente', 'nexo causal', 'doenca ocupacional',
+                'ler dort', 'lesao por esforco repetitivo'
             ],
+            
+            'isencao_ir': [
+                'isencao', 'imposto de renda', 'receita federal',
+                'doenca grave', 'neoplasia', 'cancer', 'tumor',
+                'quimioterapia', 'radioterapia', 'oncologico',
+                'aids', 'hiv', 'parkinson', 'alzheimer', 'esclerose multipla',
+                'cardiopatia grave', 'nefropatia grave', 'cegueira',
+                'hanseníase', 'tuberculose ativa'
+            ],
+            
             'pericia': [
                 'pericia medica', 'avaliacao pericial', 'junta medica',
-                'exame pericial', 'laudo pericial', 'capacidade laboral',
-                'nexo causal', 'acidente de trabalho', 'dano corporal',
-                'sequela', 'invalidez', 'processo', 'advogado', 'judicial'
+                'processo judicial', 'advogado solicitou', 'acao trabalhista',
+                'processo previdenciario', 'recurso inss', 'contestacao',
+                'segunda opiniao', 'revisao medica'
             ],
-            'isencao_ir': [
-                'isencao', 'imposto de renda', 'ir', 'receita federal',
-                'doenca grave', 'neoplasia', 'cancer', 'cardiopatia',
-                'nefropatia', 'hepatopatia', 'moléstia profissional',
-                'tuberculose', 'alienacao mental', 'esclerose multipla',
-                'cegueira', 'hanseníase', 'paralisia', 'aids', 'hiv'
-            ],
+            
             'clinica': [
                 'consulta medica', 'acompanhamento', 'tratamento',
-                'medicacao', 'exame de rotina', 'check up', 'dor', 'sintomas'
+                'medicacao', 'exame de rotina', 'check up',
+                'orientacao medica', 'prescricao', 'receita medica'
+            ]
+        }
+        
+        # PROFISSÕES E SUAS LIMITAÇÕES ESPECÍFICAS (expandido)
+        self.profession_limitations = {
+            # Profissões de comunicação e atendimento
+            'atendente': ['comunicacao telefonica', 'uso de headset', 'escutar cliente', 'concentracao auditiva'],
+            'telemarketing': ['comunicacao telefonica', 'uso de headset', 'escutar cliente', 'concentracao prolongada'],
+            'operador': ['comunicacao telefonica', 'uso de equipamentos', 'concentracao auditiva'],
+            'operadora': ['comunicacao telefonica', 'uso de equipamentos', 'concentracao auditiva'],
+            'recepcionista': ['atendimento publico', 'comunicacao telefonica', 'uso equipamentos'],
+            'secretaria': ['atividades administrativas', 'comunicacao telefonica', 'uso computador'],
+            'secretario': ['atividades administrativas', 'comunicacao telefonica', 'uso computador'],
+            
+            # Profissões educacionais
+            'dentista': ['precisao manual', 'segurar instrumentos', 'atender pacientes', 'concentracao'],
+            'professor': ['dar aula', 'concentracao', 'interacao social', 'controle emocional'],
+            'professora': ['dar aula', 'concentracao', 'interacao social', 'controle emocional'],
+            
+            # Profissões físicas
+            'motorista': ['dirigir', 'reflexos', 'esforco fisico', 'concentracao'],
+            'pedreiro': ['carregar peso', 'esforco fisico', 'trabalhar em altura'],
+            'enfermeiro': ['plantao', 'esforco fisico', 'cuidar pacientes', 'tomar decisoes'],
+            'enfermeira': ['plantao', 'esforco fisico', 'cuidar pacientes', 'tomar decisoes'],
+            'medico': ['plantao', 'tomar decisoes', 'concentracao', 'precisao'],
+            'medica': ['plantao', 'tomar decisoes', 'concentracao', 'precisao'],
+            
+            # Profissões comerciais
+            'vendedor': ['comunicacao', 'esforco fisico', 'concentracao'],
+            'vendedora': ['comunicacao', 'esforco fisico', 'concentracao'],
+            'caixa': ['atendimento publico', 'ficar em pe', 'concentracao'],
+            
+            # Profissões técnicas
+            'tecnico': ['atividades tecnicas', 'concentracao', 'uso equipamentos'],
+            'tecnica': ['atividades tecnicas', 'concentracao', 'uso equipamentos'],
+            'analista': ['analises complexas', 'concentracao prolongada', 'uso computador'],
+            
+            # Profissões de serviços
+            'faxineiro': ['esforco fisico', 'carregar peso', 'movimentos repetitivos'],
+            'faxineira': ['esforco fisico', 'carregar peso', 'movimentos repetitivos'],
+            'seguranca': ['vigilancia', 'reflexos', 'esforco fisico'],
+            'vigilante': ['vigilancia prolongada', 'atencao constante'],
+            
+            # Profissões industriais
+            'operario': ['esforco fisico', 'carregar peso', 'linha producao'],
+            'operaria': ['esforco fisico', 'carregar peso', 'linha producao'],
+            'soldador': ['concentracao visual', 'controle motor', 'ambiente industrial'],
+            'soldadora': ['concentracao visual', 'controle motor', 'ambiente industrial'],
+            'mecanico': ['esforco fisico', 'uso ferramentas', 'posicoes inadequadas'],
+            'mecanica': ['esforco fisico', 'uso ferramentas', 'posicoes inadequadas']
+        }
+        
+        # INDICADORES DE GRAVIDADE POR BENEFÍCIO
+        self.severity_indicators = {
+            'bpc': [
+                'dependente para tudo', 'nao consegue sozinho', 'precisa cuidador',
+                'sem autonomia', 'limitacao severa', 'incapacidade total',
+                'vida independente comprometida', 'participacao social impossivel'
+            ],
+            'incapacidade': [
+                'impossivel trabalhar', 'incapaz trabalhar', 'nao aguento mais',
+                'profissao impossivel', 'limitacao total para trabalho',
+                'incapacidade permanente', 'afastamento definitivo'
+            ],
+            'auxilio_acidente': [
+                'reducao capacidade', 'limitacao parcial', 'sequela permanente',
+                'capacidade diminuida', 'aptidao reduzida'
+            ]
+        }
+        
+        # ESPECIALIDADES MÉDICAS REFINADAS
+        self.medical_specialties = {
+            'otorrinolaringologia': [
+                'perda auditiva', 'surdez', 'nao escuto', 'ouvido', 'audicao',
+                'zumbido', 'tontura', 'vertigem', 'otite', 'sinusite',
+                'garganta', 'nariz', 'fone machuca', 'headset dói'
+            ],
+            'psiquiatria': [
+                'depressao', 'ansiedade', 'panico', 'transtorno mental',
+                'saude mental', 'psiquiatrico', 'bipolar', 'esquizofrenia',
+                'sindrome panico', 'crise ansiedade', 'estresse', 'insonia',
+                'concentracao ruim', 'memoria ruim', 'humor alterado'
+            ],
+            'cardiologia': [
+                'coracao', 'infarto', 'pressao alta', 'cardiovascular',
+                'cardiaco', 'angina', 'insuficiencia cardiaca', 'arritmia',
+                'hipertensao', 'esforco fisico cardiaco', 'falta ar', 'cansaco'
+            ],
+            'ortopedia': [
+                'dor coluna', 'dor lombar', 'hernia disco', 'fratura',
+                'dor costas', 'carregar peso', 'lombalgia', 'dor articular',
+                'dor muscular', 'lesao ortopedica', 'problema coluna',
+                'articulacao', 'osso', 'joelho', 'ombro', 'punho'
+            ],
+            'neurologia': [
+                'avc', 'derrame', 'parkinson', 'epilepsia', 'neurologico',
+                'convulsao', 'demencia', 'alzheimer', 'esclerose multipla',
+                'dor cabeca', 'enxaqueca', 'cefaleia', 'tontura neurológica'
+            ],
+            'reumatologia': [
+                'artrite', 'artrose', 'reumatoide', 'lupus', 'fibromialgia',
+                'reumatico', 'dor articular cronica', 'inflamacao articular'
+            ],
+            'oncologia': [
+                'cancer', 'tumor', 'neoplasia', 'quimioterapia', 'oncologico',
+                'metastase', 'carcinoma', 'leucemia', 'linfoma', 'radioterapia'
+            ],
+            'endocrinologia': [
+                'diabetes', 'tireoide', 'hormonio', 'endocrino', 'glicemia',
+                'insulina', 'hipotireoidismo', 'hipertireoidismo'
             ]
         }
     
     def classify_context(self, patient_info: str, transcription: str, documents_text: str = "") -> Dict:
-        """Classifica o contexto da consulta"""
+        """Classificação INTELIGENTE refinada para perfeito alinhamento com templates"""
         
-        # Texto completo para análise
         full_text = f"{patient_info} {transcription} {documents_text}".lower()
         
-        # Contar ocorrências de cada contexto
+        print(f"🔍 Analisando texto: {full_text[:200]}...")
+        
+        # 1. DETECTAR ESPECIALIDADE MÉDICA
+        detected_specialty = self._detect_medical_specialty(full_text)
+        print(f"🏥 Especialidade detectada: {detected_specialty}")
+        
+        # 2. ANÁLISE BÁSICA COM PALAVRAS-CHAVE
+        basic_scores = self._basic_keyword_analysis(full_text)
+        print(f"📊 Scores básicos: {basic_scores}")
+        
+        # 3. ANÁLISE INTELIGENTE DE INCAPACIDADE IMPLÍCITA
+        incapacity_analysis = self._analyze_implicit_incapacity(full_text)
+        print(f"🧠 Análise incapacidade: {incapacity_analysis}")
+        
+        # 4. ANÁLISE DE CORRELAÇÃO PROFISSÃO-LIMITAÇÃO
+        profession_correlation = self._analyze_profession_limitation(full_text)
+        print(f"👔 Correlação profissão: {profession_correlation}")
+        
+        # 5. ANÁLISE DE GRAVIDADE E DEPENDÊNCIA
+        severity_analysis = self._analyze_severity_and_dependency(full_text)
+        print(f"⚠️ Análise gravidade: {severity_analysis}")
+        
+        # 6. ANÁLISE ESPECÍFICA DE CONTEXTO (BPC vs INCAPACIDADE)
+        context_specific = self._analyze_specific_context(full_text)
+        print(f"🎯 Contexto específico: {context_specific}")
+        
+        # 7. COMBINAR TODAS AS ANÁLISES
+        final_scores = self._combine_all_analyses(
+            basic_scores, incapacity_analysis, profession_correlation, 
+            severity_analysis, context_specific
+        )
+        print(f"🔢 Scores finais: {final_scores}")
+        
+        # 8. DETERMINAR CONTEXTO FINAL COM LÓGICA REFINADA
+        main_benefit = self._determine_main_benefit(final_scores, full_text)
+        print(f"🎯 Benefício principal: {main_benefit}")
+        
+        # 9. CRIAR CONTEXTO HÍBRIDO COM ESPECIALIDADE
+        if detected_specialty and detected_specialty != 'clinica_geral' and main_benefit != 'clinica':
+            hybrid_context = f"{detected_specialty}_{main_benefit}"
+        else:
+            hybrid_context = main_benefit
+        
+        return {
+            'main_context': hybrid_context,
+            'confidence': final_scores.get(main_benefit, {}).get('score', 0),
+            'matched_keywords': final_scores.get(main_benefit, {}).get('keywords', []),
+            'all_scores': final_scores,
+            'detected_specialty': detected_specialty,
+            'main_benefit': main_benefit,
+            'analysis_details': {
+                'basic_scores': basic_scores,
+                'incapacity_analysis': incapacity_analysis,
+                'profession_correlation': profession_correlation,
+                'severity_analysis': severity_analysis,
+                'context_specific': context_specific
+            }
+        }
+    
+    def _detect_medical_specialty(self, text: str) -> str:
+        """Detectar especialidade médica com precisão aprimorada"""
+        
+        specialty_scores = {}
+        
+        for specialty, indicators in self.medical_specialties.items():
+            score = 0
+            matched_terms = []
+            
+            for indicator in indicators:
+                # Busca por termos exatos e variações
+                pattern = rf'\b{re.escape(indicator)}\b'
+                matches = len(re.findall(pattern, text, re.IGNORECASE))
+                
+                if matches > 0:
+                    # Peso baseado na especificidade e frequência
+                    weight = self._calculate_specialty_weight(indicator, specialty)
+                    score += matches * weight
+                    matched_terms.append(indicator)
+            
+            if score > 0:
+                specialty_scores[specialty] = {
+                    'score': score,
+                    'terms': matched_terms
+                }
+        
+        if specialty_scores:
+            best_specialty = max(specialty_scores.items(), key=lambda x: x[1]['score'])
+            print(f"🏥 Especialidade: {best_specialty[0]} (score: {best_specialty[1]['score']}, termos: {best_specialty[1]['terms']})")
+            return best_specialty[0]
+        
+        return 'clinica_geral'
+    
+    def _calculate_specialty_weight(self, indicator: str, specialty: str) -> float:
+        """Calcular peso do indicador por especialidade"""
+        
+        # Indicadores altamente específicos
+        high_specificity = {
+            'otorrinolaringologia': ['perda auditiva', 'surdez', 'audiometria'],
+            'psiquiatria': ['depressao', 'ansiedade', 'transtorno mental'],
+            'cardiologia': ['infarto', 'insuficiencia cardiaca', 'arritmia'],
+            'ortopedia': ['hernia disco', 'lombalgia', 'fratura'],
+            'oncologia': ['cancer', 'tumor', 'quimioterapia']
+        }
+        
+        if specialty in high_specificity and indicator in high_specificity[specialty]:
+            return 5.0
+        elif len(indicator.split()) > 2:  # Frases específicas
+            return 3.0
+        elif len(indicator.split()) == 2:  # Termos compostos
+            return 2.0
+        else:  # Termos simples
+            return 1.0
+    
+    def _basic_keyword_analysis(self, text: str) -> Dict:
+        """Análise básica refinada com pesos inteligentes"""
+        
         context_scores = {}
         
         for context_type, keywords in self.context_keywords.items():
@@ -59,451 +323,571 @@ class ContextClassifierService:
             matched_keywords = []
             
             for keyword in keywords:
-                count = len(re.findall(rf'\b{re.escape(keyword)}\b', full_text))
+                # Busca por termos exatos
+                pattern = rf'\b{re.escape(keyword)}\b'
+                count = len(re.findall(pattern, text, re.IGNORECASE))
+                
                 if count > 0:
-                    score += count
-                    matched_keywords.append(keyword)
+                    weight = self._get_keyword_weight(context_type, keyword)
+                    score += count * weight
+                    matched_keywords.append(f"{keyword} (x{count})")
             
             context_scores[context_type] = {
                 'score': score,
                 'keywords': matched_keywords
             }
         
-        # Determinar contexto principal
-        main_context = max(context_scores, key=lambda x: context_scores[x]['score'])
+        return context_scores
+    
+    def _analyze_implicit_incapacity(self, text: str) -> Dict:
+        """Detectar indicadores IMPLÍCITOS refinados de incapacidade"""
         
-        # Se nenhum contexto específico, assumir clínica
-        if context_scores[main_context]['score'] == 0:
-            main_context = 'clinica'
+        incapacity_score = 0
+        matched_patterns = []
+        
+        # PADRÕES DE INCAPACIDADE REFINADOS
+        patterns = [
+            # Impossibilidade explícita (peso alto)
+            (r'n[ãa]o consigo mais (\w+)', 4.0, "Impossibilidade explícita"),
+            (r'n[ãa]o posso mais (\w+)', 4.0, "Impossibilidade explícita"),
+            (r'impossível (\w+)', 4.0, "Impossibilidade declarada"),
+            
+            # Incompatibilidade profissional (peso muito alto)
+            (r'profiss[ãa]o exige.*n[ãa]o (tenho|consigo|posso)', 5.0, "Incompatibilidade profissional"),
+            (r'trabalho requer.*n[ãa]o (tenho|consigo|posso)', 5.0, "Incompatibilidade profissional"),
+            (r'fun[çc][ãa]o demanda.*n[ãa]o (tenho|consigo|posso)', 5.0, "Incompatibilidade profissional"),
+            
+            # Limitações funcionais específicas
+            (r'precis[ãa]o manual.*n[ãa]o tenho', 4.0, "Limitação manual específica"),
+            (r'esfor[çc]o f[íi]sico.*n[ãa]o aguento', 4.0, "Limitação física"),
+            (r'concentra[çc][ãa]o.*n[ãa]o consigo', 3.5, "Limitação cognitiva"),
+            (r'comunica[çc][ãa]o.*n[ãa]o consigo', 4.0, "Limitação comunicativa"),
+            
+            # Específico para atendimento/telemarketing
+            (r'atender.*telefone.*n[ãa]o consigo', 4.5, "Incapacidade para atendimento"),
+            (r'headset.*n[ãa]o (aguento|consigo|posso)', 4.0, "Incapacidade para equipamentos"),
+            (r'fone.*ouvido.*n[ãa]o (aguento|consigo|posso)', 4.0, "Incapacidade auditiva laboral"),
+            (r'escutar.*cliente.*n[ãa]o consigo', 4.5, "Incapacidade comunicativa laboral"),
+            
+            # Atividades profissionais específicas
+            (r'atender pacientes.*n[ãa]o consigo', 3.5, "Incapacidade assistencial"),
+            (r'segurar instrumentos.*n[ãa]o consigo', 4.0, "Incapacidade instrumental"),
+            (r'dirigir.*n[ãa]o posso', 3.5, "Incapacidade para condução"),
+            (r'dar aula.*n[ãa]o consigo', 3.5, "Incapacidade docente"),
+            (r'carregar peso.*n[ãa]o (aguento|consigo)', 3.5, "Incapacidade física"),
+            
+            # Indicadores de intensidade
+            (r'n[ãa]o aguento mais', 3.0, "Limitação por intolerância"),
+            (r'muito dif[íi]cil', 2.0, "Dificuldade severa"),
+            (r'quase impossível', 3.0, "Limitação quase total")
+        ]
+        
+        for pattern, weight, description in patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                incapacity_score += weight * len(matches)
+                matched_patterns.append(f"{description}: {matches[0] if matches else 'detectado'}")
         
         return {
-            'main_context': main_context,
-            'confidence': context_scores[main_context]['score'],
-            'matched_keywords': context_scores[main_context]['keywords'],
-            'all_scores': context_scores
+            'incapacidade': {
+                'score': incapacity_score,
+                'keywords': matched_patterns
+            }
         }
     
+    def _analyze_profession_limitation(self, text: str) -> Dict:
+        """Analisar correlação profissão-limitação refinada"""
+        
+        profession_score = 0
+        correlations = []
+        
+        # DETECTAR PROFISSÃO com mais precisão
+        detected_profession = None
+        profession_confidence = 0
+        
+        for profession in self.profession_limitations.keys():
+            if profession in text:
+                # Verificar contexto da menção da profissão
+                profession_patterns = [
+                    rf'sou {profession}',
+                    rf'trabalho como {profession}',
+                    rf'profiss[ãa]o.*{profession}',
+                    rf'{profession}.*profiss[ãa]o'
+                ]
+                
+                for pattern in profession_patterns:
+                    if re.search(pattern, text, re.IGNORECASE):
+                        detected_profession = profession
+                        profession_confidence = 3.0
+                        break
+                
+                if not detected_profession:
+                    detected_profession = profession
+                    profession_confidence = 1.0
+                break
+        
+        if detected_profession:
+            limitations = self.profession_limitations[detected_profession]
+            
+            # VERIFICAR LIMITAÇÕES ESPECÍFICAS DA PROFISSÃO
+            for limitation in limitations:
+                limitation_patterns = [
+                    rf'n[ãa]o consigo.*{limitation}',
+                    rf'n[ãa]o posso.*{limitation}',
+                    rf'{limitation}.*comprometid[oa]',
+                    rf'{limitation}.*dificuldade',
+                    rf'{limitation}.*limitad[oa]',
+                    rf'{limitation}.*impossível',
+                    rf'problema.*{limitation}'
+                ]
+                
+                for pattern in limitation_patterns:
+                    if re.search(pattern, text, re.IGNORECASE):
+                        profession_score += 3.0 * profession_confidence
+                        correlations.append(f"{detected_profession} → limitação em {limitation}")
+                        break
+        
+        return {
+            'incapacidade': {
+                'score': profession_score,
+                'keywords': correlations
+            }
+        }
+    
+    def _analyze_severity_and_dependency(self, text: str) -> Dict:
+        """Analisar gravidade e dependência para BPC vs Incapacidade"""
+        
+        severity_scores = {
+            'bpc': {'score': 0, 'keywords': []},
+            'incapacidade': {'score': 0, 'keywords': []}
+        }
+        
+        for benefit_type, indicators in self.severity_indicators.items():
+            for indicator in indicators:
+                if indicator in text:
+                    weight = 3.0 if benefit_type == 'bpc' else 2.0
+                    severity_scores[benefit_type]['score'] += weight
+                    severity_scores[benefit_type]['keywords'].append(indicator)
+        
+        return severity_scores
+    
+    def _analyze_specific_context(self, text: str) -> Dict:
+        """Análise específica de contexto BPC vs Incapacidade"""
+        
+        context_scores = {
+            'bpc': {'score': 0, 'keywords': []},
+            'incapacidade': {'score': 0, 'keywords': []}
+        }
+        
+        # INDICADORES ESPECÍFICOS DE BPC
+        bpc_indicators = [
+            'vida independente', 'atividades básicas', 'cuidador',
+            'dependente para', 'sem autonomia', 'participação social',
+            'impedimento longo prazo', 'deficiência', 'limitação severa'
+        ]
+        
+        # INDICADORES ESPECÍFICOS DE INCAPACIDADE LABORAL
+        incapacity_indicators = [
+            'trabalho', 'profissão', 'atividade laboral', 'função',
+            'emprego', 'serviço', 'ocupação', 'carreira',
+            'afastamento', 'licença', 'inss', 'previdência'
+        ]
+        
+        for indicator in bpc_indicators:
+            if indicator in text:
+                context_scores['bpc']['score'] += 2.0
+                context_scores['bpc']['keywords'].append(indicator)
+        
+        for indicator in incapacity_indicators:
+            if indicator in text:
+                context_scores['incapacidade']['score'] += 1.5
+                context_scores['incapacidade']['keywords'].append(indicator)
+        
+        return context_scores
+    
+    def _combine_all_analyses(self, basic: Dict, incapacity: Dict, profession: Dict, 
+                            severity: Dict, context_specific: Dict) -> Dict:
+        """Combinar todas as análises com pesos balanceados"""
+        
+        final_scores = {}
+        
+        # INICIALIZAR COM ANÁLISE BÁSICA
+        for context in basic:
+            final_scores[context] = {
+                'score': basic[context]['score'],
+                'keywords': basic[context]['keywords'].copy()
+            }
+        
+        # ADICIONAR ANÁLISE DE INCAPACIDADE IMPLÍCITA
+        for context in incapacity:
+            if context in final_scores:
+                final_scores[context]['score'] += incapacity[context]['score']
+                final_scores[context]['keywords'].extend(incapacity[context]['keywords'])
+            else:
+                final_scores[context] = incapacity[context].copy()
+        
+        # ADICIONAR ANÁLISE DE PROFISSÃO
+        for context in profession:
+            if context in final_scores:
+                final_scores[context]['score'] += profession[context]['score']
+                final_scores[context]['keywords'].extend(profession[context]['keywords'])
+        
+        # ADICIONAR ANÁLISE DE GRAVIDADE
+        for context in severity:
+            if context in final_scores:
+                final_scores[context]['score'] += severity[context]['score']
+                final_scores[context]['keywords'].extend(severity[context]['keywords'])
+            elif severity[context]['score'] > 0:
+                final_scores[context] = severity[context].copy()
+        
+        # ADICIONAR ANÁLISE DE CONTEXTO ESPECÍFICO
+        for context in context_specific:
+            if context in final_scores:
+                final_scores[context]['score'] += context_specific[context]['score']
+                final_scores[context]['keywords'].extend(context_specific[context]['keywords'])
+            elif context_specific[context]['score'] > 0:
+                final_scores[context] = context_specific[context].copy()
+        
+        return final_scores
+    
+    def _determine_main_benefit(self, final_scores: Dict, text: str) -> str:
+        """Determinar benefício principal com lógica refinada"""
+        
+        # LÓGICA DE PRIORIZAÇÃO INTELIGENTE
+        
+        # 1. Se há menção explícita de benefício específico
+        explicit_mentions = {
+            'bpc': r'\b(bpc|loas|beneficio.*prestacao.*continuada)\b',
+            'auxilio_acidente': r'\b(auxilio.*acidente|acidente.*trabalho)\b',
+            'isencao_ir': r'\b(isencao.*imposto|receita.*federal)\b',
+            'incapacidade': r'\b(auxilio.*doenca|aposentadoria.*invalidez|incapacidade.*laboral)\b'
+        }
+        
+        for benefit, pattern in explicit_mentions.items():
+            if re.search(pattern, text, re.IGNORECASE):
+                print(f"🎯 Menção explícita de {benefit} detectada")
+                if benefit in final_scores:
+                    final_scores[benefit]['score'] += 5.0  # Boost por menção explícita
+                else:
+                    final_scores[benefit] = {'score': 5.0, 'keywords': ['menção explícita']}
+        
+        # 2. Filtrar scores muito baixos
+        significant_scores = {k: v for k, v in final_scores.items() 
+                            if v['score'] >= 1.0}
+        
+        if not significant_scores:
+            return 'clinica'
+        
+        # 3. Aplicar lógica de diferenciação BPC vs INCAPACIDADE
+        if 'bpc' in significant_scores and 'incapacidade' in significant_scores:
+            bpc_score = significant_scores['bpc']['score']
+            incap_score = significant_scores['incapacidade']['score']
+            
+            # Fatores de diferenciação
+            dependency_factors = [
+                'dependente para', 'cuidador', 'sem autonomia', 
+                'vida independente', 'atividades básicas'
+            ]
+            
+            work_factors = [
+                'trabalho', 'profissão', 'emprego', 'função',
+                'atividade laboral', 'ocupação'
+            ]
+            
+            dependency_count = sum(1 for factor in dependency_factors if factor in text)
+            work_count = sum(1 for factor in work_factors if factor in text)
+            
+            # Se há mais indicadores de dependência severa → BPC
+            if dependency_count > work_count and dependency_count >= 2:
+                significant_scores['bpc']['score'] += 3.0
+                print(f"🔍 Boost BPC por indicadores de dependência ({dependency_count})")
+            
+            # Se há mais indicadores de trabalho → INCAPACIDADE
+            elif work_count > dependency_count and work_count >= 2:
+                significant_scores['incapacidade']['score'] += 3.0
+                print(f"🔍 Boost INCAPACIDADE por indicadores laborais ({work_count})")
+        
+        # 4. Detectar idade para BPC infantil
+        idade_match = re.search(r'(\d+)\s+anos?', text)
+        if idade_match:
+            idade = int(idade_match.group(1))
+            if idade < 18 and 'bpc' in significant_scores:
+                significant_scores['bpc']['score'] += 2.0
+                print(f"🔍 Boost BPC por idade infantil ({idade} anos)")
+        
+        # 5. Retornar benefício com maior score
+        main_benefit = max(significant_scores, key=lambda x: significant_scores[x]['score'])
+        
+        print(f"🎯 Benefício determinado: {main_benefit} (score: {significant_scores[main_benefit]['score']})")
+        return main_benefit
+    
+    def _get_keyword_weight(self, context_type: str, keyword: str) -> float:
+        """Pesos refinados para palavras-chave por contexto"""
+        
+        # PESOS MUITO ALTOS (5.0) - Indicadores definitivos
+        very_high_weight = {
+            'incapacidade': [
+                'nao consigo mais trabalhar', 'impossivel trabalhar', 
+                'incapaz de trabalhar', 'profissao exige', 'trabalho requer',
+                'auxilio doenca', 'aposentadoria por invalidez'
+            ],
+            'bpc': [
+                'bpc', 'loas', 'beneficio de prestacao continuada',
+                'vida independente', 'impedimento longo prazo'
+            ],
+            'auxilio_acidente': [
+                'auxilio acidente', 'acidente de trabalho'
+            ],
+            'isencao_ir': [
+                'isencao', 'imposto de renda', 'doenca grave'
+            ]
+        }
+        
+        # PESOS ALTOS (3.0) - Indicadores importantes
+        high_weight = {
+            'incapacidade': [
+                'incapacidade laboral', 'nao consigo mais atender',
+                'nao consigo mais seguir', 'limitacao para trabalhar',
+                'comunicacao telefonica', 'uso de headset', 'atendimento cliente'
+            ],
+            'bpc': [
+                'cuidador', 'dependente para', 'sem autonomia',
+                'atividades basicas', 'participacao social'
+            ]
+        }
+        
+        # PESOS MÉDIOS (2.0) - Indicadores relevantes
+        medium_weight = {
+            'incapacidade': [
+                'nao consigo concentrar', 'dificuldade para trabalhar',
+                'precisao manual', 'esforco fisico'
+            ],
+            'bpc': [
+                'limitacao severa', 'necessidades especiais'
+            ]
+        }
+        
+        # PESOS BAIXOS (0.5) - Indicadores fracos
+        low_weight = {
+            'clinica': ['sintomas', 'dor', 'medicacao', 'tratamento']
+        }
+        
+        # Verificar em ordem de prioridade
+        for weight_dict, weight_value in [
+            (very_high_weight, 5.0),
+            (high_weight, 3.0), 
+            (medium_weight, 2.0),
+            (low_weight, 0.5)
+        ]:
+            if context_type in weight_dict and keyword in weight_dict[context_type]:
+                return weight_value
+        
+        # Peso padrão
+        return 1.0
+    
     def get_specialized_prompt(self, context_type: str, patient_info: str, transcription: str) -> Dict:
-        """Retorna prompts especializados - SEGUINDO ORIENTAÇÕES ESPECÍFICAS"""
+        """Prompts especializados alinhados com templates"""
         
         prompts = {
             'bpc': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE PARA BPC seguindo EXATAMENTE o modelo estabelecido:
+GERAR ANAMNESE PARA BPC/LOAS seguindo EXATAMENTE o padrão de 7 pontos:
 
-DADOS FORNECIDOS: {patient_info}
+DADOS DO PACIENTE: {patient_info}
 TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-ESTRUTURA OBRIGATÓRIA:
+Estruturar conforme padrão BPC/LOAS com foco em:
+- Impedimento de longo prazo
+- Limitações para vida independente  
+- Necessidade de cuidador
+- Participação social comprometida
+- Atividades básicas de vida diária
 
-## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
-- **Nome:** [extrair dos dados fornecidos]
-- **Idade:** [extrair dos dados]
-- **Sexo:** [extrair ou inferir dos dados]
-- **Profissão:** [extrair se mencionado]
-- **Documento de identificação:** [RG/CPF se fornecido]
-- **Número de processo ou referência:** [se mencionado na transcrição]
-
-## 2. 🗣️ QUEIXA PRINCIPAL
-- **Motivo da consulta:** [extrair da transcrição - ex.: BPC, afastamento, isenção IR]
-- **Solicitação específica:** [detalhar pedido baseado na transcrição]
-- **Solicitação do advogado:** [se houver menção]
-
-## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
-- **Data de início dos sintomas e/ou diagnóstico:** [extrair da transcrição]
-- **Fatores desencadeantes ou agravantes:** [ex.: acidente, agravamento laboral]
-- **Tratamentos realizados e resultados:** [medicações, cirurgias, fisioterapia]
-- **Situação atual:** [limitações, sintomas persistentes]
-
-## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
-- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
-- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
-
-## 5. 📄 DOCUMENTAÇÃO APRESENTADA
-- **Exames complementares, relatórios, prontuários:** [documentos anexados]
-- **Observação:** [suficiência e consistência dos documentos]
-
-## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
-- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
-- **Observação visual por vídeo:** [quando possível]
-- **Limitações funcionais observadas ou relatadas:** [especificar]
-
-## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
-- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
-
-**MODALIDADE:** Telemedicina - Consulta para avaliação de BPC
-**DATA:** {datetime.now().strftime('%d/%m/%Y')}
+Usar especialidade médica detectada e correlacionar com limitações funcionais.
 """,
                 'laudo_prompt': f"""
-Gere um LAUDO MÉDICO PARA BPC seguindo EXATAMENTE a estrutura de 6 pontos:
+GERAR LAUDO PARA BPC/LOAS seguindo EXATAMENTE o padrão de 6 pontos:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-## 🏥 LAUDO MÉDICO PARA BPC/LOAS
-
-### 📋 IDENTIFICAÇÃO
-- **Paciente:** [nome completo extraído dos dados]
-- **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
-- **Modalidade:** Teleconsulta médica
-- **Finalidade:** Benefício de Prestação Continuada (BPC/LOAS)
-
-### 1. 📖 HISTÓRIA CLÍNICA
-Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível:
-
-[Desenvolver narrativa detalhada baseada na transcrição, incluindo:]
-- Início dos sintomas com data específica quando mencionada
-- Evolução da condição ao longo do tempo
-- Antecedentes médicos relevantes
-- Contexto das limitações atuais
-
-### 2. 🚫 LIMITAÇÃO FUNCIONAL
-Descrição clara das limitações nas atividades diárias:
-
-[Baseado na transcrição, detalhar:]
-- Atividades básicas de vida diária comprometidas
-- Dependência para cuidados pessoais
-- Restrições na participação social
-- Grau de autonomia atual
-- Necessidade de cuidador
-
-### 3. 🔬 EXAMES (Quando Houver)
-[Se documentos foram anexados:]
-- Lista e análise objetiva dos exames apresentados, citando sempre a data de realização
-- Resultados relevantes para o diagnóstico
-- Consistência com o quadro clínico
-
-[Se não há exames:] Nenhum exame complementar apresentado na consulta.
-
-### 4. 💊 TRATAMENTO
-Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas:
-
-[Baseado na transcrição, incluir:]
-- Medicações utilizadas e duração
-- Cirurgias ou procedimentos realizados
-- Fisioterapia ou reabilitação
-- Resposta aos tratamentos
-- Orientações médicas atuais
-
-### 5. 🔮 PROGNÓSTICO
-Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações:
-
-[Avaliar baseado no caso:]
-- Possibilidade de recuperação funcional
-- Caráter permanente das limitações
-- Progressão esperada da condição
-- Necessidade de cuidados continuados
-
-### 6. ⚖️ CONCLUSÃO - ALINHADA AO BENEFÍCIO BPC
-
-**CID-10:** [código específico da condição]
-
-**Para BPC/LOAS - Modelo EXATO conforme orientação:**
-
-O paciente apresenta **impedimento de longo prazo**, de natureza **[física/mental/intelectual/sensorial]**, com **restrição permanente para o desempenho de atividades de vida diária e participação social**. 
-
-Tais limitações, iniciadas em **[data quando disponível]**, enquadram-se nos critérios exigidos para o benefício assistencial.
-
-**IMPORTANTE:** Evitar menção à incapacidade laboral. Focar em vida independente e participação social.
-
-**PARECER:** FAVORÁVEL ao deferimento do BPC/LOAS.
-
-### ⚠️ OBSERVAÇÕES TELEMEDICINA
-- Avaliação baseada em relato do paciente via teleconsulta
-- Limitações inerentes ao exame remoto
-- Documentação complementar recomendada quando necessário
-
-**Médico Responsável:** ________________________
-**CRM:** ________________________
-**Data:** {datetime.now().strftime('%d/%m/%Y')}
+CONCLUSÃO deve ser FAVORÁVEL ao BPC com:
+- Impedimento de longo prazo confirmado
+- Natureza do impedimento (física/mental/sensorial)
+- Restrição para vida independente
+- Critérios legais atendidos
 """
             },
-            
             'incapacidade': {
                 'anamnese_prompt': f"""
-Gere uma ANAMNESE PARA INCAPACIDADE LABORAL seguindo EXATAMENTE o modelo:
+GERAR ANAMNESE PARA INCAPACIDADE LABORAL seguindo EXATAMENTE o padrão de 7 pontos:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-ESTRUTURA OBRIGATÓRIA:
+Estruturar com foco em:
+- Correlação entre limitações clínicas e incapacidade profissional
+- Impossibilidade para atividade habitual
+- Justificativa técnica profissão x limitação
+- Histórico ocupacional detalhado
 
-## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
-- **Nome:** [extrair dos dados]
-- **Idade:** [extrair]
-- **Sexo:** [extrair/inferir]
-- **Profissão:** [atividade laboral exercida]
-- **Documento de identificação:** [RG/CPF se disponível]
-- **Número de processo ou referência:** [se mencionado]
-
-## 2. 🗣️ QUEIXA PRINCIPAL
-- **Motivo da consulta:** [afastamento, auxílio-doença, aposentadoria]
-- **Solicitação específica do advogado:** [se houver]
-
-## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
-- **Data de início dos sintomas e/ou diagnóstico:** [quando começaram]
-- **Fatores desencadeantes ou agravantes:** [acidente de trabalho, esforço repetitivo]
-- **Tratamentos realizados e resultados:** [medicações, fisioterapia, cirurgias]
-- **Situação atual:** [limitações, sintomas persistentes]
-
-## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
-- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
-- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
-
-## 5. 📄 DOCUMENTAÇÃO APRESENTADA
-- **Exames complementares, relatórios, prontuários:** [documentos anexados]
-- **Observação:** [suficiência e consistência dos documentos]
-
-## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
-- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
-- **Observação visual por vídeo:** [quando possível]
-- **Limitações funcionais observadas ou relatadas:** [específicas para o trabalho]
-
-## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
-- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
-
-**MODALIDADE:** Telemedicina - Avaliação de incapacidade laboral
-**DATA:** {datetime.now().strftime('%d/%m/%Y')}
+Usar especialidade médica detectada e correlacionar com profissão específica.
 """,
                 'laudo_prompt': f"""
-LAUDO PARA INCAPACIDADE LABORAL - ESTRUTURA DE 6 PONTOS:
+GERAR LAUDO PARA INCAPACIDADE LABORAL seguindo EXATAMENTE o padrão de 6 pontos:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-## 🏥 LAUDO PARA BENEFÍCIO POR INCAPACIDADE LABORATIVA
-
-### 📋 IDENTIFICAÇÃO
-- **Segurado:** [nome completo]
-- **Data:** {datetime.now().strftime('%d/%m/%Y')}
-- **Modalidade:** Teleconsulta médica
-- **Finalidade:** Auxílio-doença/Aposentadoria por invalidez
-
-### 1. 📖 HISTÓRIA CLÍNICA
-Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível:
-
-[Narrativa baseada na transcrição]
-
-### 2. 🚫 LIMITAÇÃO FUNCIONAL
-Descrição clara das limitações nas atividades diárias.
-
-**CORRELAÇÃO OBRIGATÓRIA COM A PROFISSÃO:**
-As limitações atuais impedem o exercício da função de **[profissão extraída dos dados]**, especialmente para atividades que demandam **[especificar baseado na transcrição: levantamento de peso, longos períodos em pé, movimentos repetitivos, etc.]**.
-
-### 3. 🔬 EXAMES (Quando Houver)
-Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
-
-[Se não há exames:] Nenhum exame complementar apresentado na consulta.
-
-### 4. 💊 TRATAMENTO
-Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
-
-### 5. 🔮 PROGNÓSTICO
-Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
-
-### 6. ⚖️ CONCLUSÃO - INCAPACIDADE LABORATIVA
-
-**CID-10:** [código específico da condição]
-
-**Modelo EXATO conforme orientação:**
-
-Diante do quadro clínico, **[exames quando houver]** e limitação funcional descritos, conclui-se que o(a) paciente encontra-se **incapacitado(a) para o exercício de sua atividade habitual** desde **[data quando disponível]**, recomendando-se afastamento das funções laborativas por **[tempo determinado/indeterminado]**, com reavaliação periódica.
-
-**Justificativa:** Fundamentar a incapacidade para o trabalho exercido, justificando o nexo entre a doença, as limitações e a impossibilidade de desempenho das funções profissionais.
-
-### ⚠️ OBSERVAÇÕES TELEMEDICINA
-- Avaliação baseada em anamnese e observação remota
-- Limitações do exame físico à distância
-
-**CRM:** ________________________
-**Especialidade:** [área de atuação]
-**Data:** {datetime.now().strftime('%d/%m/%Y')}
+CONCLUSÃO deve ser FAVORÁVEL à incapacidade com:
+- Incapacidade para atividade habitual confirmada
+- Justificativa técnica profissão x limitação
+- Nexo causal estabelecido
+- Recomendação de afastamento
 """
             },
-            
             'auxilio_acidente': {
                 'anamnese_prompt': f"""
-ANAMNESE PARA AUXÍLIO-ACIDENTE seguindo o modelo estabelecido:
+⚠️ ATENÇÃO CFM: Nexo causal trabalhista requer avaliação presencial
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+GERAR ANAMNESE PARA AUXÍLIO-ACIDENTE seguindo padrão de 7 pontos:
 
-[Mesma estrutura de 7 pontos, focando em sequelas de acidente de trabalho]
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
+
+OBSERVAÇÃO: Limitação de telemedicina para nexo causal trabalhista
 """,
                 'laudo_prompt': f"""
-LAUDO PARA AUXÍLIO-ACIDENTE - ESTRUTURA DE 6 PONTOS:
+⚠️ LIMITAÇÃO CFM: Nexo causal não pode ser estabelecido por telemedicina
 
-### 6. ⚖️ CONCLUSÃO - AUXÍLIO-ACIDENTE
+GERAR LAUDO PARA AUXÍLIO-ACIDENTE seguindo padrão de 6 pontos:
 
-**CID-10:** [código específico da sequela]
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-**Modelo EXATO conforme orientação:**
-
-Há **redução permanente da capacidade laborativa**, com diminuição do desempenho para atividades que exigem **[especificar tipo de esforço baseado na transcrição]**, embora ainda possível exercer parte das funções, com necessidade de adaptações e restrição de determinadas tarefas.
-
-**Pontos obrigatórios:**
-- Redução da capacidade laboral residual
-- Tipo de redução e se permite exercício parcial
-- Impacto econômico
-
-**PARECER:** FAVORÁVEL ao auxílio-acidente pela redução da capacidade laborativa.
+CONCLUSÃO: Redução de capacidade sem nexo causal trabalhista
 """
             },
-            
             'isencao_ir': {
                 'anamnese_prompt': f"""
-ANAMNESE PARA ISENÇÃO DE IMPOSTO DE RENDA seguindo o modelo:
+GERAR ANAMNESE PARA ISENÇÃO IR seguindo padrão de 7 pontos:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-[Estrutura de 7 pontos focando em doença grave]
+Foco em doença grave conforme Lei 7.713/88
 """,
                 'laudo_prompt': f"""
-LAUDO PARA ISENÇÃO DE IMPOSTO DE RENDA - ESTRUTURA DE 6 PONTOS:
+GERAR LAUDO PARA ISENÇÃO IR seguindo padrão de 6 pontos:
 
-### 6. ⚖️ CONCLUSÃO - ISENÇÃO IMPOSTO DE RENDA
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-**CID-10:** [código específico]
-
-**Modelo EXATO conforme orientação:**
-
-O paciente é portador de **[nome da doença extraída da transcrição]**, diagnosticada em **[data do diagnóstico quando mencionada]**, condição esta que se enquadra no rol de doenças graves previstas na legislação, justificando a solicitação de isenção do imposto de renda.
-
-**Pontos obrigatórios:**
-- Tempo da doença
-- Diagnóstico específico
-- Correspondência com rol legal
-- Evitar linguagem subjetiva
-
-**PARECER:** FAVORÁVEL à isenção de imposto de renda.
+CONCLUSÃO: Doença grave enquadrada na legislação
 """
             },
-            
-            'pericia': {
-                'anamnese_prompt': f"""
-ANAMNESE PERICIAL seguindo o modelo estabelecido:
-
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
-
-[Estrutura de 7 pontos para perícia legal]
-""",
-                'laudo_prompt': f"""
-LAUDO PERICIAL - ESTRUTURA DE 6 PONTOS:
-
-### 1. 📖 HISTÓRIA CLÍNICA
-Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível.
-
-### 2. 🚫 LIMITAÇÃO FUNCIONAL
-Descrição clara das limitações nas atividades diárias.
-Correlacionar com a profissão quando pertinente.
-
-### 3. 🔬 EXAMES (Quando Houver)
-Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
-
-### 4. 💊 TRATAMENTO
-Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
-
-### 5. 🔮 PROGNÓSTICO
-Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
-
-### 6. ⚖️ CONCLUSÃO PERICIAL
-[Conclusão específica baseada no caso, respondendo aos quesitos]
-"""
-            },
-            
             'clinica': {
                 'anamnese_prompt': f"""
-ANAMNESE CLÍNICA seguindo EXATAMENTE o modelo estabelecido:
+GERAR ANAMNESE CLÍNICA seguindo padrão de 7 pontos:
 
-DADOS: {patient_info}
-TRANSCRIÇÃO: {transcription}
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-ESTRUTURA OBRIGATÓRIA:
-
-## 1. 📋 IDENTIFICAÇÃO DO PACIENTE
-- **Nome:** [extrair dos dados]
-- **Idade:** [extrair]
-- **Sexo:** [extrair/inferir]
-- **Profissão:** [se mencionada]
-- **Documento de identificação:** [RG/CPF se fornecido]
-- **Número de processo ou referência:** [se aplicável]
-
-## 2. 🗣️ QUEIXA PRINCIPAL
-- **Motivo da consulta:** [extrair da transcrição]
-- **Solicitação específica do advogado:** [se houver]
-
-## 3. 📖 HISTÓRIA DA DOENÇA ATUAL (HDA)
-- **Data de início dos sintomas e/ou diagnóstico:** [extrair da transcrição]
-- **Fatores desencadeantes ou agravantes:** [ex.: acidente, agravamento laboral]
-- **Tratamentos realizados e resultados:** [medicações, cirurgias, fisioterapia]
-- **Situação atual:** [limitações, sintomas persistentes]
-
-## 4. 🏥 ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES
-- **Doenças prévias:** [crônicas, degenerativas, psiquiátricas]
-- **Histórico ocupacional e previdenciário:** [atividade laboral, contribuições]
-
-## 5. 📄 DOCUMENTAÇÃO APRESENTADA
-- **Exames complementares, relatórios, prontuários:** [documentos anexados]
-- **Observação:** [suficiência e consistência dos documentos]
-
-## 6. 🎥 EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)
-- **Relato de autoavaliação guiada:** [força, mobilidade, dor]
-- **Observação visual por vídeo:** [quando possível]
-- **Limitações funcionais observadas ou relatadas:** [especificar]
-
-## 7. ⚕️ AVALIAÇÃO MÉDICA (ASSESSMENT)
-- **Hipótese diagnóstica ou confirmação de CID-10:** [código específico]
-
-**MODALIDADE:** Teleconsulta médica
-**DATA:** {datetime.now().strftime('%d/%m/%Y')}
+Estrutura clínica geral sem foco previdenciário
 """,
                 'laudo_prompt': f"""
-RELATÓRIO MÉDICO - TELECONSULTA seguindo ESTRUTURA DE 6 PONTOS:
+GERAR RELATÓRIO MÉDICO CLÍNICO seguindo padrão de 6 pontos:
 
-## 🏥 RELATÓRIO DE TELECONSULTA
+DADOS DO PACIENTE: {patient_info}
+TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-### 📋 IDENTIFICAÇÃO
-- **Paciente:** [nome completo]
-- **Data:** {datetime.now().strftime('%d/%m/%Y às %H:%M')}
-- **Modalidade:** Telemedicina
-- **Tipo:** Consulta clínica geral
-
-### 1. 📖 HISTÓRIA CLÍNICA
-Relato detalhado do quadro clínico, início e evolução dos sintomas, antecedentes e contexto, com datas sempre que possível.
-
-### 2. 🚫 LIMITAÇÃO FUNCIONAL
-Descrição clara das limitações nas atividades diárias.
-
-### 3. 🔬 EXAMES (Quando Houver)
-Lista e análise objetiva dos exames apresentados, citando sempre a data de realização.
-
-### 4. 💊 TRATAMENTO
-Tratamentos realizados, duração, resposta apresentada, mudanças de conduta e orientações, sempre que possível com datas.
-
-### 5. 🔮 PROGNÓSTICO
-Expectativa de evolução, previsão de recuperação, possibilidade de agravamento ou manutenção das limitações.
-
-### 6. ⚖️ CONCLUSÃO CLÍNICA
-
-**CID-10:** [código da condição]
-
-[Conclusão baseada na avaliação clínica]
-
-### ⚠️ LIMITAÇÕES DA TELEMEDICINA
-- Exame físico restrito à observação visual
-- Recomenda-se consulta presencial se necessário
-
-**Médico Responsável:** ________________________
-**CRM:** ________________________
-**Data:** {datetime.now().strftime('%d/%m/%Y')}
+Relatório clínico sem finalidade previdenciária
 """
             }
         }
         
-        # Retornar prompt do contexto específico ou clínica como fallback
+        # CONTEXTOS HÍBRIDOS (especialidade + benefício)
+        if '_' in context_type:
+            specialty, benefit = context_type.split('_')
+            base_prompts = prompts.get(benefit, prompts['clinica'])
+            
+            # Personalizar prompts para especialidade
+            specialty_focus = {
+                'otorrinolaringologia': 'Foco em limitações auditivas e comunicativas',
+                'psiquiatria': 'Foco em limitações psíquicas e cognitivas', 
+                'cardiologia': 'Foco em limitações cardiovasculares e esforço físico',
+                'ortopedia': 'Foco em limitações motoras e esforço físico',
+                'neurologia': 'Foco em limitações neurológicas e cognitivas',
+                'reumatologia': 'Foco em limitações articulares e motoras',
+                'oncologia': 'Foco em limitações por doença grave'
+            }
+            
+            if specialty in specialty_focus:
+                focus_text = f"\n\nESPECIALIDADE: {specialty.upper()}\n{specialty_focus[specialty]}"
+                base_prompts['anamnese_prompt'] += focus_text
+                base_prompts['laudo_prompt'] += focus_text
+            
+            return base_prompts
+        
         return prompts.get(context_type, prompts['clinica'])
+    
+    def validate_classification(self, classification_result: Dict, patient_info: str, transcription: str) -> Dict:
+        """Validar e refinar classificação final"""
+        
+        main_benefit = classification_result['main_benefit']
+        confidence = classification_result['confidence']
+        
+        # VALIDAÇÕES DE QUALIDADE
+        validation_issues = []
+        
+        # 1. Verificar se há informações suficientes
+        text_length = len(f"{patient_info} {transcription}")
+        if text_length < 100:
+            validation_issues.append("Texto muito curto para classificação precisa")
+            confidence *= 0.7
+        
+        # 2. Verificar consistência profissão x benefício
+        full_text = f"{patient_info} {transcription}".lower()
+        detected_professions = [prof for prof in self.profession_limitations.keys() if prof in full_text]
+        
+        if detected_professions and main_benefit == 'bpc':
+            validation_issues.append("Possível inconsistência: profissão detectada com BPC")
+            confidence *= 0.8
+        
+        # 3. Verificar idade x benefício
+        idade_match = re.search(r'(\d+)\s+anos?', full_text)
+        if idade_match:
+            idade = int(idade_match.group(1))
+            if idade > 65 and main_benefit == 'incapacidade':
+                validation_issues.append("Possível inconsistência: idade avançada com incapacidade laboral")
+                confidence *= 0.9
+        
+        # 4. Ajustar confiança final
+        if confidence > 10.0:
+            confidence = min(confidence, 10.0)  # Normalizar
+        
+        confidence_level = "ALTA" if confidence >= 7.0 else "MÉDIA" if confidence >= 4.0 else "BAIXA"
+        
+        return {
+            **classification_result,
+            'confidence': confidence,
+            'confidence_level': confidence_level,
+            'validation_issues': validation_issues,
+            'recommendation': self._get_classification_recommendation(main_benefit, confidence_level, validation_issues)
+        }
+    
+    def _get_classification_recommendation(self, benefit: str, confidence_level: str, issues: List[str]) -> str:
+        """Gerar recomendação baseada na classificação"""
+        
+        if confidence_level == "ALTA":
+            return f"Classificação confiável para {benefit.upper()}. Prosseguir com geração de documentos."
+        
+        elif confidence_level == "MÉDIA":
+            return f"Classificação moderada para {benefit.upper()}. Revisar contexto antes de gerar documentos."
+        
+        else:
+            issues_text = "; ".join(issues) if issues else "Informações insuficientes"
+            return f"Classificação incerta. Problemas: {issues_text}. Recomenda-se coleta de mais informações."
 
-# Instância global
+# Instância global refinada
 context_classifier = ContextClassifierService()
