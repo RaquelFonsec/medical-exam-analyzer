@@ -3,7 +3,7 @@ venv/
 env/
 .env
 
-# Arquivos Python
+# Arquivos Python compilados
 __pycache__/
 *.pyc
 *.pyo
@@ -18,7 +18,7 @@ backend/reports/
 *.sqlite
 *.sqlite3
 
-# PostgreSQL
+# Banco de dados PostgreSQL
 *.sql
 *.dump
 *.backup
@@ -29,30 +29,28 @@ postgresql_data/
 *.log
 logs/
 
-# IDE
+# IDEs e editores
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# Sistemas operacionais
 .DS_Store
 Thumbs.db
 
-# Chaves e segredos
+# Chaves, segredos e arquivos sensíveis
 *.key
 *.pem
 config.json
 secrets.json
-
-# Node modules (se tiver)
-node_modules/
-
-# Arquivos de teste
-test_*.txt
-*.tmp
-
-# Arquivos de configuração sensíveis
 database.conf
 db_config.ini
 connection_string.txt
+
+# Node modules (se usar Node.js)
+node_modules/
+
+# Arquivos temporários e de teste
+test_*.txt
+*.tmp

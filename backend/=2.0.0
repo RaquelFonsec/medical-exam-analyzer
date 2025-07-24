@@ -1,0 +1,15 @@
+Requirement already satisfied: pandas in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (2.1.4)
+Collecting pandas
+  Using cached pandas-2.3.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (91 kB)
+Requirement already satisfied: numpy>=1.22.4 in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (from pandas) (1.26.4)
+Requirement already satisfied: python-dateutil>=2.8.2 in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (from pandas) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (from pandas) (2025.2)
+Requirement already satisfied: tzdata>=2022.7 in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (from pandas) (2025.2)
+Requirement already satisfied: six>=1.5 in /home/raquel/medical-exam-analyzer/venv/lib/python3.10/site-packages (from python-dateutil>=2.8.2->pandas) (1.17.0)
+Using cached pandas-2.3.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.3 MB)
+Installing collected packages: pandas
+  Attempting uninstall: pandas
+    Found existing installation: pandas 2.1.4
+    Uninstalling pandas-2.1.4:
+      Successfully uninstalled pandas-2.1.4
+Successfully installed pandas-2.3.1
