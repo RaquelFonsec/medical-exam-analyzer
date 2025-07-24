@@ -272,7 +272,10 @@ async def login_doctor(request: Request):
         
         if doctor_data:
             # Gerar token JWT
-            token = auth_service.generate_token(doctor_data)
+            #print(f"✅ Gerar Token gerado para CRM {crm}")
+            #token = auth_service.generate_token(doctor_data)
+            
+            #print(f"🔑 Token: {token}")
             
             # Registrar login bem-sucedido
             audit_service.log_patient_access(
@@ -286,7 +289,7 @@ async def login_doctor(request: Request):
             
             return {
                 "success": True,
-                "token": token,
+                #"token": token,
                 "doctor": {
                     "crm": doctor_data["crm"],
                     "name": doctor_data["name"],

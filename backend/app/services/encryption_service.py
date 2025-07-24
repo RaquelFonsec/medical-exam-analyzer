@@ -2,10 +2,21 @@ from cryptography.fernet import Fernet
 import os
 import hashlib
 
+
 class EncryptionService:
     def __init__(self):
         # Carregar chave de criptografia
-        key_file = os.getenv("ENCRYPTION_KEY_FILE", "keys/encryption.key")
+        encrypt_key_file = os.getenv("ENCRYPTION_KEY_FILE", "keys/encryption.key")
+        # Caminho absoluto garantido
+        current_dir = os.path.dirname(os.path.abspath(__file__))  # Pega o diretório do arquivo atual
+        key_file = os.path.join(current_dir, encrypt_key_file)  # Monta o caminho correto
+        
+        print(f"Procurando chave em: {key_file}")  # Debug
+        
+        if not os.path.exists(key_file):
+            print("Arquivo de chave não encontrado. Verifique o caminho.")
+            raise FileNotFoundError(f"Arquivo de chave não encontrado em: {key_file}")
+        
         with open(key_file, 'rb') as f:
             self.key = f.read()
         self.cipher = Fernet(self.key)
