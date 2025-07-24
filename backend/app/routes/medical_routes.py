@@ -78,8 +78,10 @@ def health_check():
 def get_available_contexts():
     """Listar contextos médicos disponíveis"""
     try:
-        from backend.app.services.cfm_compliance import multimodal_ai_service
-        contexts = multimodal_ai_service.get_available_contexts()
+        from app.services.multimodal_ai_service import MultimodalAIService
+        # Criar instância local ao invés de usar global
+        service = MultimodalAIService()
+        contexts = service.get_available_contexts() if hasattr(service, 'get_available_contexts') else []
         
         return jsonify({
             "success": True,
