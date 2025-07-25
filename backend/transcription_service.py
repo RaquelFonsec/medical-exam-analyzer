@@ -2,12 +2,22 @@ import openai
 import os
 import tempfile
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 class TranscriptionService:
     """Serviço de transcrição com Whisper"""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Garantir que a chave está carregada
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY não encontrada no arquivo .env")
+        
+        self.client = openai.OpenAI(api_key=api_key)
+        print(f"🔑 OpenAI configurado com chave: {api_key[:10]}...{api_key[-4:]}")
     
     async def transcribe_audio(self, audio_file_path: str) -> Dict[str, Any]:
         """Transcrição REAL com Whisper API"""

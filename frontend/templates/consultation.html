@@ -111,10 +111,30 @@
                <div class="col-lg-4">
                    <div class="card p-4">
                        <h5 class="text-info mb-3">
-                           <i class="fas fa-microphone me-2"></i>1. Transcrição Original
+                           <i class="fas fa-microphone me-2"></i>1. Transcrição do Áudio
                        </h5>
-                       <div class="bg-light p-3 rounded editable-content" style="max-height: 400px; overflow-y: auto;" contenteditable="false">
-                           <div id="transcriptionText">Processando áudio...</div>
+                       
+                       <!-- Campo de transcrição simples -->
+                       <div class="position-relative">
+                           <div 
+                               id="transcriptionText" 
+                               class="form-control" 
+                               style="min-height: 150px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; background: #f8f9fa; border: 2px solid #007bff; padding: 12px; white-space: pre-wrap; overflow-y: auto;">
+                               Aguardando processamento do áudio...
+                           </div>
+                           
+                           <!-- Indicador de carregamento -->
+                           <div id="transcriptionLoading" class="position-absolute top-50 start-50 translate-middle" style="display: none;">
+                               <div class="spinner-border text-primary" role="status">
+                                   <span class="visually-hidden">Processando...</span>
+                               </div>
+                           </div>
+                       </div>
+                       
+                       <!-- Informações do áudio -->
+                       <div id="audioInfo" class="mt-2 text-muted small" style="display: none;">
+                           <i class="fas fa-info-circle me-1"></i>
+                           <span id="audioDetails"></span>
                        </div>
                    </div>
                </div>
@@ -245,7 +265,20 @@
        async function startRecording() {
            try {
                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-               mediaRecorder = new MediaRecorder(stream);
+               
+               // Detectar formato suportado pelo browser
+               let mimeType = 'audio/webm';
+               if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                   mimeType = 'audio/webm;codecs=opus';
+               } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                   mimeType = 'audio/mp4';
+               } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                   mimeType = 'audio/ogg;codecs=opus';
+               }
+               
+               console.log("🎤 Formato de áudio detectado:", mimeType);
+               
+               mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
                audioChunks = [];
                recordingSeconds = 0;
 
@@ -310,9 +343,18 @@
            formData.append('patient_info', patientInfo);
 
            if (audioChunks.length > 0) {
-               const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-               formData.append('audio_data', audioBlob, `consulta_${Date.now()}.wav`);
-               console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes");
+               // Usar o formato real gravado pelo MediaRecorder
+               const mimeType = mediaRecorder ? mediaRecorder.mimeType : 'audio/webm';
+               const audioBlob = new Blob(audioChunks, { type: mimeType });
+               
+               // Determinar extensão baseada no formato
+               let extension = 'webm';
+               if (mimeType.includes('mp4')) extension = 'mp4';
+               else if (mimeType.includes('ogg')) extension = 'ogg';
+               else if (mimeType.includes('wav')) extension = 'wav';
+               
+               formData.append('audio_data', audioBlob, `consulta_${Date.now()}.${extension}`);
+               console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes, formato:", mimeType);
            }
 
            const documentsInput = document.querySelector('input[name="documents"]');
@@ -325,6 +367,17 @@
                generateBtn.disabled = true;
                generateBtn.innerHTML = '🧠 Análise Híbrida...';
                document.getElementById('processing').style.display = 'block';
+               
+               // Mostrar indicador de processamento de áudio
+               const transcriptionField = document.getElementById('transcriptionText');
+               const transcriptionLoading = document.getElementById('transcriptionLoading');
+               
+               if (audioChunks.length > 0) {
+                   transcriptionField.innerHTML = 'Processando áudio com Whisper AI...';
+                   transcriptionField.style.background = '#f0f8ff';
+                   transcriptionField.style.borderColor = '#007bff';
+                   transcriptionLoading.style.display = 'block';
+               }
 
                console.log("📤 Enviando para /api/intelligent-medical-analysis");
 
@@ -337,6 +390,12 @@
 
                const result = await response.json();
                console.log("📋 Resultado híbrido completo:", result);
+               
+               // DEBUG ESPECÍFICO DA TRANSCRIÇÃO
+               console.log("🎤 DEBUG TRANSCRIÇÃO:");
+               console.log("- result.transcription:", result.transcription);
+               console.log("- Tipo:", typeof result.transcription);
+               console.log("- Comprimento:", result.transcription ? result.transcription.length : 'undefined');
 
                if (result.success) {
                    displayHybridResults(result);
@@ -356,13 +415,84 @@
 
        function displayHybridResults(result) {
            console.log("📊 Exibindo resultados híbridos inteligentes");
+           console.log("🔍 VERIFICANDO CAMPOS PRINCIPAIS:");
+           console.log("  success:", result.success);
+           console.log("  anamnese presente:", !!result.anamnese, result.anamnese ? result.anamnese.length + " chars" : "VAZIA");
+           console.log("  laudo_medico presente:", !!result.laudo_medico, result.laudo_medico ? result.laudo_medico.length + " chars" : "VAZIO");
+           console.log("  transcription presente:", !!result.transcription, result.transcription ? result.transcription.length + " chars" : "VAZIA");
 
-           const hybridContext = result.template_used || result.specialized_type || 'clinica';
-           const contextClass = getContextClass(hybridContext);
-           const contextDisplayName = contextNames[hybridContext] || hybridContext.toUpperCase();
+           // PRIMEIRO: ATUALIZAR TRANSCRIÇÃO, ANAMNESE E LAUDO (PRIORITÁRIO)
+           console.log("🎯 ATUALIZANDO CAMPOS PRINCIPAIS PRIMEIRO...");
+           try {
+               // 1. TRANSCRIÇÃO
+               const transcriptionValue = result.transcription || 'Nenhuma transcrição de áudio disponível';
+               console.log("🎤 Transcrição recebida:", transcriptionValue);
+               
+               const transcriptionField = document.getElementById('transcriptionText');
+               const transcriptionLoading = document.getElementById('transcriptionLoading');
+               
+               if (transcriptionLoading) {
+                   transcriptionLoading.style.display = 'none';
+               }
+               
+               if (transcriptionField) {
+                   transcriptionField.innerHTML = transcriptionValue;
+                   transcriptionField.style.background = '#fff';
+                   transcriptionField.style.borderColor = '#28a745';
+                   console.log("✅ Transcrição atualizada com sucesso!");
+               } else {
+                   console.error("❌ Campo transcriptionText não encontrado!");
+               }
+               
+               // 2. ANAMNESE
+               const anamnese = result.anamnese || 'Erro ao gerar anamnese especializada';
+               console.log("📋 ANAMNESE recebida:", anamnese ? anamnese.length + " chars" : "VAZIA");
+               
+               const anamneseElement = document.getElementById('anamneseText');
+               if (anamneseElement) {
+                   anamneseElement.innerHTML = formatMedicalContent(anamnese);
+                   console.log("✅ Anamnese inserida no elemento anamneseText");
+               } else {
+                   console.error("❌ Elemento anamneseText NÃO encontrado!");
+               }
 
-           const specialty = result.classification?.main_specialty || 'clinica_geral';
-           const benefit = result.classification?.main_benefit || 'clinica';
+               // 3. LAUDO
+               const laudo = result.laudo_medico || 'Erro ao gerar laudo híbrido';
+               console.log("📄 LAUDO recebido:", laudo ? laudo.length + " chars" : "VAZIO");
+               
+               const laudoElement = document.getElementById('laudoText');
+               if (laudoElement) {
+                   laudoElement.innerHTML = formatMedicalContent(laudo);
+                   console.log("✅ Laudo inserido no elemento laudoText");
+               } else {
+                   console.error("❌ Elemento laudoText NÃO encontrado!");
+               }
+               
+               console.log("✅ TODOS OS CAMPOS PRINCIPAIS ATUALIZADOS!");
+               
+               // 4. MOSTRAR RESULTADOS
+               document.getElementById('results').style.display = 'block';
+               document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+               
+           } catch (e) {
+               console.error("❌ Erro ao atualizar campos principais:", e);
+           }
+
+           // Segundo: resto da função (pode dar erro sem afetar transcrição)
+           try {
+               // Garantir valores padrão para evitar erros
+               const hybridContext = result.template_used || result.specialized_type || 'clinica';
+               const contextClass = getContextClass(hybridContext);
+               const contextDisplayName = contextNames[hybridContext] || hybridContext.toUpperCase();
+
+               const specialty = (result.classification && result.classification.main_specialty) || 'clinica_geral';
+               const benefit = (result.classification && result.classification.main_benefit) || 'clinica';
+               
+               // Campos com fallbacks seguros
+               const confidence = result.confidence || 'N/A';
+               const cfm_compliant = result.cfm_compliant !== undefined ? result.cfm_compliant : true;
+               const model = result.model || 'Sistema Padrão';
+               const timestamp = result.timestamp || new Date().toISOString();
            
            let contextHtml = `
                <div class="context-badge ${contextClass}">
@@ -371,7 +501,7 @@
                <span class="specialty-badge">${specialtyNames[specialty] || specialty}</span>
            `;
 
-           if (!result.cfm_compliant && result.cfm_warning) {
+           if (!cfm_compliant && result.cfm_warning) {
                contextHtml += `
                    <div class="cfm-warning mt-2">
                        <i class="fas fa-exclamation-triangle me-2"></i>${result.cfm_warning}
@@ -382,40 +512,44 @@
            contextHtml += `
                <div class="row mt-3">
                    <div class="col-md-6">
-                       <strong>Confiança:</strong> ${result.confidence} pontos<br>
+                       <strong>Confiança:</strong> ${confidence} pontos<br>
                        <strong>Especialidade:</strong> ${specialtyNames[specialty] || specialty}
                    </div>
                    <div class="col-md-6">
                        <strong>Benefício:</strong> ${benefit}<br>
-                       <strong>CFM Compliant:</strong> ${result.cfm_compliant ? '✅ Sim' : '⚠️ Limitações'}
+                       <strong>CFM Compliant:</strong> ${cfm_compliant ? '✅ Sim' : '⚠️ Limitações'}
                    </div>
                </div>
                <div class="row mt-2">
                    <div class="col-12">
-                       <small><strong>Modelo:</strong> ${result.model}</small><br>
-                       <small><strong>Timestamp:</strong> ${new Date(result.timestamp).toLocaleString()}</small>
+                       <small><strong>Modelo:</strong> ${model}</small><br>
+                       <small><strong>Timestamp:</strong> ${new Date(timestamp).toLocaleString()}</small>
                    </div>
                </div>
            `;
 
            document.getElementById('contextInfo').innerHTML = contextHtml;
 
-           document.getElementById('transcriptionText').innerHTML = 
-               result.transcription || 'Nenhuma transcrição de áudio disponível';
+           // Mostrar informações do áudio se disponível
+           if (result.epic1_transcricao) {
+               const audioInfo = result.epic1_transcricao;
+               if (audioInfo.audio_processed) {
+                   const details = `Áudio processado: ${Math.round(audioInfo.audio_size / 1024)}KB`;
+                   const audioDetailsElement = document.getElementById('audioDetails');
+                   const audioInfoElement = document.getElementById('audioInfo');
+                   if (audioDetailsElement) audioDetailsElement.textContent = details;
+                   if (audioInfoElement) audioInfoElement.style.display = 'block';
+               }
+           }
 
-           const anamnese = result.anamnese || 'Erro ao gerar anamnese especializada';
-           document.getElementById('anamneseText').innerHTML = 
-               formatMedicalContent(anamnese);
-
-           const laudo = result.laudo_medico || 'Erro ao gerar laudo híbrido';
-           document.getElementById('laudoText').innerHTML = 
-               formatMedicalContent(laudo);
-
-           document.getElementById('results').style.display = 'block';
-           document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
-
-           console.log("✅ Resultados híbridos exibidos");
+           console.log("✅ Contexto e informações extras atualizados");
+           
+           } catch (e) {
+               console.error("❌ Erro no resto da função:", e);
+           }
        }
+
+
 
        function getContextClass(context) {
            if (context.includes('bpc')) return 'context-bpc';

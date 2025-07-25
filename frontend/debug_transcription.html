@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Transcrição</title>
+</head>
+<body>
+    <h1>Teste de Transcrição</h1>
+    
+    <!-- Mesmo elemento que está no template original -->
+    <div 
+        id="transcriptionText" 
+        class="form-control" 
+        style="min-height: 150px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.6; background: #f8f9fa; border: 2px solid #007bff; padding: 12px; white-space: pre-wrap; overflow-y: auto;">
+        Aguardando processamento do áudio...
+    </div>
+    
+    <br>
+    <button onclick="testTranscription()">Testar Transcrição</button>
+    <button onclick="clearTranscription()">Limpar</button>
+    
+    <script>
+        function testTranscription() {
+            console.log("🧪 Testando atualização da transcrição...");
+            
+            // Simular a resposta que vem do backend
+            const result = {
+                success: true,
+                transcription: "Consulta médica baseada em informações textuais fornecidas"
+            };
+            
+            console.log("📊 Resultado simulado:", result);
+            
+            // Código EXATO do template
+            const transcriptionValue = result.transcription || 'Nenhuma transcrição de áudio disponível';
+            console.log("🎤 Transcrição recebida:", transcriptionValue);
+            
+            const transcriptionField = document.getElementById('transcriptionText');
+            const transcriptionLoading = document.getElementById('transcriptionLoading');
+            
+            if (transcriptionLoading) {
+                transcriptionLoading.style.display = 'none';
+            }
+            
+            if (transcriptionField) {
+                console.log("✅ Elemento transcriptionText encontrado!");
+                console.log("Antes:", transcriptionField.innerHTML);
+                
+                // Usar innerHTML para div
+                transcriptionField.innerHTML = transcriptionValue;
+                transcriptionField.style.background = '#fff';
+                transcriptionField.style.borderColor = '#28a745';
+                
+                console.log("Depois:", transcriptionField.innerHTML);
+                console.log("✅ Transcrição exibida no campo de leitura");
+            } else {
+                console.error("❌ Campo transcriptionText não encontrado!");
+            }
+        }
+        
+        function clearTranscription() {
+            const transcriptionField = document.getElementById('transcriptionText');
+            if (transcriptionField) {
+                transcriptionField.innerHTML = 'Aguardando processamento do áudio...';
+                transcriptionField.style.background = '#f8f9fa';
+                transcriptionField.style.borderColor = '#007bff';
+                console.log("🧹 Campo limpo");
+            }
+        }
+    </script>
+</body>
+</html>
