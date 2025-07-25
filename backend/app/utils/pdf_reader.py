@@ -4,7 +4,7 @@ import glob
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_core.documents import Document  # Importação adicionada
+from langchain_core.documents import Document
 
 def get_relative_path(relative_path):
     """Resolve caminhos relativos de forma confiável"""
@@ -21,25 +21,52 @@ def ler_pdf(pdf_path):
         print(f"Erro ao ler o PDF {pdf_path}: {e}")
         return ""
 
-def criar_chunks(pdf_dir):
-    """Processa PDFs e cria chunks para RAG"""
+def ler_txt(txt_path):
+    """Lê o conteúdo de um arquivo TXT e retorna como texto"""
+    try:
+        with open(txt_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"Erro ao ler o TXT {txt_path}: {e}")
+        return ""
+
+def criar_chunks(docs_dir):
+    """Processa arquivos (PDFs e TXTs) e cria chunks para RAG"""
     documents = []
     
-    # Busca todos os PDFs no diretório
-    for pdf_path in glob.glob(os.path.join(pdf_dir, '*.pdf')):
+    # Processa PDFs
+    for pdf_path in glob.glob(os.path.join(docs_dir, '*.pdf')):
         try:
             text = ler_pdf(pdf_path)
+            print(f"Lendo arquivo PDF: {pdf_path}")
             if text:
-                # Cria um Document do LangChain corretamente
                 doc = Document(
                     page_content=text,
                     metadata={
-                        "source": os.path.basename(pdf_path)
+                        "source": os.path.basename(pdf_path),
+                        "type": "pdf"
                     }
                 )
                 documents.append(doc)
         except Exception as e:
-            print(f"Erro ao processar {pdf_path}: {e}")
+            print(f"Erro ao processar PDF {pdf_path}: {e}")
+    
+    # Processa TXTs
+    for txt_path in glob.glob(os.path.join(docs_dir, '*.txt')):
+        try:
+            text = ler_txt(txt_path)
+            print(f"Lendo arquivo TXT: {txt_path}")
+            if text:
+                doc = Document(
+                    page_content=text,
+                    metadata={
+                        "source": os.path.basename(txt_path),
+                        "type": "txt"
+                    }
+                )
+                documents.append(doc)
+        except Exception as e:
+            print(f"Erro ao processar TXT {txt_path}: {e}")
     
     # Configuração do splitter de texto
     text_splitter = CharacterTextSplitter(
@@ -54,23 +81,23 @@ def criar_chunks(pdf_dir):
 
 def main():
     # Configura caminhos relativos
-    pdf_relative_path = "../relatorios"
-    pdf_dir = get_relative_path(pdf_relative_path)
+    docs_relative_path = "../relatorios"
+    docs_dir = get_relative_path(docs_relative_path)
     
     db_name = get_relative_path("../index_faiss_openai")
     
-    print(f"Procurando PDFs em: {pdf_dir}")
+    print(f"Procurando documentos em: {docs_dir}")
     
     # Verifica se o diretório existe
-    if not os.path.exists(pdf_dir):
-        print(f"Diretório não encontrado: {pdf_dir}")
+    if not os.path.exists(docs_dir):
+        print(f"Diretório não encontrado: {docs_dir}")
         return
     
     # Cria chunks dos documentos
-    chunks = criar_chunks(pdf_dir)
+    chunks = criar_chunks(docs_dir)
     
     if not chunks:
-        print("Nenhum chunk foi criado. Verifique os arquivos PDF.")
+        print("Nenhum chunk foi criado. Verifique os arquivos.")
         return
     
     # Cria embeddings e armazena no FAISS

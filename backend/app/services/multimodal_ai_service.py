@@ -6,9 +6,15 @@ import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+def get_relative_path(relative_path):
+    """Resolve caminhos relativos de forma confiável"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.normpath(os.path.join(script_dir, relative_path))
+
 # ============================================================================
 # EXTRATOR DE DADOS ULTRA PRECISO
 # ============================================================================
+
 
 class UltraPreciseDataExtractor:
     """Extrator ULTRA PRECISO - elimina todas as alucinações"""
@@ -2016,6 +2022,16 @@ class MultimodalAIService:
             if audio_bytes:
                 transcription = await self._transcribe_audio_whisper(audio_bytes)
                 print(f"🎤 Transcrição: {transcription}")
+                # Save transcription to file if needed
+                # Configura caminhos relativos
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                app_dir = os.path.dirname(current_dir)
+                relatorios_dir = os.path.join(app_dir,"relatorios")
+                # Define o caminho do arquivo
+                transcription_path = os.path.join(relatorios_dir, "transcription.txt")
+                with open(transcription_path, "w", encoding="utf-8") as file:
+                    file.write(transcription)
+                    print(f"✅ Transcrição salva em {transcription_path}")
             else:
                 transcription = "Consulta baseada em informações textuais fornecidas"
             

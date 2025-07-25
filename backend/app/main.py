@@ -44,6 +44,8 @@ async def intelligent_medical_analysis_with_rag(
         # Executar análise base
         result = await multimodal_ai_service.analyze_multimodal(patient_info, audio_bytes, None)
         
+        print("main.py - Análise multimodal concluída:", result)
+        
         if not result.get('success'):
             return result
         
