@@ -1,512 +1,464 @@
-
 import os
-import sys
 import json
-import traceback
-import shutil
+import faiss
+import numpy as np
+import pickle
+from typing import Dict, List, Optional, Tuple
+from openai import OpenAI
 
-# Adicionar caminho do projeto
-sys.path.append('/home/raquel/medical-exam-analyzer/backend')
-
-def fix_rag_fallback_error():
-    """Corrigir o erro específico na função _generate_fallback_response"""
+class MedicalRAGService:
+    """
+    Serviço RAG especializado para análise de consultas médicas
+    Integra com índices FAISS gerados a partir de PDFs médicos
+    """
     
-    rag_service_path = '/home/raquel/medical-exam-analyzer/backend/app/services/rag/medical_rag_service.py'
+    def __init__(self):
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.index_dir = "index_faiss_openai"
+        self.faiss_index = None
+        self.documents = []
+        self.embedding_model = "text-embedding-3-small"
+        self.load_indexes()
     
-    print("🔧 Corrigindo erro '_generate_fallback_response'...")
-    
-    if not os.path.exists(rag_service_path):
-        print(f"❌ Arquivo não encontrado: {rag_service_path}")
-        return False
-    
-    try:
-        # Ler arquivo atual
-        with open(rag_service_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Encontrar e corrigir a função _generate_fallback_response
-        import re
-        
-        # Procurar a função atual
-        fallback_pattern = r'def _generate_fallback_response\(self, patient_info: str, transcription: str\).*?return.*?\n'
-        
-        # Função corrigida
-        corrected_function = '''def _generate_fallback_response(self, patient_info: str, transcription: str) -> str:
-        """Resposta fallback quando RAG não funciona"""
-        return f"""AVALIAÇÃO MÉDICA
-
-Paciente: {patient_info}
-Relato: {transcription}
-
-Análise: Paciente avaliado conforme relato apresentado.
-Recomenda-se acompanhamento médico especializado.
-
-Data: {datetime.now().strftime('%d/%m/%Y')}"""
-'''
-        
-        # Se a função existe, substituir
-        if re.search(fallback_pattern, content, re.DOTALL):
-            content = re.sub(fallback_pattern, corrected_function, content, flags=re.DOTALL)
-        else:
-            # Se não encontrar, adicionar no final da classe
-            print("⚠️ Função _generate_fallback_response não encontrada, adicionando...")
-            # Procurar o final da classe
-            class_end_pattern = r'(\n# Instância global\nmedical_rag_service = MedicalRAGService\(\))'
-            if re.search(class_end_pattern, content):
-                content = re.sub(class_end_pattern, f'\n    {corrected_function.strip()}\n\\1', content)
+    def load_indexes(self):
+        """Carrega os índices FAISS e documentos salvos"""
+        try:
+            # Carrega o índice FAISS
+            index_path = os.path.join(self.index_dir, "index.faiss")
+            if os.path.exists(index_path):
+                self.faiss_index = faiss.read_index(index_path)
+                print(f"✅ Índice FAISS carregado: {self.faiss_index.ntotal} vetores")
             else:
-                content += f'\n    {corrected_function.strip()}\n'
-        
-        # Salvar arquivo corrigido
-        with open(rag_service_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        print(f"✅ Função _generate_fallback_response corrigida")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Erro ao corrigir função: {e}")
-        return False
-
-def load_json_data():
-    """Carregar dados do pdf_processing_state.json"""
-    
-    print("📚 Procurando pdf_processing_state.json...")
-    
-    # Possíveis localizações
-    possible_paths = [
-        '/home/raquel/medical-exam-analyzer/backend/pdf_processing_state.json',
-        '/home/raquel/medical-exam-analyzer/backend/data/pdf_processing_state.json',
-        '/home/raquel/medical-exam-analyzer/pdf_processing_state.json'
-    ]
-    
-    # Buscar arquivo
-    json_path = None
-    for path in possible_paths:
-        if os.path.exists(path):
-            json_path = path
-            break
-    
-    # Busca recursiva se não encontrou
-    if not json_path:
-        for root, dirs, files in os.walk('/home/raquel/medical-exam-analyzer'):
-            if 'pdf_processing_state.json' in files:
-                json_path = os.path.join(root, 'pdf_processing_state.json')
-                break
-    
-    if not json_path:
-        print("❌ Arquivo pdf_processing_state.json não encontrado")
-        return None
-    
-    print(f"✅ Encontrado: {json_path}")
-    
-    try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        print(f"✅ JSON carregado com {len(data) if isinstance(data, (list, dict)) else 'dados'}")
-        return data
-        
-    except Exception as e:
-        print(f"❌ Erro ao carregar JSON: {e}")
-        return None
-
-def extract_documents_from_json(data):
-    """Extrair documentos médicos do JSON"""
-    
-    documents = []
-    
-    try:
-        print("🔍 Extraindo documentos do JSON...")
-        
-        # Função para extrair texto de diferentes estruturas
-        def extract_text(obj, path=""):
-            texts = []
+                print(f"⚠️ Índice FAISS não encontrado em: {index_path}")
             
-            if isinstance(obj, dict):
-                # Procurar campos de texto
-                text_fields = ['text', 'content', 'extracted_text', 'full_text', 'transcription']
-                
-                for field in text_fields:
-                    if field in obj and isinstance(obj[field], str):
-                        text = obj[field].strip()
-                        if len(text) > 100:  # Filtrar textos muito pequenos
-                            texts.append(text)
-                
-                # Buscar recursivamente
-                for key, value in obj.items():
-                    if key not in text_fields:  # Evitar duplicação
-                        texts.extend(extract_text(value, f"{path}.{key}"))
-            
-            elif isinstance(obj, list):
-                for i, item in enumerate(obj):
-                    texts.extend(extract_text(item, f"{path}[{i}]"))
-            
-            return texts
-        
-        # Extrair todos os textos
-        all_texts = extract_text(data)
-        
-        # Filtrar e limpar textos
-        for text in all_texts:
-            # Filtrar textos médicos (que contenham palavras-chave)
-            medical_keywords = [
-                'paciente', 'diagnóstico', 'laudo', 'médico', 'sintomas',
-                'história clínica', 'exame', 'tratamento', 'cid',
-                'limitações', 'incapacidade', 'coluna', 'dor'
-            ]
-            
-            text_lower = text.lower()
-            keyword_count = sum(1 for keyword in medical_keywords if keyword in text_lower)
-            
-            if keyword_count >= 2 and len(text) > 200:  # Pelo menos 2 palavras-chave e 200 chars
-                documents.append(text)
-        
-        # Remover duplicatas
-        documents = list(set(documents))
-        
-        print(f"✅ Extraídos {len(documents)} documentos médicos únicos")
-        
-        # Mostrar preview dos primeiros documentos
-        for i, doc in enumerate(documents[:3]):
-            print(f"  📄 Doc {i+1}: {len(doc)} chars - {doc[:100]}...")
-        
-        if len(documents) > 3:
-            print(f"  ... e mais {len(documents) - 3} documentos")
-        
-        return documents
-        
-    except Exception as e:
-        print(f"❌ Erro ao extrair documentos: {e}")
-        traceback.print_exc()
-        return []
-
-def load_documents_to_rag(documents):
-    """Carregar documentos na base RAG"""
-    
-    if not documents:
-        print("❌ Nenhum documento para carregar")
-        return False
-    
-    try:
-        print("🔄 Carregando documentos na base RAG...")
-        
-        # Importar serviço RAG
-        from app.services.rag.medical_rag_service import medical_rag_service
-        
-        # Limpar base existente
-        medical_rag_service._create_empty_index()
-        print("🧹 Base limpa")
-        
-        # Adicionar documentos
-        medical_rag_service.add_documents_to_knowledge_base(documents)
-        
-        # Verificar se carregou
-        if hasattr(medical_rag_service, 'chunks') and len(medical_rag_service.chunks) > 0:
-            print(f"✅ Base carregada com {len(medical_rag_service.chunks)} chunks")
-            return True
-        else:
-            print("❌ Falha ao carregar base")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Erro ao carregar na base RAG: {e}")
-        traceback.print_exc()
-        return False
-
-def test_complete_system():
-    """Testar sistema completo após correções"""
-    
-    print("\n🧪 Testando sistema completo...")
-    
-    try:
-        from app.services.rag.medical_rag_service import medical_rag_service
-        
-        # Teste 1: Verificar base
-        if not hasattr(medical_rag_service, 'chunks') or len(medical_rag_service.chunks) == 0:
-            print("❌ Base RAG vazia")
-            return False
-        
-        print(f"✅ Base contém {len(medical_rag_service.chunks)} chunks")
-        
-        # Teste 2: Buscar casos similares
-        print("🔍 Testando busca...")
-        results = medical_rag_service.search_similar_cases("helena pedreira coluna dor trabalho", top_k=3)
-        
-        if results:
-            print(f"✅ Busca funcionando: {len(results)} resultados")
-            for i, result in enumerate(results):
-                print(f"   {i+1}. Score: {result['similarity_score']:.3f} | Tipo: {result['type']}")
-        else:
-            print("⚠️ Busca não retornou resultados")
-        
-        # Teste 3: Gerar resposta RAG (onde estava o erro)
-        print("🎯 Testando geração RAG...")
-        patient_info = "helena 45"
-        transcription = "Sou Joao, tenho 45 anos, trabalho como pedreiro há 20 anos. Machuquei a coluna carregando peso na obra e não consigo mais trabalhar."
-        
-        rag_response = medical_rag_service.generate_rag_response(patient_info, transcription)
-        
-        print(f"Debug - Tipo da resposta: {type(rag_response)}")
-        
-        if isinstance(rag_response, dict):
-            success = rag_response.get('success', False)
-            print(f"✅ Resposta gerada - Success: {success}")
-            
-            if success:
-                print(f"   Casos encontrados: {rag_response.get('similar_cases_count', 0)}")
-                print(f"   Score similaridade: {rag_response.get('top_similarity_score', 0):.3f}")
-                
-                response_text = rag_response.get('response', '')
-                if isinstance(response_text, str) and len(response_text) > 0:
-                    print(f"   Resposta: {len(response_text)} chars")
-                    print(f"   Preview: {response_text[:150]}...")
-                    print("✅ Sistema RAG funcionando perfeitamente!")
-                    return True
-                else:
-                    print(f"❌ Resposta inválida: {type(response_text)}")
-                    return False
+            # Carrega os documentos/chunks
+            docs_path = os.path.join(self.index_dir, "documents.pkl")
+            if os.path.exists(docs_path):
+                with open(docs_path, 'rb') as f:
+                    self.documents = pickle.load(f)
+                print(f"✅ Documentos carregados: {len(self.documents)} chunks")
             else:
-                error = rag_response.get('error', 'Desconhecido')
-                print(f"❌ Erro na geração: {error}")
+                print(f"⚠️ Documentos não encontrados em: {docs_path}")
                 
-                # Testar função fallback diretamente
-                print("🔧 Testando função fallback...")
-                fallback = medical_rag_service._generate_fallback_response(patient_info, transcription)
-                if isinstance(fallback, str):
-                    print("✅ Função fallback corrigida!")
-                    return True
-                else:
-                    print(f"❌ Função fallback ainda com erro: {type(fallback)}")
-                    return False
-        else:
-            print(f"❌ Resposta inválida: {type(rag_response)}")
-            return False
+        except Exception as e:
+            print(f"❌ Erro ao carregar índices: {e}")
+            self.faiss_index = None
+            self.documents = []
+    
+    def get_embedding(self, text: str) -> List[float]:
+        """Gera embedding para um texto usando OpenAI"""
+        try:
+            response = self.client.embeddings.create(
+                model=self.embedding_model,
+                input=text.strip()
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"❌ Erro ao gerar embedding: {e}")
+            return []
+    
+    def search_similar_documents(self, query: str, k: int = 5, min_similarity: float = 0.5) -> List[Tuple[str, float]]:
+        """
+        Busca documentos similares no índice FAISS
+        
+        Args:
+            query: Texto de busca
+            k: Número de documentos a retornar
+            min_similarity: Similaridade mínima (0-1)
             
-    except Exception as e:
-        print(f"❌ Erro no teste: {e}")
-        traceback.print_exc()
-        return False
-
-def main():
-    """Função principal de correção completa"""
-    
-    print("🚀 CORREÇÃO COMPLETA DO SISTEMA RAG")
-    print("="*60)
-    
-    try:
-        # 1. Corrigir erro da função fallback
-        print("\n1️⃣ Corrigindo erro 'str' object has no attribute 'get'...")
-        if not fix_rag_fallback_error():
-            print("❌ Falha na correção do erro")
-            return
+        Returns:
+            Lista de tuplas (documento, similaridade)
+        """
+        if not self.faiss_index or not self.documents:
+            print("❌ Índices não carregados")
+            return []
         
-        # 2. Criar diretório de dados
-        data_dir = '/home/raquel/medical-exam-analyzer/backend/data'
-        os.makedirs(data_dir, exist_ok=True)
-        print(f"✅ Diretório de dados: {data_dir}")
+        if not query.strip():
+            return []
         
-        # 3. Carregar dados do JSON
-        print("\n2️⃣ Carregando dados do JSON...")
-        json_data = load_json_data()
-        if not json_data:
-            print("⚠️ Dados JSON não disponíveis, usando exemplos padrão")
-            # Usar exemplos padrão se não tiver JSON
-            documents = []
-        else:
-            documents = extract_documents_from_json(json_data)
-        
-        # 4. Se não tem documentos, criar exemplos
-        if not documents:
-            print("\n3️⃣ Criando exemplos padrão...")
-            documents = create_default_examples()
-        
-        # 5. Carregar na base RAG
-        print(f"\n4️⃣ Carregando {len(documents)} documentos na base RAG...")
-        if not load_documents_to_rag(documents):
-            print("❌ Falha ao carregar documentos")
-            return
-        
-        # 6. Testar sistema completo
-        print("\n5️⃣ Testando sistema completo...")
-        if test_complete_system():
-            print("\n🎉 SUCESSO TOTAL! Sistema RAG corrigido e funcionando!")
+        try:
+            # Gera embedding da query
+            query_embedding = self.get_embedding(query)
+            if not query_embedding:
+                return []
             
-            print("\n📋 RESUMO DAS CORREÇÕES:")
-            print("✅ Erro 'str' object has no attribute 'get' CORRIGIDO")
-            print("✅ Base de conhecimento RAG CARREGADA")
-            print("✅ Busca de casos similares FUNCIONANDO")
-            print("✅ Geração de laudos RAG FUNCIONANDO")
+            # Converte para numpy array
+            query_vector = np.array([query_embedding], dtype=np.float32)
             
-            print("\n🚀 Próximos passos:")
-            print("1. Reiniciar servidor:")
-            print("   uvicorn app.main:app --host 0.0.0.0 --port 5003 --reload")
-            print("\n2. Testar endpoint:")
-            print("   curl -X POST 'http://localhost:5003/api/intelligent-medical-analysis' \\")
-            print("        -F 'patient_info=helena 45' \\")
-            print("        -F 'transcription=machuquei a coluna carregando peso'")
-            print("\n3. Verificar logs do sistema para confirmar que não há mais erros RAG")
+            # Busca no FAISS
+            distances, indices = self.faiss_index.search(query_vector, min(k, len(self.documents)))
             
-        else:
-            print("\n❌ Sistema com problemas mesmo após correções")
+            # Filtra e retorna resultados
+            results = []
+            for distance, idx in zip(distances[0], indices[0]):
+                if idx < len(self.documents) and idx >= 0:
+                    # Converte distância euclidiana para similaridade
+                    similarity = 1 / (1 + distance)
+                    
+                    if similarity >= min_similarity:
+                        results.append((self.documents[idx], similarity))
+            
+            # Ordena por similaridade (maior primeiro)
+            results.sort(key=lambda x: x[1], reverse=True)
+            return results
+            
+        except Exception as e:
+            print(f"❌ Erro na busca: {e}")
+            return []
+    
+    def extract_patient_info(self, transcription: str) -> Dict[str, str]:
+        """
+        Extrai informações estruturadas do paciente usando RAG + LLM
         
-    except Exception as e:
-        print(f"❌ Erro geral: {e}")
-        traceback.print_exc()
-
-def create_default_examples():
-    """Criar exemplos padrão se não tiver dados JSON"""
+        Args:
+            transcription: Texto da transcrição da consulta
+            
+        Returns:
+            Dicionário com informações do paciente
+        """
+        if not transcription.strip():
+            return self._get_empty_patient_info()
+        
+        # 1. Busca contexto relevante no RAG
+        search_queries = [
+            "identificação do paciente nome idade",
+            "dados pessoais profissão ocupação",
+            "anamnese queixa principal sintomas",
+            transcription[:200]  # Primeiros 200 chars da transcrição
+        ]
+        
+        context_docs = []
+        for query in search_queries:
+            similar_docs = self.search_similar_documents(query, k=3, min_similarity=0.6)
+            context_docs.extend([doc for doc, score in similar_docs])
+        
+        # Remove duplicatas e limita contexto
+        unique_docs = list(dict.fromkeys(context_docs))  # Remove duplicatas preservando ordem
+        context = "\n\n".join(unique_docs[:8])  # Máximo 8 documentos
+        
+        # 2. Prompt estruturado para extração
+        prompt = self._build_extraction_prompt(transcription, context)
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "Você é um assistente médico especializado em extrair informações estruturadas de anamnese. Seja preciso e objetivo. Retorne apenas JSON válido."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                max_tokens=600
+            )
+            
+            # Parse do resultado
+            result_text = response.choices[0].message.content.strip()
+            return self._parse_patient_info(result_text)
+            
+        except Exception as e:
+            print(f"❌ Erro na extração com RAG: {e}")
+            return self._extract_fallback(transcription)
     
-    print("📝 Criando exemplos médicos padrão...")
+    def _build_extraction_prompt(self, transcription: str, context: str) -> str:
+        """Constrói prompt para extração de informações"""
+        return f"""
+Analise a transcrição da consulta médica e extraia as informações do paciente.
+
+CONTEXTO MÉDICO RELEVANTE (use como referência):
+{context}
+
+TRANSCRIÇÃO DA CONSULTA:
+{transcription}
+
+Extraia APENAS informações explicitamente mencionadas na transcrição:
+
+1. Nome completo do paciente
+2. Idade (anos)
+3. Profissão/ocupação
+4. Queixa principal (motivo da consulta)
+5. Sintomas relatados
+6. Histórico médico relevante
+7. Medicamentos em uso
+
+Retorne no formato JSON exato:
+{{
+    "nome": "nome completo ou 'não informado'",
+    "idade": "idade ou 'não informada'",
+    "profissao": "profissão ou 'não informada'",
+    "queixa_principal": "descrição da queixa ou 'não informada'",
+    "sintomas": "lista dos sintomas ou 'não informados'",
+    "historico_medico": "histórico relevante ou 'não informado'",
+    "medicamentos": "medicamentos em uso ou 'não informados'"
+}}
+
+IMPORTANTE: 
+- Use "não informado/a/os" se a informação não estiver clara
+- Seja fiel ao texto da transcrição
+- Não invente informações"""
+
+    def _parse_patient_info(self, result_text: str) -> Dict[str, str]:
+        """Parse do resultado JSON da extração"""
+        try:
+            # Remove markdown se houver
+            clean_text = result_text.strip()
+            if clean_text.startswith('```json'):
+                clean_text = clean_text.replace('```json', '').replace('```', '').strip()
+            elif clean_text.startswith('```'):
+                clean_text = clean_text.replace('```', '').strip()
+            
+            patient_info = json.loads(clean_text)
+            
+            # Valida campos obrigatórios
+            required_fields = ['nome', 'idade', 'profissao', 'queixa_principal', 'sintomas']
+            for field in required_fields:
+                if field not in patient_info:
+                    patient_info[field] = 'não informado'
+            
+            return patient_info
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Erro ao parsear JSON: {e}")
+            print(f"Texto recebido: {result_text[:200]}...")
+            return self._extract_fallback_simple(result_text)
     
-    examples = [
-        """LAUDO MÉDICO ORTOPÉDICO - PEDREIRA
-
-IDENTIFICAÇÃO: Helena Silva, 45 anos, feminino, pedreira
-PROFISSÃO: Trabalha na construção civil há 20 anos
-DATA: 25/07/2025
-
-HISTÓRIA CLÍNICA:
-Paciente pedreira relata lesão na coluna vertebral decorrente de atividade laboral.
-Há 2 anos, durante trabalho de carregamento de materiais pesados, desenvolveu dor lombar intensa.
-Refere que não consegue mais carregar peso superior a 5kg.
-Dor constante que se intensifica com esforços físicos.
-Não aguenta mais exercer a profissão devido às limitações funcionais.
-Quer se aposentar por invalidez devido à incapacidade total.
-
-LIMITAÇÕES FUNCIONAIS:
-- Incapacidade para levantamento de peso superior a 10kg
-- Impossibilidade de trabalhar em posições incômodas
-- Limitação severa para trabalho que exija esforço físico intenso
-- Dor que impede atividades laborais prolongadas
-- Não consegue carregar nem sacola de compras
-- Incapacidade total para exercer profissão de pedreira
-
-DIAGNÓSTICO: Lombalgia ocupacional crônica com limitação funcional severa
-CID-10: M54.5 - Dorsalgia não especificada
-
-NEXO CAUSAL: Doença ocupacional relacionada a esforços repetitivos e carregamento de peso na construção civil
-
-CONCLUSÃO:
-Paciente apresenta limitações funcionais graves que a impossibilitam para o exercício 
-da profissão de pedreira. Incapacidade total temporária com necessidade de afastamento.
-Quadro justifica auxílio-doença previdenciário devido à impossibilidade de exercer atividade laboral.
-
-Dr. Carlos Mendes - CRM 12345-SP - Ortopedia""",
-
-        """LAUDO MÉDICO OCUPACIONAL - CONSTRUÇÃO CIVIL
-
-IDENTIFICAÇÃO: Maria Santos, 42 anos, feminino, pedreiro
-TEMPO DE SERVIÇO: 18 anos na construção civil
-DATA: 20/07/2025
-
-HISTÓRIA CLÍNICA:
-Trabalhadora da construção civil com exposição prolongada a carregamento de peso.
-Desenvolveu lesão lombar progressiva nos últimos 3 anos.
-Refere dor constante que impede exercício da profissão.
-Limitação severa para esforços físicos e levantamento de cargas.
-Machuquei a coluna carregando materiais pesados na obra.
-
-SINTOMAS APRESENTADOS:
-- Dor lombar crônica intensa
-- Limitação funcional para carregamento
-- Impossibilidade de manter postura laboral
-- Fadiga muscular precoce
-- Incapacidade para trabalhos pesados
-
-LIMITAÇÕES FUNCIONAIS:
-- Incapacidade total para carregamento de materiais
-- Impossibilidade de trabalhar em obra
-- Comprometimento para atividades que exigem força
-- Limitação severa para posições prolongadas
-- Não aguenta esforço físico
-
-DIAGNÓSTICO: Lombalgia ocupacional com incapacidade laboral
-CID-10: M54.5 - Dorsalgia não especificada
-
-NEXO CAUSAL: Doença ocupacional por exposição a esforços repetitivos
-
-CONCLUSÃO:
-Quadro ocupacional grave incompatível com exercício da construção civil.
-Recomenda-se afastamento e auxílio-doença.
-
-Dr. Roberto Silva - CRM 67890-SP - Medicina do Trabalho""",
-
-        """LAUDO NEUROLÓGICO - LESÃO COLUNA TRABALHO
-
-IDENTIFICAÇÃO: João Santos, 48 anos, masculino, pedreiro
-TEMPO DE PROFISSÃO: 22 anos na construção
-DATA: 30/07/2025
-
-HISTÓRIA CLÍNICA:
-Paciente pedreiro com história de trauma em coluna durante trabalho.
-Desenvolveu herniação discal com comprometimento radicular.
-Apresenta dor irradiada e limitação funcional severa.
-Incapacidade para atividades laborais habituais.
-Machuquei a coluna carregando peso na obra.
-
-EXAME NEUROLÓGICO:
-- Sinal de Lasègue positivo bilateral
-- Diminuição de força em membros inferiores
-- Reflexos aquilianos diminuídos
-- Parestesias em território L5-S1
-
-LIMITAÇÕES FUNCIONAIS:
-- Incapacidade para levantamento de peso
-- Limitação severa para deambulação prolongada
-- Impossibilidade de trabalho em construção
-- Comprometimento para esforços físicos
-
-DIAGNÓSTICO: Hernia discal lombar ocupacional
-CID-10: M51.2 - Outros deslocamentos de disco intervertebral
-
-CONCLUSÃO:
-Lesão ocupacional com incapacidade laboral definitiva para construção civil.
-Contraindicação absoluta para trabalhos pesados.
-
-Dr. Fernando Costa - CRM 24680-SP - Neurologia""",
-
-        """LAUDO PSIQUIÁTRICO - SÍNDROME DE BURNOUT
-
-IDENTIFICAÇÃO: Ana Oliveira, 38 anos, feminino, professora
-TEMPO DE MAGISTÉRIO: 15 anos
-DATA: 28/07/2025
-
-HISTÓRIA CLÍNICA:
-Paciente professora apresenta quadro de esgotamento profissional (síndrome de burnout).
-Relata sobrecarga de trabalho, excesso de alunos por turma e falta de apoio institucional.
-Desenvolveu sintomas de ansiedade generalizada, depressão e ataques de pânico.
-Não consegue mais exercer a docência devido ao sofrimento psíquico intenso.
-
-SINTOMAS APRESENTADOS:
-- Ansiedade constante relacionada ao ambiente escolar
-- Episódios depressivos recorrentes
-- Ataques de pânico antes das aulas
-- Insônia e irritabilidade
-- Fadiga mental e física
-- Ideação de abandono da profissão
-
-LIMITAÇÕES FUNCIONAIS:
-- Incapacidade para exercer atividades docentes
-- Limitação para ambiente escolar
-- Comprometimento da capacidade de concentração
-- Impossibilidade de lidar com grupos de alunos
-
-DIAGNÓSTICO: Síndrome de Burnout - Esgotamento profissional
-CID-10: Z73.0 - Sensação de estar acabado (Burn-out)
-
-NEXO CAUSAL: Transtorno mental relacionado ao trabalho docente
-
-CONCLUSÃO:
-Paciente apresenta incapacidade temporária para exercício da docência.
-Necessita afastamento e tratamento psiquiátrico especializado.
-Recomenda-se auxílio-doença e acompanhamento terapêutico.
-
-Dra. Ana Paula - CRM 98765-SP - Psiquiatria"""
-    ]
+    def _extract_fallback_simple(self, text: str) -> Dict[str, str]:
+        """Extração simples em caso de erro no JSON"""
+        # Tenta extrair informações básicas do texto
+        info = self._get_empty_patient_info()
+        
+        text_lower = text.lower()
+        
+        # Busca padrões simples
+        if 'nome' in text_lower:
+            lines = text.split('\n')
+            for line in lines:
+                if 'nome' in line.lower() and ':' in line:
+                    info['nome'] = line.split(':', 1)[1].strip().strip('"').strip("'")
+                    break
+        
+        return info
     
-    print(f"✅ Criados {len(examples)} exemplos médicos padrão")
-    return examples
+    def _extract_fallback(self, transcription: str) -> Dict[str, str]:
+        """Método de fallback para extração sem RAG"""
+        try:
+            prompt = f"""
+Analise esta transcrição médica e extraia as informações básicas:
+
+{transcription[:800]}
+
+Retorne JSON com: nome, idade, profissao, queixa_principal, sintomas
+Use "não informado" para informações ausentes.
+"""
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=400
+            )
+            
+            result = response.choices[0].message.content.strip()
+            return self._parse_patient_info(result)
+            
+        except Exception as e:
+            print(f"❌ Erro no fallback: {e}")
+            return self._get_empty_patient_info()
+    
+    def _get_empty_patient_info(self) -> Dict[str, str]:
+        """Retorna estrutura vazia de informações do paciente"""
+        return {
+            "nome": "não informado",
+            "idade": "não informada",
+            "profissao": "não informada",
+            "queixa_principal": "não informada",
+            "sintomas": "não informados",
+            "historico_medico": "não informado",
+            "medicamentos": "não informados"
+        }
+
+    def generate_medical_report(self, patient_info: Dict[str, str], transcription: str) -> str:
+        """
+        Gera relatório médico estruturado usando RAG para contexto
+        
+        Args:
+            patient_info: Informações extraídas do paciente
+            transcription: Transcrição completa da consulta
+            
+        Returns:
+            Relatório médico formatado
+        """
+        # Busca contexto relevante para o relatório
+        context_queries = [
+            f"relatório médico {patient_info.get('queixa_principal', '')}",
+            f"exame clínico {patient_info.get('sintomas', '')}",
+            "estrutura relatório médico anamnese",
+            "consulta médica diagnóstico"
+        ]
+        
+        context_docs = []
+        for query in context_queries:
+            if query.strip():
+                similar_docs = self.search_similar_documents(query, k=2, min_similarity=0.6)
+                context_docs.extend([doc for doc, score in similar_docs])
+        
+        # Contexto limitado e sem duplicatas
+        unique_context = list(dict.fromkeys(context_docs))
+        context = "\n---\n".join(unique_context[:6])
+        
+        prompt = self._build_report_prompt(patient_info, transcription, context)
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "Você é um médico especialista em elaborar relatórios médicos estruturados, claros e profissionais."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=1800
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            print(f"❌ Erro ao gerar relatório: {e}")
+            return self._generate_basic_report(patient_info, transcription)
+    
+    def _build_report_prompt(self, patient_info: Dict[str, str], transcription: str, context: str) -> str:
+        """Constrói prompt para geração do relatório"""
+        return f"""
+Gere um relatório médico estruturado e profissional baseado nas informações da consulta.
+
+INFORMAÇÕES DO PACIENTE:
+{json.dumps(patient_info, indent=2, ensure_ascii=False)}
+
+CONTEXTO MÉDICO RELEVANTE:
+{context}
+
+TRANSCRIÇÃO COMPLETA DA CONSULTA:
+{transcription}
+
+Gere um relatório seguindo EXATAMENTE esta estrutura:
+
+**RELATÓRIO MÉDICO**
+
+**IDENTIFICAÇÃO DO PACIENTE:**
+- Nome: {patient_info.get('nome', 'Não informado')}
+- Idade: {patient_info.get('idade', 'Não informada')}
+- Profissão: {patient_info.get('profissao', 'Não informada')}
+
+**ANAMNESE:**
+- Queixa Principal: [descreva a queixa principal do paciente]
+- História da Doença Atual: [histórico detalhado dos sintomas]
+- Sintomas Relatados: [liste os sintomas mencionados]
+- Histórico Médico: [histórico médico relevante se mencionado]
+
+**EXAME FÍSICO:**
+[Descreva os achados do exame físico mencionados na consulta]
+
+**MEDICAMENTOS EM USO:**
+[Liste medicamentos mencionados ou "Não informado"]
+
+**AVALIAÇÃO CLÍNICA:**
+[Suas impressões clínicas baseadas nos dados coletados]
+
+**HIPÓTESES DIAGNÓSTICAS:**
+[Liste as possíveis hipóteses diagnósticas]
+
+**CONDUTA/PLANO TERAPÊUTICO:**
+[Tratamento proposto, exames solicitados, orientações]
+
+**OBSERVAÇÕES:**
+[Informações adicionais relevantes ou recomendações]
+
+IMPORTANTE: Base-se APENAS nas informações fornecidas na transcrição. Seja profissional e objetivo."""
+
+    def _generate_basic_report(self, patient_info: Dict[str, str], transcription: str) -> str:
+        """Gera relatório básico em caso de erro"""
+        return f"""
+**RELATÓRIO MÉDICO**
+
+**IDENTIFICAÇÃO DO PACIENTE:**
+- Nome: {patient_info.get('nome', 'Não informado')}
+- Idade: {patient_info.get('idade', 'Não informada')}
+- Profissão: {patient_info.get('profissao', 'Não informada')}
+
+**ANAMNESE:**
+- Queixa Principal: {patient_info.get('queixa_principal', 'Não informada')}
+- Sintomas: {patient_info.get('sintomas', 'Não informados')}
+
+**TRANSCRIÇÃO DA CONSULTA:**
+{transcription[:500]}...
+
+**OBSERVAÇÕES:**
+Relatório gerado automaticamente. Revisar informações com base na consulta completa.
+"""
+
+    def search_medical_context(self, query: str, max_results: int = 5) -> List[str]:
+        """
+        Busca contexto médico específico no RAG
+        
+        Args:
+            query: Consulta médica
+            max_results: Número máximo de resultados
+            
+        Returns:
+            Lista de documentos relevantes
+        """
+        results = self.search_similar_documents(query, k=max_results, min_similarity=0.7)
+        return [doc for doc, score in results]
+    
+    def get_rag_stats(self) -> Dict[str, Any]:
+        """Retorna estatísticas do sistema RAG"""
+        return {
+            "index_loaded": self.faiss_index is not None,
+            "total_vectors": self.faiss_index.ntotal if self.faiss_index else 0,
+            "total_documents": len(self.documents),
+            "embedding_model": self.embedding_model,
+            "index_directory": self.index_dir
+        }
+
+
+# Função de teste
+def test_medical_rag():
+    """Testa o serviço RAG médico"""
+    rag = MedicalRAGService()
+    
+    # Exibe estatísticas
+    stats = rag.get_rag_stats()
+    print("=== ESTATÍSTICAS DO RAG ===")
+    for key, value in stats.items():
+        print(f"{key}: {value}")
+    
+    # Teste de busca
+    print("\n=== TESTE DE BUSCA ===")
+    results = rag.search_similar_documents("dor no peito", k=3)
+    for i, (doc, score) in enumerate(results):
+        print(f"{i+1}. Similaridade: {score:.3f}")
+        print(f"   Documento: {doc[:100]}...")
+    
+    # Teste de extração
+    print("\n=== TESTE DE EXTRAÇÃO ===")
+    test_transcription = """
+    Paciente João Silva, 45 anos, engenheiro. Queixa de dor torácica há 3 dias,
+    tipo aperto, irradiando para braço esquerdo. Nega dispneia. PA: 140x90mmHg.
+    """
+    
+    patient_info = rag.extract_patient_info(test_transcription)
+    print("Informações extraídas:")
+    print(json.dumps(patient_info, indent=2, ensure_ascii=False))
+    
+    # Teste de relatório
+    print("\n=== TESTE DE RELATÓRIO ===")
+    report = rag.generate_medical_report(patient_info, test_transcription)
+    print(f"Relatório gerado ({len(report)} caracteres):")
+    print(report[:300] + "...")
+
 
 if __name__ == "__main__":
-    main()
+    test_medical_rag()

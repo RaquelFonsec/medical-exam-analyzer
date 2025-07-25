@@ -52,10 +52,13 @@ class MedicalRAGService:
     
     def _create_empty_index(self):
         """Criar índice FAISS vazio"""
-        self.faiss_index = faiss.IndexFlatL2(self.dimension)
-        self.chunks = []
-        print("✅ Índice FAISS vazio criado")
-    
+        try:
+            self.faiss_index = faiss.IndexFlatIP(self.dimension)
+            self.chunks = []
+            print("✅ Índice FAISS vazio criado")
+        except Exception as e:
+            print(f"❌ Erro ao criar índice: {e}")
+
     def _load_knowledge_base(self):
         """Carregar base de conhecimento existente"""
         try:
@@ -369,6 +372,16 @@ Análise: Paciente avaliado conforme relato apresentado.
 Recomenda-se acompanhamento médico especializado.
 
 Data: {datetime.now().strftime('%d/%m/%Y')}"""
+
+    def get_rag_stats(self) -> Dict[str, Any]:
+        """Retorna estatísticas do sistema RAG"""
+        return {
+            "index_loaded": self.faiss_index is not None,
+            "total_vectors": self.faiss_index.ntotal if self.faiss_index else 0,
+            "total_documents": len(self.chunks) if self.chunks else 0,
+            "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+            "index_directory": os.path.dirname(self.faiss_index_path)
+        }
 
 # Instância global
 medical_rag_service = MedicalRAGService()

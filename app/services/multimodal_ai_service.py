@@ -11,30 +11,9 @@ import numpy as np
 import pickle
 
 class MedicalRAGService:
-    def __init__(self, client, parent_service=None):
-        """Inicializa o serviço RAG médico"""
-        self.client = client
-        self.parent_service = parent_service  # Referência ao MultimodalAIService
-        
-        # Configuração de embedding
-        self.embedding_model = "text-embedding-3-small"
-        
-        # Determinar o path correto para os índices
-        # Primeiro, tenta o diretório local app/index_faiss_openai
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        app_dir = os.path.dirname(current_dir)  # Sobe um nível para app/
-        self.index_dir = os.path.join(app_dir, "index_faiss_openai")
-        
-        # Se não existir, tenta paths alternativos
-        if not os.path.exists(self.index_dir):
-            # Tenta na raiz do projeto
-            project_root = os.path.dirname(os.path.dirname(app_dir))
-            alternative_path = os.path.join(project_root, "index_faiss_openai")
-            if os.path.exists(alternative_path):
-                self.index_dir = alternative_path
-        
-        print(f"🔍 Tentando carregar índices de: {self.index_dir}")
-        
+    def __init__(self):
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.index_dir = "index_faiss_openai"
         self.faiss_index = None
         self.documents = []
         self.load_indexes()
@@ -42,41 +21,21 @@ class MedicalRAGService:
     def load_indexes(self):
         """Carrega os índices FAISS e documentos salvos"""
         try:
-            # Verifica se o diretório existe
-            if not os.path.exists(self.index_dir):
-                print(f"❌ Diretório de índices não encontrado: {self.index_dir}")
-                return
-            
             # Carrega o índice FAISS
             index_path = os.path.join(self.index_dir, "index.faiss")
             if os.path.exists(index_path):
                 self.faiss_index = faiss.read_index(index_path)
-                print(f"✅ Índice FAISS carregado: {self.faiss_index.ntotal} vetores de {index_path}")
-            else:
-                print(f"❌ Arquivo index.faiss não encontrado em: {index_path}")
+                print(f"✅ Índice FAISS carregado: {self.faiss_index.ntotal} vetores")
             
             # Carrega os documentos/chunks
             docs_path = os.path.join(self.index_dir, "documents.pkl")
             if os.path.exists(docs_path):
                 with open(docs_path, 'rb') as f:
                     self.documents = pickle.load(f)
-                print(f"✅ Documentos carregados: {len(self.documents)} chunks de {docs_path}")
-            else:
-                print(f"❌ Arquivo documents.pkl não encontrado em: {docs_path}")
+                print(f"✅ Documentos carregados: {len(self.documents)} chunks")
                 
         except Exception as e:
             print(f"❌ Erro ao carregar índices: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def get_rag_stats(self) -> Dict[str, Any]:
-        """Retorna estatísticas do sistema RAG"""
-        return {
-            "faiss_index_loaded": self.faiss_index is not None,
-            "documents_loaded": len(self.documents) if self.documents else 0,
-            "index_directory": self.index_dir,
-            "vector_count": self.faiss_index.ntotal if self.faiss_index else 0
-        }
     
     def get_embedding(self, text: str) -> List[float]:
         """Gera embedding para um texto usando OpenAI"""
@@ -234,120 +193,89 @@ Use "não informado" se não encontrar a informação.
                 "sintomas": "não informados"
             }
 
-    def generate_medical_report(self, patient_text: str, patient_data: dict) -> str:
-        """Gera relatório médico completo com classificação de benefício"""
+    def generate_medical_report(self, patient_info: Dict[str, str], transcription: str) -> str:
+        """Gera relatório médico estruturado"""
         
-        # Primeiro gera a classificação para incluir no laudo
-        benefit_classification = self.parent_service.classify_benefit_and_cid(patient_text, patient_data) if self.parent_service else {}
+        # Busca contexto relevante para o relatório
+        context_queries = [
+            f"relatório médico {patient_info.get('queixa_principal', '')}",
+            f"exame clínico {patient_info.get('sintomas', '')}",
+            "estrutura relatório médico",
+            "anamnese consulta médica"
+        ]
         
-        # Montar informações da classificação para o prompt
-        classification_info = ""
-        if benefit_classification:
-            classification_info = f"""
-CLASSIFICAÇÃO PREVIDENCIÁRIA:
-- Tipo de Benefício: {benefit_classification.get('tipo_beneficio', 'Não definido')}
-- CID Principal: {benefit_classification.get('cid_principal', 'Não definido')} - {benefit_classification.get('cid_descricao', '')}
-- Gravidade: {benefit_classification.get('gravidade', 'Não definida')}
-- Prognóstico: {benefit_classification.get('prognóstico', 'Não definido')}
-"""
-
+        context_docs = []
+        for query in context_queries:
+            similar_docs = self.search_similar_documents(query, k=2)
+            context_docs.extend([doc for doc, score in similar_docs if score > 0.6])
+        
+        context = "\n".join(list(set(context_docs))[:8])
+        
         prompt = f"""
-Você é um médico perito previdenciário experiente. Gere um LAUDO MÉDICO COMPLETO e DETALHADO baseado nas informações fornecidas.
+Com base na transcrição da consulta médica, gere um relatório médico estruturado e profissional.
 
-DADOS DO PACIENTE:
-{patient_data}
+INFORMAÇÕES DO PACIENTE:
+{json.dumps(patient_info, indent=2, ensure_ascii=False)}
 
-TEXTO DA CONSULTA:
-{patient_text}
+CONTEXTO MÉDICO RELEVANTE:
+{context}
 
-{classification_info}
+TRANSCRIÇÃO COMPLETA:
+{transcription}
 
-IMPORTANTE: Inclua OBRIGATORIAMENTE no laudo:
-1. A classificação de benefício (Auxílio Doença ou Perícia Médica)
-2. O CID principal sugerido
-3. Justificativa médica para a classificação
+Gere um relatório médico seguindo esta estrutura:
 
-ESTRUTURE O LAUDO ASSIM:
+**RELATÓRIO MÉDICO**
 
-**LAUDO MÉDICO PREVIDENCIÁRIO**
-
-**IDENTIFICAÇÃO:**
-Nome: [nome do paciente]
-Idade: [idade]
-Profissão: [profissão]
+**IDENTIFICAÇÃO DO PACIENTE:**
+- Nome: {patient_info.get('nome', 'Não informado')}
+- Idade: {patient_info.get('idade', 'Não informada')}
+- Profissão: {patient_info.get('profissao', 'Não informada')}
 
 **ANAMNESE:**
-[Descreva detalhadamente a história clínica e queixa principal]
+- Queixa Principal: 
+- História da Doença Atual:
+- Sintomas e Sinais:
 
-**EXAME FÍSICO:**
+**EXAME CLÍNICO:**
 [Descreva os achados do exame físico mencionados]
 
 **HIPÓTESE DIAGNÓSTICA:**
 [Baseado nos sintomas relatados]
 
-**CID-10 PRINCIPAL:** {benefit_classification.get('cid_principal', 'A definir')} - {benefit_classification.get('cid_descricao', 'Diagnóstico a ser confirmado')}
+**CONDUTA/PLANO:**
+[Tratamento, exames solicitados, orientações]
 
-**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
-Tipo de Benefício Indicado: **{benefit_classification.get('tipo_beneficio', 'ANÁLISE_NECESSÁRIA')}**
+**OBSERVAÇÕES:**
+[Informações adicionais relevantes]
 
-**JUSTIFICATIVA MÉDICA:**
-{benefit_classification.get('justificativa', 'Baseado na análise clínica dos sintomas apresentados e na evolução do quadro.')}
-
-**PROGNÓSTICO:**
-{benefit_classification.get('prognóstico', 'Prognóstico a ser definido com acompanhamento médico.')}
-
-**CAPACIDADE LABORAL:**
-[Com base no tipo de benefício, descreva se há incapacidade temporária ou permanente]
-
-**RECOMENDAÇÕES:**
-[Tratamentos e acompanhamentos necessários]
-
-**DATA:** [Data atual]
-**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]
-**CRM:** [Número do CRM]
-
-Seja detalhado, técnico e use terminologia médica apropriada.
+Seja profissional, claro e baseie-se apenas nas informações fornecidas na transcrição.
 """
 
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "Você é um médico perito especialista em laudos previdenciários. Seja técnico, detalhado e preciso."},
+                    {"role": "system", "content": "Você é um médico especialista em elaborar relatórios médicos estruturados e profissionais."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.2,
-                max_tokens=2000
+                max_tokens=1500
             )
             
-            report = response.choices[0].message.content.strip()
-            
-            # Salvar relatório em arquivo
-            patient_name = patient_data.get('nome', 'não_informado').replace(' ', '_').lower()
-            filename = f"relatorio_{patient_name}.txt"
-            filepath = os.path.join("relatorios", filename)
-            
-            os.makedirs("relatorios", exist_ok=True)
-            
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(report)
-            
-            print(f"✅ Relatório médico completo salvo em {filepath}")
-            return report
+            return response.choices[0].message.content.strip()
             
         except Exception as e:
-            print(f"❌ Erro ao gerar relatório médico: {e}")
+            print(f"❌ Erro ao gerar relatório: {e}")
             return f"Erro ao gerar relatório médico: {e}"
 
 
 class MultimodalAIService:
     def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.rag_service = MedicalRAGService()  # Nova instância do RAG
         
-        # Inicializar RAG service com referência a este service
-        self.rag_service = MedicalRAGService(self.client, parent_service=self)
-        
-        # Path para salvar transcrições
+        # Configuração de caminhos
         self.relatorios_dir = "relatorios"
         self.transcription_path = os.path.join(self.relatorios_dir, "transcription.txt")
         
@@ -381,47 +309,26 @@ class MultimodalAIService:
                 
                 results["transcription"] = transcription
             
-            # SEM ÁUDIO: usar apenas se não tiver patient_info
-            elif not patient_info and os.path.exists(self.transcription_path):
+            # Carrega transcrição existente se não houver áudio
+            elif os.path.exists(self.transcription_path):
                 with open(self.transcription_path, "r", encoding="utf-8") as f:
                     transcription = f.read()
                 results["transcription"] = transcription
-                print(f"✅ Transcrição carregada do arquivo (sem patient_info atual)")
+                print(f"✅ Transcrição carregada do arquivo existente")
             
             # 2. EXTRAÇÃO DE DADOS DO PACIENTE COM RAG
-            # PRIORIZAR TEXTO ATUAL FORNECIDO
-            combined_text = ""
-            if patient_info and patient_info.strip():
-                print("📝 Usando texto fornecido pelo usuário...")
-                combined_text = patient_info.strip()
-            elif transcription and not transcription.startswith("⚠️") and not transcription.startswith("Erro"):
-                print("🎤 Usando transcrição de áudio...")
-                combined_text = transcription
-            else:
-                print("⚠️ Nenhum texto disponível para análise")
-                combined_text = ""
-            
-            # Sempre tentar extrair dados se temos algum texto
-            if combined_text.strip():
-                patient_data = self.rag_service.extract_patient_info(combined_text)
+            if transcription:
+                print("🔍 Extraindo informações do paciente com RAG...")
+                patient_data = self.rag_service.extract_patient_info(transcription)
                 results["patient_data"] = patient_data
                 print(f"✅ Dados extraídos: {patient_data}")
-            else:
-                print("⚠️ Nenhum texto disponível para extração")
-                results["patient_data"] = {
-                    "nome": "não informado",
-                    "idade": "não informada", 
-                    "profissao": "não informada",
-                    "queixa_principal": "não informada",
-                    "sintomas": "não informados"
-                }
             
             # 3. GERAÇÃO DE RELATÓRIO MÉDICO COM RAG
-            if combined_text.strip() and results["patient_data"]:
+            if transcription and results["patient_data"]:
                 print("📋 Gerando relatório médico...")
                 medical_report = self.rag_service.generate_medical_report(
-                    combined_text, # Usar o texto combinado em vez de apenas transcrição
-                    results["patient_data"]
+                    results["patient_data"], 
+                    transcription
                 )
                 results["medical_report"] = medical_report
                 
@@ -433,26 +340,15 @@ class MultimodalAIService:
                 with open(report_path, "w", encoding="utf-8") as f:
                     f.write(medical_report)
                 print(f"✅ Relatório salvo em {report_path}")
-            else:
-                print("⚠️ Dados insuficientes para gerar relatório")
             
-            # 4. CLASSIFICAÇÃO DE BENEFÍCIO E CID
-            if combined_text.strip():
-                print("🏥 Classificando tipo de benefício e CID...")
-                benefit_classification = self.classify_benefit_and_cid(combined_text, results["patient_data"])
-                results["benefit_classification"] = benefit_classification
-                print(f"✅ Classificação concluída: {benefit_classification['tipo_beneficio']}")
-            else:
-                print("⚠️ Texto insuficiente para classificação")
-            
-            # 5. ANÁLISE DE IMAGEM
+            # 4. ANÁLISE DE IMAGEM
             if image_path and os.path.exists(image_path):
                 print("🖼️ Analisando imagem médica...")
                 image_analysis = await self._analyze_image(image_path)
                 results["image_analysis"] = image_analysis
                 print("✅ Análise de imagem concluída")
             
-            # 6. ANÁLISE INTEGRADA
+            # 5. ANÁLISE INTEGRADA
             if any([results["transcription"], results["image_analysis"]]):
                 print("🧠 Gerando análise integrada...")
                 integrated_analysis = await self._generate_integrated_analysis(results)
@@ -471,14 +367,10 @@ class MultimodalAIService:
     async def _transcribe_audio_whisper(self, audio_bytes: bytes) -> str:
         """Transcrição de áudio usando Whisper da OpenAI"""
         try:
-            print(f"🎙️ Iniciando transcrição de {len(audio_bytes)} bytes")
-            
             # Salva audio temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
                 temp_file.write(audio_bytes)
                 temp_file_path = temp_file.name
-            
-            print(f"📁 Arquivo temporário criado: {temp_file_path}")
             
             # Transcrição com Whisper
             with open(temp_file_path, "rb") as audio_file:
@@ -491,29 +383,11 @@ class MultimodalAIService:
             # Remove arquivo temporário
             os.unlink(temp_file_path)
             
-            transcription_text = transcript.text.strip()
-            print(f"✅ Transcrição bem-sucedida: '{transcription_text[:100]}...'")
-            
-            return transcription_text
+            return transcript.text
             
         except Exception as e:
-            error_msg = str(e)
-            print(f"❌ Erro na transcrição: {error_msg}")
-            
-            # Remove arquivo temporário em caso de erro
-            try:
-                if 'temp_file_path' in locals():
-                    os.unlink(temp_file_path)
-            except:
-                pass
-            
-            # Retorna erro mais amigável
-            if "format" in error_msg.lower() or "decode" in error_msg.lower():
-                return "⚠️ Formato de áudio não suportado. Tente gravar novamente ou use as informações do texto."
-            elif "duration" in error_msg.lower():
-                return "⚠️ Áudio muito curto. Grave por pelo menos 3 segundos."
-            else:
-                return f"⚠️ Erro na transcrição do áudio. Use as informações do texto."
+            print(f"❌ Erro na transcrição: {e}")
+            return f"Erro na transcrição: {e}"
     
     async def _analyze_image(self, image_path: str) -> str:
         """Análise de imagem médica usando GPT-4 Vision"""
@@ -565,7 +439,7 @@ class MultimodalAIService:
         queries = [
             f"análise médica {patient_data.get('queixa_principal', '')}",
             f"diagnóstico {patient_data.get('sintomas', '')}",
-            "avaliação clínica consulta médico"
+            "avaliação clínica consulta médica"
         ]
         
         context_docs = []
@@ -617,83 +491,19 @@ Seja objetivo e profissional.
         except Exception as e:
             return f"Erro na análise integrada: {e}"
 
-
-    def classify_benefit_and_cid(self, patient_text: str, patient_data: dict) -> dict:
-        """Classifica tipo de benefício e sugere CID baseado nos dados do paciente"""
-        
-        prompt = f"""
-Você é um médico perito especialista em classificação de benefícios previdenciários.
-
-DADOS DO PACIENTE:
-{patient_data}
-
-TEXTO COMPLETO DA CONSULTA:
-{patient_text}
-
-Analise os dados e classifique:
-
-1. TIPO DE BENEFÍCIO:
-   - AUXÍLIO DOENÇA: Incapacidade temporária para o trabalho (até 2 anos)
-   - PERÍCIA MÉDICA: Incapacidade permanente, aposentadoria por invalidez, BPC/LOAS
-
-2. CID PRINCIPAL: Baseado nos sintomas e condições relatadas
-
-Critérios para AUXÍLIO DOENÇA:
-- Doenças agudas ou com potencial de melhora
-- Fraturas, cirurgias com recuperação esperada
-- Depressão leve/moderada tratável
-- Problemas temporários de saúde
-
-Critérios para PERÍCIA MÉDICA:
-- Doenças crônicas progressivas
-- Deficiências permanentes
-- Transtornos mentais graves
-- Incapacidade definitiva
-- Idade avançada + múltiplas comorbidades
-
-Retorne APENAS um JSON:
-{{
-    "tipo_beneficio": "AUXILIO_DOENCA" ou "PERICIA_MEDICA",
-    "cid_principal": "código CID-10",
-    "cid_descricao": "descrição do CID",
-    "justificativa": "explicação breve da classificação",
-    "gravidade": "LEVE", "MODERADA" ou "GRAVE",
-    "prognóstico": "descrição do prognóstico"
-}}
-"""
-
-        try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "Você é um médico perito especialista em classificação previdenciária. Seja preciso e objetivo."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                max_tokens=500
-            )
-            
-            result_text = response.choices[0].message.content.strip()
-            
-            # Remove markdown se houver
-            if result_text.startswith('```json'):
-                result_text = result_text.replace('```json', '').replace('```', '').strip()
-            
-            classification = json.loads(result_text)
-            
-            print(f"✅ Classificação: {classification['tipo_beneficio']} - CID: {classification['cid_principal']}")
-            return classification
-            
-        except Exception as e:
-            print(f"❌ Erro na classificação: {e}")
-            return {
-                "tipo_beneficio": "ANALISE_MANUAL",
-                "cid_principal": "Z00.0",
-                "cid_descricao": "Exame médico geral",
-                "justificativa": "Análise manual necessária",
-                "gravidade": "A_DEFINIR",
-                "prognóstico": "Avaliação médica presencial recomendada"
-            }
+    # Métodos auxiliares
+    def get_transcription(self) -> str:
+        """Retorna a transcrição salva"""
+        if os.path.exists(self.transcription_path):
+            with open(self.transcription_path, "r", encoding="utf-8") as f:
+                return f.read()
+        return ""
+    
+    def save_transcription(self, transcription: str) -> str:
+        """Salva transcrição manualmente"""
+        with open(self.transcription_path, "w", encoding="utf-8") as f:
+            f.write(transcription)
+        return self.transcription_path
 
 
 # Função de teste e demonstração
@@ -713,7 +523,7 @@ async def test_multimodal_service():
     """
     
     # Salva transcrição para teste
-    # service.save_transcription(test_transcription) # This line was removed as per the new_code
+    service.save_transcription(test_transcription)
     
     # Executa análise completa
     results = await service.analyze_multimodal()

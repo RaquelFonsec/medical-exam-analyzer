@@ -245,12 +245,31 @@
        async function startRecording() {
            try {
                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-               mediaRecorder = new MediaRecorder(stream);
+               
+               // Tentar diferentes formatos de áudio suportados
+               const options = [
+                   { mimeType: 'audio/webm;codecs=opus' },
+                   { mimeType: 'audio/webm' },
+                   { mimeType: 'audio/mp4' },
+                   { mimeType: 'audio/ogg;codecs=opus' },
+                   {} // Fallback para formato padrão
+               ];
+               
+               let selectedOptions = {};
+               for (const option of options) {
+                   if (MediaRecorder.isTypeSupported(option.mimeType || '')) {
+                       selectedOptions = option;
+                       console.log("🎤 Formato de áudio selecionado:", option.mimeType);
+                       break;
+                   }
+               }
+               
+               mediaRecorder = new MediaRecorder(stream, selectedOptions);
                audioChunks = [];
                recordingSeconds = 0;
 
                mediaRecorder.ondataavailable = event => {
-                   console.log("📊 Chunk de áudio:", event.data.size, "bytes");
+                   console.log("📊 Chunk de áudio:", event.data.size, "bytes", "tipo:", event.data.type);
                    audioChunks.push(event.data);
                };
 
@@ -310,9 +329,24 @@
            formData.append('patient_info', patientInfo);
 
            if (audioChunks.length > 0) {
-               const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-               formData.append('audio_data', audioBlob, `consulta_${Date.now()}.wav`);
-               console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes");
+               // Detectar o tipo MIME real dos chunks de áudio
+               const firstChunk = audioChunks[0];
+               const detectedType = firstChunk.type || 'audio/webm';
+               
+               console.log("🔍 Tipo de áudio detectado:", detectedType);
+               
+               // Criar blob com o tipo correto
+               const audioBlob = new Blob(audioChunks, { type: detectedType });
+               
+               // Determinar extensão do arquivo baseada no tipo
+               let fileExtension = 'webm';
+               if (detectedType.includes('mp4')) fileExtension = 'mp4';
+               else if (detectedType.includes('ogg')) fileExtension = 'ogg';
+               else if (detectedType.includes('wav')) fileExtension = 'wav';
+               
+               const fileName = `consulta_${Date.now()}.${fileExtension}`;
+               formData.append('audio_data', audioBlob, fileName);
+               console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes", "tipo:", detectedType, "arquivo:", fileName);
            }
 
            const documentsInput = document.querySelector('input[name="documents"]');
@@ -357,6 +391,54 @@
        function displayHybridResults(result) {
            console.log("📊 Exibindo resultados híbridos inteligentes");
 
+           // Adicionar seção de classificação antes dos dados do contexto
+           let classificationHtml = "";
+           if (result.benefit_classification) {
+               const bc = result.benefit_classification;
+               const benefitClass = bc.tipo_beneficio === 'AUXILIO_DOENCA' ? 'badge-warning' : 'badge-info';
+               const gravityClass = bc.gravidade === 'GRAVE' ? 'text-danger' : bc.gravidade === 'MODERADA' ? 'text-warning' : 'text-success';
+               
+               classificationHtml = `
+                   <div class="row mb-3">
+                       <div class="col-12">
+                           <div class="card border-primary">
+                               <div class="card-header bg-primary text-white">
+                                   <h6 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Classificação Previdenciária</h6>
+                               </div>
+                               <div class="card-body">
+                                   <div class="row">
+                                       <div class="col-md-6">
+                                           <h6>Tipo de Benefício:</h6>
+                                           <span class="badge ${benefitClass} fs-6">${bc.tipo_beneficio.replace('_', ' ')}</span>
+                                       </div>
+                                       <div class="col-md-6">
+                                           <h6>Gravidade:</h6>
+                                           <span class="${gravityClass} fw-bold">${bc.gravidade}</span>
+                                       </div>
+                                   </div>
+                                   <div class="row mt-3">
+                                       <div class="col-md-6">
+                                           <h6>CID Principal:</h6>
+                                           <code class="fs-6">${bc.cid_principal}</code> - ${bc.cid_descricao}
+                                       </div>
+                                       <div class="col-md-6">
+                                           <h6>Prognóstico:</h6>
+                                           <small>${bc.prognóstico}</small>
+                                       </div>
+                                   </div>
+                                   <div class="row mt-2">
+                                       <div class="col-12">
+                                           <h6>Justificativa:</h6>
+                                           <small class="text-muted">${bc.justificativa}</small>
+                                       </div>
+                                   </div>
+                               </div>
+                           </div>
+                       </div>
+                   </div>
+               `;
+           }
+
            const hybridContext = result.template_used || result.specialized_type || 'clinica';
            const contextClass = getContextClass(hybridContext);
            const contextDisplayName = contextNames[hybridContext] || hybridContext.toUpperCase();
@@ -398,7 +480,7 @@
                </div>
            `;
 
-           document.getElementById('contextInfo').innerHTML = contextHtml;
+           document.getElementById('contextInfo').innerHTML = classificationHtml + contextHtml;
 
            document.getElementById('transcriptionText').innerHTML = 
                result.transcription || 'Nenhuma transcrição de áudio disponível';
