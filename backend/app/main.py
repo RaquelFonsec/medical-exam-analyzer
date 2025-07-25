@@ -1,375 +1,209 @@
-# Carregar variáveis de ambiente
+# ============================================================================
+# ENDPOINT PRINCIPAL INTEGRADO COM RAG
+# Adicionar ao arquivo main.py
+# ============================================================================
+
 from dotenv import load_dotenv
-load_dotenv()
-from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request
+from fastapi import FastAPI, Form, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-import os
-import asyncio
-import json
-from .config import settings
-from .services.exam_processor import ExamProcessor
-from .services.aws_textract_service import AWSTextractService
+import traceback
 
-app = FastAPI(title="PREVIDAS Medical Exam Analyzer with AWS Textract")
+# Carregar variáveis de ambiente
+load_dotenv()
 
-# CORS CORRIGIDO - Incluir porta 5003
+app = FastAPI(title="Medical AI System with RAG", version="2.0")
+
+# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5000", 
-        "http://127.0.0.1:5000",
-        "http://localhost:5003", 
-        "http://127.0.0.1:5003",
-        "http://192.168.2.164:5003"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Inicializar serviços
-processor = ExamProcessor()
-textract_service = AWSTextractService()
-
-# Configurar OpenAI
-import openai
-openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-@app.get("/")
-async def root():
-    return {"message": "PREVIDAS Medical AI - Sistema Inteligente ✅"}
-
-@app.get("/health")
-async def health_check():
-    """Verificar status dos serviços"""
-    try:
-        # Verificar OpenAI
-        openai_status = "connected" if os.getenv("OPENAI_API_KEY") else "not configured"
-        
-        # Verificar AWS
-        aws_status = "ready"
-        try:
-            import boto3
-            textract = boto3.client('textract', region_name='us-east-1')
-            aws_status = "connected"
-        except:
-            aws_status = "not configured"
-        
-        return {
-            "status": "healthy",
-            "version": "3.0.0",
-            "services": {
-                "database": "connected",
-                "openai": openai_status,
-                "aws_textract": aws_status,
-                "ocr": "ready",
-                "context_classifier": "ready"
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
-
-# Importar serviços
-from .services.multimodal_ai_service import MultimodalAIService
-from .services.encryption_service import encryption_service
-from .services.auth_service import auth_service
-from .services.audit_service import audit_service
-
-# IMPORT CORRETO do context_classifier
-try:
-    from .services.context_classifier_service import context_classifier
-    print("✅ Context Classifier carregado")
-except ImportError as e:
-    print(f"⚠️ Context Classifier não encontrado: {e}")
-    context_classifier = None
-
-# Inicializar serviço multimodal
-# FORÇAR RELOAD COMPLETO
-import importlib
-import sys
-if "app.services.multimodal_ai_service" in sys.modules:
-    del sys.modules["app.services.multimodal_ai_service"]
-    print("🔄 Módulo removido do cache")
-
-from .services.multimodal_ai_service import MultimodalAIService
-print("🔄 MultimodalAIService reimportado")
-multimodal_service = MultimodalAIService()
-
-@app.post("/multimodal-analysis/")
-async def multimodal_analysis_secure(
-    patient_info: str = Form(...),
-    audio_file: UploadFile = File(None),
-    image_file: UploadFile = File(None)
-):
-    """Análise multimodal SEGURA com criptografia LGPD"""
-    try:
-        print(f"🔒 ANÁLISE MULTIMODAL SEGURA iniciada")
-        
-        # 1. Gerar hash do paciente para auditoria (sem expor dados)
-        patient_hash = encryption_service.hash_patient_id(patient_info)
-        
-        # 2. Registrar acesso nos logs LGPD
-        audit_service.log_patient_access(
-            doctor_crm="demo_doctor",  # TODO: pegar do token JWT
-            patient_hash=patient_hash,
-            action="consultation_started",
-            details={"has_audio": bool(audio_file), "has_image": bool(image_file)}
-        )
-        
-        # 3. Ler arquivos se fornecidos
-        audio_bytes = None
-        image_bytes = None
-        
-        if audio_file and audio_file.filename:
-            audio_bytes = await audio_file.read()
-            print(f"🎤 Áudio recebido: {len(audio_bytes)} bytes (criptografado)")
-            
-            # Registrar processamento de áudio
-            audit_service.log_data_processing(
-                doctor_crm="demo_doctor",
-                patient_hash=patient_hash,
-                processing_type="audio_transcription"
-            )
-        
-        if image_file and image_file.filename:
-            image_bytes = await image_file.read()
-            print(f"📷 Imagem recebida: {len(image_bytes)} bytes (criptografado)")
-            
-            # Registrar processamento de imagem
-            audit_service.log_data_processing(
-                doctor_crm="demo_doctor",
-                patient_hash=patient_hash,
-                processing_type="image_analysis"
-            )
-        
-        # 4. Processar com GPT-4o multimodal
-        result = await multimodal_service.analyze_multimodal(
-            patient_info, audio_bytes, image_bytes
-        )
-        
-        # 5. Criptografar dados antes de salvar
-        if result["success"]:
-            try:
-                from .models import SessionLocal, MedicalConsultation
-                db = SessionLocal()
-                try:
-                    # CRIPTOGRAFAR DADOS SENSÍVEIS
-                    encrypted_patient_info = encryption_service.encrypt_patient_data(patient_info)
-                    encrypted_transcription = encryption_service.encrypt_patient_data(
-                        result.get("transcription", "")
-                    )
-                    encrypted_report = encryption_service.encrypt_patient_data(
-                        result.get("multimodal_report", "")
-                    )
-                    
-                    consultation = MedicalConsultation(
-                        patient_info=encrypted_patient_info,  # ← DADOS CRIPTOGRAFADOS
-                        audio_transcription=encrypted_transcription,  # ← DADOS CRIPTOGRAFADOS
-                        medical_report=encrypted_report,  # ← DADOS CRIPTOGRAFADOS
-                        confidence=result.get("confidence", 0.0),
-                        model_used=result.get("model", "GPT-4o"),
-                        patient_hash=patient_hash  # Hash para auditoria
-                    )
-                    db.add(consultation)
-                    db.commit()
-                    
-                    # Registrar salvamento seguro
-                    audit_service.log_patient_access(
-                        doctor_crm="demo_doctor",
-                        patient_hash=patient_hash,
-                        action="data_saved_encrypted",
-                        details={"database": "postgresql", "encryption": "AES-256"}
-                    )
-                    
-                    print("🔒 Consulta salva CRIPTOGRAFADA no banco de dados")
-                    
-                except Exception as db_error:
-                    print(f"⚠️ Erro ao salvar: {str(db_error)}")
-                    audit_service.log_patient_access(
-                        doctor_crm="demo_doctor",
-                        patient_hash=patient_hash,
-                        action="database_error",
-                        details={"error": str(db_error)}
-                    )
-                    db.rollback()
-                finally:
-                    db.close()
-            except ImportError:
-                print("⚠️ Modelos de banco não configurados")
-        
-        if result["success"]:
-            print("✅ Análise multimodal SEGURA concluída")
-            
-            # Registrar conclusão
-            audit_service.log_patient_access(
-                doctor_crm="demo_doctor",
-                patient_hash=patient_hash,
-                action="consultation_completed",
-                details={"success": True, "model": result.get("model")}
-            )
-            
-            return {
-                "success": True,
-                "type": "multimodal_analysis_secure",
-                "transcription": result.get("transcription", ""),  # Retorna descriptografado para exibição
-                "medical_report": result["multimodal_report"],
-                "modalities_used": result["modalities_used"],
-                "model": result["model"],
-                "confidence": result["confidence"],
-                "timestamp": result["timestamp"],
-                "security": {
-                    "encrypted_storage": True,
-                    "audit_logged": True,
-                    "lgpd_compliant": True,
-                    "patient_hash": patient_hash[:8] + "..."  # Mostrar apenas parte do hash
-                }
-            }
-        else:
-            return {"success": False, "error": result["error"]}
-            
-    except Exception as e:
-        print(f"❌ Erro na análise segura: {str(e)}")
-        
-        # Registrar erro no audit
-        try:
-            patient_hash = encryption_service.hash_patient_id(patient_info)
-            audit_service.log_patient_access(
-                doctor_crm="demo_doctor",
-                patient_hash=patient_hash,
-                action="error_occurred",
-                details={"error": str(e)}
-            )
-        except:
-            pass
-            
-        return {"success": False, "error": str(e)}
-
-@app.post("/login")
-async def login_doctor(request: Request):
-    """Login de médico com autenticação"""
-    try:
-        # Ler dados JSON
-        data = await request.json()
-        crm = data.get('crm', '').strip()
-        password = data.get('password', '').strip()
-        
-        print(f"🔐 Tentativa de login: CRM {crm}")
-        
-        # Validar campos
-        if not crm or not password:
-            return {"success": False, "error": "CRM e senha são obrigatórios"}
-        
-        # Autenticar médico
-        doctor_data = auth_service.authenticate_doctor(crm, password)
-        
-        if doctor_data:
-            # Gerar token JWT
-            #print(f"✅ Gerar Token gerado para CRM {crm}")
-            #token = auth_service.generate_token(doctor_data)
-            
-            #print(f"🔑 Token: {token}")
-            
-            # Registrar login bem-sucedido
-            audit_service.log_patient_access(
-                doctor_crm=crm,
-                patient_hash="system",
-                action="login_successful",
-                details={"doctor_name": doctor_data["name"]}
-            )
-            
-            print(f"✅ Login bem-sucedido: Dr. {doctor_data['name']}")
-            
-            return {
-                "success": True,
-                #"token": token,
-                "doctor": {
-                    "crm": doctor_data["crm"],
-                    "name": doctor_data["name"],
-                    "specialty": doctor_data.get("specialty", "Clínica Geral")
-                },
-                "message": f"Bem-vindo, Dr. {doctor_data['name']}!"
-            }
-        else:
-            # Registrar tentativa falhada
-            audit_service.log_patient_access(
-                doctor_crm=crm,
-                patient_hash="system",
-                action="login_failed",
-                details={"reason": "invalid_credentials"}
-            )
-            
-            print(f"❌ Login falhado: CRM {crm}")
-            
-            return {
-                "success": False, 
-                "error": "CRM ou senha inválidos"
-            }
-        
-    except Exception as e:
-        print(f"❌ Erro no login: {str(e)}")
-        return {"success": False, "error": "Erro interno do servidor"}
-
-@app.post("/api/multimodal-consultation")
-async def api_multimodal_consultation_route(
-    patient_info: str = Form(...),
-    audio_data: UploadFile = File(None)
-):
-    """Rota compatível com frontend ANTIGO - chama multimodal_analysis_secure"""
-    print(f"📨 Chamada via /api/multimodal-consultation: {patient_info}")
-    
-    # Redirecionar para função existente
-    return await multimodal_analysis_secure(
-        patient_info=patient_info,
-        audio_file=audio_data,
-        image_file=None
-    )
-
 @app.post("/api/intelligent-medical-analysis")
-async def intelligent_medical_analysis(
+async def intelligent_medical_analysis_with_rag(
     patient_info: str = Form(...),
     audio_data: UploadFile = File(None),
     image_data: UploadFile = File(None)
 ):
-    """🚀 ANÁLISE QUE FUNCIONA DE VERDADE"""
-    print(f"🚀 NOVA FUNÇÃO CHAMADA: {patient_info}")
+    """🚀 ANÁLISE MÉDICA COMPLETA COM RAG INTEGRADO"""
+    print(f"🚀 ANÁLISE COMPLETA INICIADA: {patient_info}")
     
     try:
-        # Importar e criar nova instância sempre
-        from .services.multimodal_ai_service import MultimodalAIService
-        service_real = MultimodalAIService()
-        print(f"✅ Serviço criado: {type(service_real)}")
+        # 1. ANÁLISE MULTIMODAL PADRÃO
+        from app.services.multimodal_ai_service import multimodal_ai_service
         
-        # Processar áudio
         audio_bytes = None
         if audio_data and audio_data.filename:
             audio_bytes = await audio_data.read()
-            print(f"🎤 Áudio: {len(audio_bytes)} bytes")
+            print(f"🎤 Áudio processado: {len(audio_bytes)} bytes")
         
-        # Chamar função REAL
-        result = await service_real.analyze_multimodal(
-            patient_info, audio_bytes, None
-        )
+        # Executar análise base
+        result = await multimodal_ai_service.analyze_multimodal(patient_info, audio_bytes, None)
         
-        print(f"📋 Resultado: {result.get('success')}")
+        if not result.get('success'):
+            return result
+        
+        print(f"✅ Análise base concluída - Benefício: {result.get('beneficio', 'N/A')}")
+        
+        # 2. INTEGRAÇÃO RAG PARA MELHORAR O LAUDO
+        try:
+            # Importar RAG service (pode falhar se não estiver disponível)
+            try:
+                from app.services.rag.medical_rag_service import medical_rag_service
+                rag_available = True
+            except ImportError:
+                print("⚠️ RAG service não encontrado")
+                rag_available = False
+            
+            if rag_available:
+                print("🔄 Iniciando análise RAG...")
+                
+                # Preparar dados para RAG
+                transcription = result.get('transcription', '')
+                especialidade = result.get('especialidade', 'Clínica Geral')
+                
+                # Buscar casos similares
+                rag_response = medical_rag_service.generate_rag_response(
+                    patient_info, 
+                    transcription
+                )
+                
+                if rag_response.get('success'):
+                    similarity_score = rag_response.get('top_similarity_score', 0)
+                    cases_used = rag_response.get('similar_cases_count', 0)
+                    
+                    print(f"✅ RAG concluído - Score: {similarity_score:.3f}, Casos: {cases_used}")
+                    
+                    # Integrar resultados RAG
+                    result['laudo_medico_original'] = result['laudo_medico']
+                    result['rag_enabled'] = True
+                    result['rag_similarity_score'] = similarity_score
+                    result['rag_cases_used'] = cases_used
+                    
+                    # Se RAG tem boa qualidade, usar como laudo principal
+                    if similarity_score > 0.6:
+                        result['laudo_medico'] = rag_response['response']
+                        result['laudo_source'] = 'RAG Aprimorado'
+                        print("🎯 Usando laudo RAG como principal")
+                    else:
+                        result['laudo_medico_rag'] = rag_response['response']
+                        result['laudo_source'] = 'Sistema + RAG Complementar'
+                        print("📋 RAG como complemento")
+                
+                else:
+                    print("⚠️ RAG falhou, usando laudo padrão")
+                    result['rag_enabled'] = False
+                    result['rag_error'] = rag_response.get('error', 'Erro desconhecido')
+                    result['laudo_source'] = 'Sistema Padrão'
+            
+            else:
+                print("⚠️ RAG não disponível, usando sistema padrão")
+                result['rag_enabled'] = False
+                result['laudo_source'] = 'Sistema Padrão'
+        
+        except Exception as rag_error:
+            print(f"⚠️ Erro no RAG: {str(rag_error)}")
+            result['rag_enabled'] = False
+            result['rag_error'] = str(rag_error)
+            result['laudo_source'] = 'Sistema Padrão'
+        
+        # 3. ENRIQUECER RESPOSTA FINAL
+        result['sistema_versao'] = 'Medical AI v2.0 com RAG'
+        result['timestamp_final'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        print(f"✅ ANÁLISE COMPLETA FINALIZADA - Fonte: {result.get('laudo_source', 'N/A')}")
+        
         return result
         
     except Exception as e:
-        print(f"❌ ERRO: {str(e)}")
-        import traceback
+        print(f"❌ ERRO CRÍTICO: {str(e)}")
         traceback.print_exc()
         
         return {
             "success": False,
             "error": str(e),
             "transcription": f"Erro: {str(e)}",
-            "anamnese": f"Erro: {str(e)}",
-            "laudo_medico": f"Erro: {str(e)}"
+            "anamnese": f"Erro durante análise: {str(e)}",
+            "laudo_medico": f"Erro durante geração: {str(e)}",
+            "rag_enabled": False,
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
+
+@app.get("/api/health")
+async def health_check():
+    """Verificar saúde do sistema"""
+    try:
+        from app.services.multimodal_ai_service import multimodal_ai_service
+        multimodal_status = "✅ Disponível"
+    except:
+        multimodal_status = "❌ Indisponível"
+    
+    try:
+        from app.services.rag.medical_rag_service import medical_rag_service
+        rag_status = "✅ Disponível"
+        rag_chunks = len(medical_rag_service.chunks) if medical_rag_service.chunks else 0
+    except:
+        rag_status = "❌ Indisponível"
+        rag_chunks = 0
+    
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "services": {
+            "multimodal_ai": multimodal_status,
+            "rag_system": rag_status,
+            "rag_knowledge_base": f"{rag_chunks} chunks"
+        },
+        "version": "Medical AI v2.0"
+    }
+
+@app.post("/api/rag/add-documents")
+async def add_documents_to_rag(documents: list = Form(...)):
+    """Adicionar documentos à base RAG"""
+    try:
+        from app.services.rag.medical_rag_service import medical_rag_service
+        
+        medical_rag_service.add_documents_to_knowledge_base(documents)
+        
+        return {
+            "success": True,
+            "message": f"Adicionados {len(documents)} documentos",
+            "total_chunks": len(medical_rag_service.chunks),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/rag/search")
+async def search_rag_knowledge(query: str, top_k: int = 5):
+    """Buscar na base de conhecimento RAG"""
+    try:
+        from app.services.rag.medical_rag_service import medical_rag_service
+        
+        results = medical_rag_service.search_similar_cases(query, top_k)
+        
+        return {
+            "success": True,
+            "query": query,
+            "results": results,
+            "total_found": len(results),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5003, reload=True)

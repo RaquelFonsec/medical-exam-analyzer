@@ -13,6 +13,7 @@ class MedicalRAGService:
     
     def __init__(self, faiss_index_path: str = "data/medical_knowledge.faiss", 
                  chunks_path: str = "data/medical_chunks.pkl"):
+        """Inicializar serviço RAG"""
         self.faiss_index_path = faiss_index_path
         self.chunks_path = chunks_path
         self.embedding_model = None
@@ -20,6 +21,7 @@ class MedicalRAGService:
         self.chunks = []
         self.dimension = 384
         
+        # Inicializar OpenAI
         try:
             self.openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             print("✅ OpenAI configurado para RAG")
@@ -100,7 +102,6 @@ class MedicalRAGService:
             chunk_texts = [chunk['text'] for chunk in all_chunks]
             embeddings = self.embedding_model.encode(chunk_texts, show_progress_bar=True)
             
-            print("🔄 Adicionando ao índice FAISS...")
             if self.faiss_index is None:
                 self._create_empty_index()
             
@@ -368,3 +369,6 @@ Análise: Paciente avaliado conforme relato apresentado.
 Recomenda-se acompanhamento médico especializado.
 
 Data: {datetime.now().strftime('%d/%m/%Y')}"""
+
+# Instância global
+medical_rag_service = MedicalRAGService()
