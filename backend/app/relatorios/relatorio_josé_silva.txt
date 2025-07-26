@@ -1,0 +1,39 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**
+Nome: José Silva  
+Idade: 58 anos  
+Profissão: Pedreiro  
+
+**ANAMNESE:**
+O paciente, José Silva, de 58 anos, exerce a profissão de pedreiro, atividade que exige esforço físico significativo. Ele relata dor constante nos joelhos, que tem se intensificado ao longo do tempo. A dor é atribuída à artrose diagnosticada nos joelhos, condição que tem impactado sua capacidade de realizar suas funções laborais, limitando-o a trabalhar apenas meio período. Além disso, o paciente possui histórico de hipertensão e diabetes, ambas sob controle clínico, mas que podem influenciar na progressão da artrose e na resposta ao tratamento.
+
+**EXAME FÍSICO:**
+Durante o exame físico, observou-se limitação na amplitude de movimento dos joelhos, crepitação articular e sensibilidade à palpação. Não foram observados sinais de inflamação aguda, como edema ou eritema, mas a dor relatada pelo paciente é consistente com a degeneração articular crônica.
+
+**HIPÓTESE DIAGNÓSTICA:**
+Baseado nos sintomas relatados e no exame físico, a hipótese diagnóstica principal é Gonartrose (artrose do joelho), associada a comorbidades de hipertensão e diabetes controlada.
+
+**CID-10 PRINCIPAL:** M17 - Gonartrose (artrose do joelho)
+
+**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
+Tipo de Benefício Indicado: **PERICIA_MEDICA**
+
+**JUSTIFICATIVA MÉDICA:**
+José Silva apresenta artrose nos joelhos, uma condição crônica e progressiva que limita sua capacidade de trabalho, especialmente em sua profissão de pedreiro, que demanda esforço físico intenso. A presença de hipertensão e diabetes, embora controladas, pode agravar a progressão da artrose e complicar o manejo da dor e da mobilidade, justificando a necessidade de avaliação pericial para determinar a capacidade laboral.
+
+**PROGNÓSTICO:**
+A condição de José Silva é crônica e tende a progredir, podendo levar a uma incapacidade permanente para atividades que exijam esforço físico significativo, como as desempenhadas em sua profissão atual.
+
+**CAPACIDADE LABORAL:**
+Atualmente, José Silva apresenta uma incapacidade parcial e temporária para o trabalho, conseguindo desempenhar suas funções apenas em meio período. A progressão da doença pode resultar em incapacidade permanente, caso não haja intervenção adequada.
+
+**RECOMENDAÇÕES:**
+- Acompanhamento regular com ortopedista para manejo da artrose.
+- Fisioterapia para manutenção e melhora da mobilidade articular.
+- Controle rigoroso da hipertensão e diabetes para evitar complicações adicionais.
+- Avaliação periódica da capacidade laboral e ajuste das atividades conforme necessário.
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]

@@ -1,0 +1,41 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**
+Nome: José Santos  
+Idade: 35 anos  
+Profissão: mecânico  
+
+**ANAMNESE:**
+Paciente relata: dor no ombro esquerdo  
+Sintomas descritos: dor no ombro esquerdo  
+
+**EXAME FÍSICO:**
+Não foi realizado exame físico presencial. Informações baseadas apenas no relato do paciente.
+
+**HIPÓTESE DIAGNÓSTICA:**
+Baseado exclusivamente nos sintomas relatados pelo paciente.
+
+**CID-10 PRINCIPAL:** M75.1 - Síndrome do impacto do ombro
+
+**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
+Tipo de Benefício Sugerido: **AUXÍLIO-DOENÇA**
+
+**JUSTIFICATIVA MÉDICA:**
+José Santos apresenta dor no ombro esquerdo há 1 semana, o que pode indicar uma condição temporária que afeta sua capacidade de trabalho como mecânico. A condição é aguda e tem recuperação esperada com tratamento adequado.
+
+**PROGNÓSTICO:**
+A condição é tratável e espera-se recuperação completa com tratamento conservador ou fisioterapia.
+
+**CAPACIDADE LABORAL:**
+Análise preliminar baseada no relato. Avaliação presencial necessária para determinação definitiva.
+
+**OBSERVAÇÕES IMPORTANTES:**
+- Este laudo é baseado APENAS no relato do paciente
+- Exame físico presencial é necessário para confirmação diagnóstica
+- Exames complementares podem ser necessários
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]  
+
+IMPORTANTE: Relate apenas fatos informados, não invente detalhes médicos.

@@ -251,62 +251,84 @@ CLASSIFICAÇÃO PREVIDENCIÁRIA:
 - Prognóstico: {benefit_classification.get('prognóstico', 'Não definido')}
 """
 
+        # Buscar casos similares no RAG primeiro
+        similar_cases = []
+        try:
+            # Se temos uma instância RAG funcional, buscar casos similares
+            if hasattr(self, 'search_similar_documents'):
+                search_results = self.search_similar_documents(patient_text, k=3)
+                # search_similar_documents retorna lista de tuplas (documento, similaridade)
+                similar_cases = search_results if isinstance(search_results, list) else []
+                print(f"🔍 RAG encontrou {len(similar_cases)} casos similares")
+        except Exception as e:
+            print(f"⚠️ RAG não disponível: {e}")
+
+        # Preparar contexto RAG
+        rag_context = ""
+        if similar_cases:
+            rag_context = "\n\nCASOS SIMILARES NA BASE DE CONHECIMENTO:\n"
+            for i, case_data in enumerate(similar_cases[:2], 1):
+                # case_data é uma tupla (documento, similaridade)
+                case_text = case_data[0] if isinstance(case_data, tuple) else str(case_data)
+                similarity = case_data[1] if isinstance(case_data, tuple) and len(case_data) > 1 else 0.0
+                rag_context += f"\nCaso {i} (Similaridade: {similarity:.2f}):\n{case_text[:200]}...\n"
+
         prompt = f"""
-Você é um médico perito previdenciário experiente. Gere um LAUDO MÉDICO COMPLETO e DETALHADO baseado nas informações fornecidas.
+Você é um médico perito previdenciário experiente. Gere um LAUDO MÉDICO PROFISSIONAL seguindo a estrutura específica abaixo.
+
+⚠️ REGRAS IMPORTANTES:
+- Base-se APENAS nas informações fornecidas pelo paciente
+- NÃO invente exames físicos, sintomas ou detalhes não relatados
+- Use linguagem médica técnica e precisa
+- Seja detalhado nos aspectos funcionais e prognósticos
 
 DADOS DO PACIENTE:
 {patient_data}
 
-TEXTO DA CONSULTA:
+INFORMAÇÕES RELATADAS:
 {patient_text}
 
 {classification_info}
 
-IMPORTANTE: Inclua OBRIGATORIAMENTE no laudo:
-1. A classificação de benefício (Auxílio Doença ou Perícia Médica)
-2. O CID principal sugerido
-3. Justificativa médica para a classificação
+{rag_context}
 
-ESTRUTURE O LAUDO ASSIM:
+ESTRUTURE O LAUDO SEGUINDO ESTE FORMATO EXATO:
 
 **LAUDO MÉDICO PREVIDENCIÁRIO**
 
 **IDENTIFICAÇÃO:**
-Nome: [nome do paciente]
-Idade: [idade]
-Profissão: [profissão]
+Nome: {patient_data.get('nome', 'Não informado')}
+Idade: {patient_data.get('idade', 'Não informada')}  
+Profissão: {patient_data.get('profissao', 'Não informada')}
 
-**ANAMNESE:**
-[Descreva detalhadamente a história clínica e queixa principal]
+**História Clínica Resumida**
+[UM PARÁGRAFO COESO contendo: data de início dos sintomas, evolução clínica, eventos de agravamento, sintomas atuais e repercussões funcionais, impacto na vida diária/laboral, diagnóstico com CID-10. Baseie-se apenas no relatado pelo paciente]
 
-**EXAME FÍSICO:**
-[Descreva os achados do exame físico mencionados]
+**Limitação Funcional**
+[UM PARÁGRAFO descrevendo: limitações atuais (motoras, sensoriais, cognitivas), como isso impacta a funcionalidade no trabalho/vida social/autonomia, sintomas que agravam. Use apenas informações relatadas]
 
-**HIPÓTESE DIAGNÓSTICA:**
-[Baseado nos sintomas relatados]
+**Tratamento**
+[Descrever procedimentos, medicamentos, terapias em uso conforme relatado, resposta ou necessidade de continuidade]
 
-**CID-10 PRINCIPAL:** {benefit_classification.get('cid_principal', 'A definir')} - {benefit_classification.get('cid_descricao', 'Diagnóstico a ser confirmado')}
+**Prognóstico (Tendência Reservada/Desfavorável)**
+[Indicar evolução esperada, tempo estimado de afastamento se aplicável, necessidade de tratamento contínuo, possibilidade de retorno à função habitual]
 
-**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
-Tipo de Benefício Indicado: **{benefit_classification.get('tipo_beneficio', 'ANÁLISE_NECESSÁRIA')}**
+**Conclusão Congruente com o Benefício ({benefit_classification.get('tipo_beneficio', 'ANÁLISE_NECESSÁRIA')})**
+[Conclusão específica para o tipo de benefício:
+- AUXÍLIO-DOENÇA: incapacidade temporária, tempo estimado
+- BPC/LOAS: impedimento de longo prazo, limitações para participação plena
+- AUXÍLIO-ACIDENTE: redução parcial e permanente da capacidade
+- APOSENTADORIA POR INVALIDEZ: incapacidade definitiva para qualquer trabalho
+- ISENÇÃO IMPOSTO DE RENDA: doença grave conforme lei]
 
-**JUSTIFICATIVA MÉDICA:**
-{benefit_classification.get('justificativa', 'Baseado na análise clínica dos sintomas apresentados e na evolução do quadro.')}
+**CID-10**
+{benefit_classification.get('cid_principal', 'A definir')} – {benefit_classification.get('cid_descricao', 'Diagnóstico a ser confirmado')} (principal)
 
-**PROGNÓSTICO:**
-{benefit_classification.get('prognóstico', 'Prognóstico a ser definido com acompanhamento médico.')}
-
-**CAPACIDADE LABORAL:**
-[Com base no tipo de benefício, descreva se há incapacidade temporária ou permanente]
-
-**RECOMENDAÇÕES:**
-[Tratamentos e acompanhamentos necessários]
-
-**DATA:** [Data atual]
-**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
 **CRM:** [Número do CRM]
 
-Seja detalhado, técnico e use terminologia médica apropriada.
+IMPORTANTE: Crie um laudo profissional, técnico e detalhado, mas baseado APENAS nas informações fornecidas.
 """
 
         try:
@@ -619,10 +641,10 @@ Seja objetivo e profissional.
 
 
     def classify_benefit_and_cid(self, patient_text: str, patient_data: dict) -> dict:
-        """Classifica tipo de benefício e sugere CID baseado nos dados do paciente"""
+        """Classifica tipo de benefício previdenciário específico e sugere CID baseado nos dados do paciente"""
         
         prompt = f"""
-Você é um médico perito especialista em classificação de benefícios previdenciários.
+Você é um médico perito especialista em classificação de benefícios previdenciários brasileiros.
 
 DADOS DO PACIENTE:
 {patient_data}
@@ -630,35 +652,45 @@ DADOS DO PACIENTE:
 TEXTO COMPLETO DA CONSULTA:
 {patient_text}
 
-Analise os dados e classifique:
+Analise os dados e classifique em um dos seguintes benefícios:
 
-1. TIPO DE BENEFÍCIO:
-   - AUXÍLIO DOENÇA: Incapacidade temporária para o trabalho (até 2 anos)
-   - PERÍCIA MÉDICA: Incapacidade permanente, aposentadoria por invalidez, BPC/LOAS
+1. AUXÍLIO-DOENÇA:
+   - Incapacidade temporária para trabalho (até 2 anos)
+   - Doenças agudas com recuperação esperada
+   - Fraturas, cirurgias simples, infecções tratáveis
+   - Depressão leve/moderada com prognóstico favorável
 
-2. CID PRINCIPAL: Baseado nos sintomas e condições relatadas
+2. APOSENTADORIA POR INVALIDEZ:
+   - Incapacidade total e permanente para qualquer trabalho
+   - Doenças crônicas degenerativas graves
+   - Deficiências severas irreversíveis
+   - Prognóstico sem perspectiva de melhora
 
-Critérios para AUXÍLIO DOENÇA:
-- Doenças agudas ou com potencial de melhora
-- Fraturas, cirurgias com recuperação esperada
-- Depressão leve/moderada tratável
-- Problemas temporários de saúde
+3. BPC/LOAS:
+   - Pessoa com deficiência ou idoso (65+) em vulnerabilidade social
+   - Incapacidade para vida independente e trabalho
+   - Renda familiar per capita < 1/4 salário mínimo
+   - Deficiência que cause impedimentos de longo prazo
 
-Critérios para PERÍCIA MÉDICA:
-- Doenças crônicas progressivas
-- Deficiências permanentes
-- Transtornos mentais graves
-- Incapacidade definitiva
-- Idade avançada + múltiplas comorbidades
+4. AUXÍLIO-ACIDENTE:
+   - Acidente de trabalho ou doença ocupacional
+   - Sequela que reduza capacidade laboral
+   - Redução da capacidade de trabalho (não incapacidade total)
+   - Consolidação com sequela
+
+5. ISENÇÃO IMPOSTO DE RENDA:
+   - Doenças graves especificadas em lei
+   - Aposentadoria por invalidez
+   - Pensão por morte de acidente em serviço público
 
 Retorne APENAS um JSON:
 {{
-    "tipo_beneficio": "AUXILIO_DOENCA" ou "PERICIA_MEDICA",
+    "tipo_beneficio": "AUXÍLIO-DOENÇA" | "APOSENTADORIA POR INVALIDEZ" | "BPC/LOAS" | "AUXÍLIO-ACIDENTE" | "ISENÇÃO IMPOSTO DE RENDA",
     "cid_principal": "código CID-10",
     "cid_descricao": "descrição do CID",
-    "justificativa": "explicação breve da classificação",
-    "gravidade": "LEVE", "MODERADA" ou "GRAVE",
-    "prognóstico": "descrição do prognóstico"
+    "justificativa": "explicação da classificação baseada nos critérios legais",
+    "gravidade": "LEVE" | "MODERADA" | "GRAVE",
+    "prognóstico": "descrição do prognóstico médico"
 }}
 """
 

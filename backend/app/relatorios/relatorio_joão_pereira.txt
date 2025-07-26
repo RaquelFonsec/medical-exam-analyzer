@@ -1,0 +1,41 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**
+Nome: João Pereira  
+Idade: 30 anos  
+Profissão: pintor  
+
+**ANAMNESE:**
+Paciente relata: dor nas costas  
+Sintomas descritos: não informados  
+
+**EXAME FÍSICO:**
+Não foi realizado exame físico presencial. Informações baseadas apenas no relato do paciente.
+
+**HIPÓTESE DIAGNÓSTICA:**
+Baseado exclusivamente nos sintomas relatados pelo paciente.
+
+**CID-10 PRINCIPAL:** M54.5 - Dor lombar baixa
+
+**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
+Tipo de Benefício Sugerido: **AUXÍLIO-DOENÇA**
+
+**JUSTIFICATIVA MÉDICA:**
+O paciente apresenta dor nas costas, uma condição que pode causar incapacidade temporária para o trabalho, especialmente em profissões que exigem esforço físico, como a de pintor. A condição é geralmente tratável e tem um prognóstico favorável com tratamento adequado.
+
+**PROGNÓSTICO:**
+Com tratamento adequado, espera-se melhora e retorno às atividades habituais em curto a médio prazo.
+
+**CAPACIDADE LABORAL:**
+Análise preliminar baseada no relato. Avaliação presencial necessária para determinação definitiva.
+
+**OBSERVAÇÕES IMPORTANTES:**
+- Este laudo é baseado APENAS no relato do paciente
+- Exame físico presencial é necessário para confirmação diagnóstica
+- Exames complementares podem ser necessários
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]  
+
+IMPORTANTE: Relate apenas fatos informados, não invente detalhes médicos.

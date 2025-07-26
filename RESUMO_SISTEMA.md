@@ -108,8 +108,7 @@ Backend: FastAPI + Python
 Frontend: HTML/JavaScript
 IA: OpenAI (GPT-4o + Whisper)
 Busca: FAISS + Embeddings
-Cache: Redis (opcional)
-```
+
 
 ## 🧪 Teste Rápido
 

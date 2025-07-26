@@ -1,0 +1,39 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**
+Nome: Paulo Silva  
+Idade: 35 anos  
+Profissão: Soldador  
+
+**ANAMNESE:**
+Paulo Silva, 35 anos, exerce a profissão de soldador, atividade que exige esforço físico e movimentação constante. Relata dor no joelho direito há aproximadamente duas semanas, iniciada após uma queda. A dor é contínua, de intensidade moderada, e piora com a movimentação e carga sobre o membro afetado. Não há relato de episódios prévios semelhantes ou de outras lesões articulares. O paciente não apresenta histórico de doenças articulares crônicas.
+
+**EXAME FÍSICO:**
+No exame físico, observa-se edema leve no joelho direito, com sensibilidade à palpação na região lateral. A amplitude de movimento está reduzida devido à dor, especialmente na flexão completa. Não há sinais de instabilidade ligamentar evidente. Testes de Lachman e gaveta anterior são negativos. Não há eritema ou calor local significativo.
+
+**HIPÓTESE DIAGNÓSTICA:**
+Entorse do joelho direito, possivelmente envolvendo estruturas ligamentares, sem evidência de lesão grave ou ruptura completa.
+
+**CID-10 PRINCIPAL:** S83.2 - Entorse e distensão do joelho
+
+**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
+Tipo de Benefício Indicado: **AUXÍLIO-DOENÇA**
+
+**JUSTIFICATIVA MÉDICA:**
+O paciente apresenta um quadro de entorse do joelho direito, uma condição aguda decorrente de trauma físico. A natureza da lesão sugere uma incapacidade temporária para o trabalho, especialmente considerando as exigências físicas da profissão de soldador, que requer estabilidade e força nos membros inferiores. Não há indicação de lesão permanente ou sequela que comprometa a capacidade laboral a longo prazo.
+
+**PROGNÓSTICO:**
+Com tratamento adequado, incluindo repouso, fisioterapia e analgesia, espera-se recuperação completa em um período de 4 a 6 semanas. Não há indicação de incapacidade permanente.
+
+**CAPACIDADE LABORAL:**
+O paciente apresenta incapacidade laboral temporária devido à dor e limitação funcional no joelho direito, incompatível com as atividades de soldador. Espera-se retorno às atividades normais após o período de recuperação.
+
+**RECOMENDAÇÕES:**
+1. Repouso relativo, evitando atividades que exijam carga excessiva sobre o joelho afetado.
+2. Uso de anti-inflamatórios não esteroides (AINEs) para controle da dor e inflamação.
+3. Início de fisioterapia para fortalecimento muscular e recuperação da amplitude de movimento.
+4. Reavaliação médica em 4 semanas para monitoramento da recuperação e ajuste do plano terapêutico.
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]

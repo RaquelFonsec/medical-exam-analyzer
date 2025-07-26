@@ -1,0 +1,28 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**  
+Nome: João Silva  
+Idade: 35 anos  
+Profissão: pedreiro  
+
+**História Clínica Resumida**  
+João Silva, 35 anos, pedreiro, relata que na semana passada sofreu uma queda de um andaime, resultando em fratura do braço direito. Desde o acidente, apresenta dor intensa, especialmente noturna, que interfere no sono e na qualidade de vida. Foi atendido em um hospital, onde foi diagnosticado com fratura do úmero direito (CID-10: S42.3) e recebeu orientação para imobilização com gesso por aproximadamente 8 semanas. A lesão impede-o de realizar suas atividades laborais habituais, como carregar peso e manusear ferramentas, essenciais para sua profissão.
+
+**Limitação Funcional**  
+Atualmente, João apresenta limitações motoras significativas no membro superior direito, impossibilitando-o de realizar movimentos de elevação, flexão e extensão do braço, fundamentais para suas atividades como pedreiro. A dor intensa, principalmente à noite, agrava a limitação funcional, comprometendo sua capacidade de trabalho e autonomia nas atividades diárias. A incapacidade de usar o braço direito afeta diretamente sua vida social e profissional, restringindo sua capacidade de sustento.
+
+**Tratamento**  
+O tratamento atual consiste na imobilização do braço direito com gesso, conforme orientação médica, com previsão de manutenção por 8 semanas. Não foram relatados outros tratamentos ou medicações em uso. A continuidade do tratamento é essencial para a consolidação óssea adequada e recuperação funcional.
+
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+A evolução esperada é favorável, com recuperação funcional completa prevista em aproximadamente 8 semanas, desde que a imobilização e o repouso sejam adequadamente mantidos. O retorno à função habitual como pedreiro é esperado após este período, com possível necessidade de reabilitação fisioterapêutica para recuperação total da mobilidade e força do membro afetado.
+
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+João Silva apresenta incapacidade temporária para o trabalho devido à fratura do úmero direito, com previsão de afastamento de aproximadamente 8 semanas. Durante este período, é recomendada a continuidade do tratamento e acompanhamento médico para garantir a recuperação plena e retorno às atividades laborais.
+
+**CID-10**  
+S42.3 – Fratura do úmero (principal)
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]
