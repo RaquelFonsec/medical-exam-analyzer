@@ -2,26 +2,26 @@
 
 **IDENTIFICAÇÃO:**  
 Nome: João Silva  
-Idade: 35 anos  
-Profissão: pedreiro  
+Idade: 30 anos  
+Profissão: programador  
 
 **História Clínica Resumida**  
-João Silva, 35 anos, pedreiro, relata que na semana passada sofreu uma queda de um andaime, resultando em fratura do braço direito. Desde o acidente, apresenta dor intensa, especialmente noturna, que interfere no sono e na qualidade de vida. Foi atendido em um hospital, onde foi diagnosticado com fratura do úmero direito (CID-10: S42.3) e recebeu orientação para imobilização com gesso por aproximadamente 8 semanas. A lesão impede-o de realizar suas atividades laborais habituais, como carregar peso e manusear ferramentas, essenciais para sua profissão.
+João Silva, 30 anos, programador, relata episódios de dor de cabeça leve e ocasional. Os sintomas iniciaram-se há alguns meses, sem um evento específico de agravamento. As cefaleias são descritas como leves e esporádicas, sem associação com outros sintomas neurológicos ou sistêmicos. Até o momento, não houve impacto significativo na sua capacidade laboral ou nas atividades diárias. O diagnóstico atual é de cefaleia, classificada sob o CID-10 R51.
 
 **Limitação Funcional**  
-Atualmente, João apresenta limitações motoras significativas no membro superior direito, impossibilitando-o de realizar movimentos de elevação, flexão e extensão do braço, fundamentais para suas atividades como pedreiro. A dor intensa, principalmente à noite, agrava a limitação funcional, comprometendo sua capacidade de trabalho e autonomia nas atividades diárias. A incapacidade de usar o braço direito afeta diretamente sua vida social e profissional, restringindo sua capacidade de sustento.
+Atualmente, João não apresenta limitações motoras, sensoriais ou cognitivas significativas. As dores de cabeça, embora presentes, são leves e não interferem de forma substancial na sua funcionalidade no trabalho ou na vida social. Não há relato de sintomas que agravem a condição ou que comprometam sua autonomia.
 
 **Tratamento**  
-O tratamento atual consiste na imobilização do braço direito com gesso, conforme orientação médica, com previsão de manutenção por 8 semanas. Não foram relatados outros tratamentos ou medicações em uso. A continuidade do tratamento é essencial para a consolidação óssea adequada e recuperação funcional.
+João não mencionou estar em uso de medicamentos específicos ou terapias para o controle das cefaleias. Considerando a natureza leve e ocasional dos sintomas, o tratamento pode não ser necessário, mas a avaliação médica para manejo adequado pode ser considerada caso os sintomas se intensifiquem.
 
 **Prognóstico (Tendência Reservada/Desfavorável)**  
-A evolução esperada é favorável, com recuperação funcional completa prevista em aproximadamente 8 semanas, desde que a imobilização e o repouso sejam adequadamente mantidos. O retorno à função habitual como pedreiro é esperado após este período, com possível necessidade de reabilitação fisioterapêutica para recuperação total da mobilidade e força do membro afetado.
+O prognóstico para João é favorável, com expectativa de controle dos sintomas com tratamento adequado, se necessário. Não há indicação de afastamento do trabalho no momento, e a possibilidade de retorno à função habitual é plena, dado o caráter leve dos sintomas.
 
 **Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
-João Silva apresenta incapacidade temporária para o trabalho devido à fratura do úmero direito, com previsão de afastamento de aproximadamente 8 semanas. Durante este período, é recomendada a continuidade do tratamento e acompanhamento médico para garantir a recuperação plena e retorno às atividades laborais.
+Embora João apresente cefaleia leve ocasional, não há evidência de incapacidade temporária que justifique o auxílio-doença. A condição atual não impede o desempenho de suas atividades laborais ou diárias de forma significativa.
 
 **CID-10**  
-S42.3 – Fratura do úmero (principal)
+R51 – Cefaleia (principal)
 
 **DATA:** [Data atual]  
 **MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  

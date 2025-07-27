@@ -1,41 +1,30 @@
 **LAUDO MÉDICO PREVIDENCIÁRIO**
 
 **IDENTIFICAÇÃO:**
-Nome: Não informado  
-Idade: 68 anos  
-Profissão: Não informada  
+Nome: não informado  
+Idade: não informada  
+Profissão: não informado
 
-**ANAMNESE:**
-Dona Maria, 68 anos, apresenta quadro de diabetes mellitus severa, com queixa principal de visão comprometida e necessidade de assistência para atividades diárias. A paciente relata que não consegue realizar tarefas básicas sem auxílio, indicando perda significativa de autonomia. Reside com a filha, que está desempregada, e a família vive em situação de extrema pobreza, com renda mensal de R$ 150,00.
+**História Clínica Resumida**  
+Devido à ausência de informações específicas sobre o início dos sintomas, evolução clínica, eventos de agravamento e sintomas atuais, não é possível elaborar uma história clínica detalhada. O paciente não forneceu dados sobre repercussões funcionais ou impacto na vida diária e laboral. O diagnóstico principal, conforme a Classificação Internacional de Doenças (CID-10), é Z00.0, que se refere a um exame geral de saúde.
 
-**EXAME FÍSICO:**
-Os achados do exame físico não foram detalhados no texto fornecido. No entanto, com base nos sintomas relatados, presume-se comprometimento visual significativo e possível fragilidade física geral, compatível com a necessidade de assistência contínua.
+**Limitação Funcional**  
+Não foram relatadas limitações funcionais específicas, sejam elas motoras, sensoriais ou cognitivas. Sem informações adicionais, não é possível avaliar o impacto na funcionalidade no trabalho, vida social ou autonomia do paciente. Não há sintomas relatados que agravem a condição.
 
-**HIPÓTESE DIAGNÓSTICA:**
-Diabetes mellitus severa com complicações visuais e incapacidade funcional para atividades diárias.
+**Tratamento**  
+Não foram fornecidos detalhes sobre procedimentos, medicamentos ou terapias em uso. Consequentemente, não é possível avaliar a resposta ao tratamento ou a necessidade de continuidade do mesmo.
 
-**CID-10 PRINCIPAL:** E14.9 - Diabetes mellitus não especificado sem complicações
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+O prognóstico permanece indeterminado devido à falta de informações detalhadas. Sem dados sobre a evolução clínica ou tratamento, não é possível estimar o tempo de afastamento ou a possibilidade de retorno à função habitual.
 
-**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
-Tipo de Benefício Indicado: **BPC/LOAS**
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+Com base nas informações limitadas, não há evidências suficientes para determinar uma incapacidade temporária. O benefício de auxílio-doença geralmente requer comprovação de incapacidade temporária para o trabalho, o que não pode ser avaliado com os dados fornecidos.
 
-**JUSTIFICATIVA MÉDICA:**
-Dona Maria encontra-se em situação de vulnerabilidade social, com renda familiar per capita inferior a 1/4 do salário mínimo, o que a qualifica para o Benefício de Prestação Continuada (BPC/LOAS). A diabetes severa compromete sua visão e capacidade de realizar atividades diárias de forma independente, caracterizando incapacidade para vida autônoma. A condição é crônica e degenerativa, sem perspectiva de melhora significativa, necessitando de assistência contínua.
-
-**PROGNÓSTICO:**
-A condição de Dona Maria é crônica e degenerativa. Não há expectativa de melhora significativa, e a paciente necessitará de assistência contínua para suas atividades diárias.
-
-**CAPACIDADE LABORAL:**
-Dona Maria apresenta incapacidade permanente para o trabalho e para a realização de atividades diárias de forma independente, devido à severidade do quadro de diabetes e suas complicações.
-
-**RECOMENDAÇÕES:**
-- Acompanhamento regular com endocrinologista para manejo da diabetes.
-- Avaliação oftalmológica para monitoramento e possível intervenção no comprometimento visual.
-- Suporte social e psicológico para a paciente e sua família, visando melhorar a qualidade de vida.
-- Considerar a inclusão em programas de assistência social para suporte financeiro e alimentar.
+**CID-10**  
+Z00.0 – Exame geral de saúde (principal)
 
 **DATA:** [Data atual]  
 **MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
 **CRM:** [Número do CRM]  
 
-Este laudo foi elaborado com base nas informações fornecidas e visa orientar a concessão do benefício previdenciário adequado à condição de saúde e situação social da paciente.
+Este laudo foi elaborado com base exclusivamente nas informações fornecidas, que são insuficientes para uma avaliação completa. Recomenda-se que o paciente forneça dados adicionais para uma análise mais precisa.

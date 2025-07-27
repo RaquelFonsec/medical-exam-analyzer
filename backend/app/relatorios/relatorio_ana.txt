@@ -1,0 +1,28 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**
+Nome: Ana  
+Idade: 55  
+Profissão: atendimento ao cliente
+
+**História Clínica Resumida**  
+Ana, 55 anos, relata início dos sintomas há aproximadamente 3 meses, com evolução progressiva de fadiga persistente, anedonia, episódios de choro sem motivo aparente, irritabilidade, taquicardia, perda ponderal significativa de 8 kg, anorexia e insônia. Tais sintomas têm impactado negativamente sua capacidade de trabalho, especialmente em sua função de atendimento ao cliente, onde a interação social é essencial. A paciente descreve uma incapacidade de lidar com situações de estresse, resultando em nervosismo exacerbado e palpitações. O diagnóstico atual é de episódio depressivo moderado, conforme CID-10 F32.1.
+
+**Limitação Funcional**  
+Ana apresenta limitações cognitivas e emocionais significativas, incluindo dificuldade de concentração, motivação reduzida e labilidade emocional, que comprometem sua eficácia no ambiente de trabalho e em interações sociais. A falta de energia e o humor deprimido agravam sua capacidade de realizar tarefas diárias e manter a autonomia. Os sintomas de nervosismo e taquicardia são desencadeados por situações de estresse, comuns em sua profissão, tornando inviável o desempenho adequado de suas funções laborais.
+
+**Tratamento**  
+Não foram relatados tratamentos específicos em uso no momento. A continuidade e a adesão a um regime terapêutico, possivelmente incluindo farmacoterapia antidepressiva e psicoterapia, são essenciais para a melhora dos sintomas e recuperação funcional.
+
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+Com tratamento adequado, espera-se uma melhora significativa dos sintomas em um período de até 2 anos. O afastamento temporário do trabalho é recomendado para permitir o início e a estabilização do tratamento. A possibilidade de retorno à função habitual dependerá da resposta terapêutica e da remissão dos sintomas.
+
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+Ana apresenta incapacidade temporária para o trabalho devido ao episódio depressivo moderado. O tempo estimado de afastamento é de até 2 anos, com reavaliação periódica para ajuste do prognóstico conforme a resposta ao tratamento.
+
+**CID-10**  
+F32.1 – Episódio depressivo moderado (principal)
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]

@@ -1,0 +1,28 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**  
+Nome: Gabriel Oliveira  
+Idade: 38 anos  
+Profissão: operário  
+
+**História Clínica Resumida**  
+Gabriel Oliveira, 38 anos, operário, sofreu um acidente de trabalho que resultou em uma fratura no braço esquerdo. Desde o evento, o paciente relata incapacidade de levantar peso com o membro afetado. A fratura foi diagnosticada como fratura do antebraço, classificada sob o CID-10 S52.3. O impacto funcional é significativo, impedindo-o de realizar suas atividades laborais habituais, que exigem esforço físico e manipulação de cargas. Não foram relatados eventos de agravamento desde o acidente, mas a limitação funcional persiste.
+
+**Limitação Funcional**  
+Atualmente, Gabriel apresenta limitação motora significativa no braço esquerdo, especificamente na capacidade de levantar peso, o que compromete sua funcionalidade no ambiente de trabalho, onde a força física é essencial. Essa limitação também afeta sua vida diária, restringindo atividades que envolvem o uso do membro superior esquerdo. Não foram relatadas alterações sensoriais ou cognitivas associadas à fratura.
+
+**Tratamento**  
+Gabriel está em tratamento ortopédico para a fratura do antebraço. O tratamento inclui imobilização do membro afetado e acompanhamento médico regular para monitorar a consolidação óssea. Não foram relatados detalhes sobre o uso de medicamentos ou terapias adicionais. A continuidade do tratamento é necessária para garantir a recuperação completa.
+
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+O prognóstico para Gabriel é de recuperação favorável, com expectativa de retorno às atividades laborais habituais após a consolidação adequada da fratura e reabilitação funcional. O tempo estimado de afastamento é de aproximadamente 3 a 4 meses, dependendo da resposta ao tratamento e da reabilitação.
+
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+Gabriel Oliveira apresenta incapacidade temporária para o trabalho devido à fratura no braço esquerdo, necessitando de afastamento para tratamento e recuperação. O benefício de auxílio-doença é indicado, com previsão de retorno às atividades laborais após a recuperação funcional completa.
+
+**CID-10**  
+S52.3 – Fratura do antebraço (principal)
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]

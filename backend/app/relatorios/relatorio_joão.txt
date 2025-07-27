@@ -1,0 +1,28 @@
+**LAUDO MÉDICO PREVIDENCIÁRIO**
+
+**IDENTIFICAÇÃO:**  
+Nome: João  
+Idade: 45 anos  
+Profissão: pedreiro  
+
+**História Clínica Resumida**  
+João, 45 anos, pedreiro há 15 anos, relata início de sintomas há 6 meses, caracterizados por dor intensa na região lombar. A dor piora ao carregar peso e irradia para a perna direita, acompanhada de formigamento. Esses sintomas têm impactado significativamente sua capacidade laboral, obrigando-o a interromper suas atividades várias vezes ao dia. O uso de anti-inflamatórios não proporcionou alívio significativo. O diagnóstico é de dor lombar baixa, classificada sob o CID-10 M54.5.
+
+**Limitação Funcional**  
+Atualmente, João apresenta limitações motoras devido à dor lombar e irradiação para a perna direita, o que compromete sua capacidade de realizar atividades que exigem esforço físico, como carregar peso, essencial em sua profissão de pedreiro. O formigamento e a dor contínua afetam sua funcionalidade no trabalho, reduzindo sua autonomia e eficiência, além de impactar negativamente sua vida social e qualidade de vida.
+
+**Tratamento**  
+João está em uso de anti-inflamatórios, porém sem resposta satisfatória. Há necessidade de avaliação para introdução de tratamento fisioterapêutico e manejo adequado da dor, visando melhora dos sintomas e recuperação funcional.
+
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+Com tratamento adequado, incluindo fisioterapia e manejo da dor, espera-se uma melhora gradual dos sintomas. O tempo estimado de afastamento é de aproximadamente 3 a 6 meses, com possibilidade de retorno à função habitual após melhora clínica significativa.
+
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+João apresenta incapacidade temporária para o exercício de suas atividades laborais habituais devido à dor lombar moderada e suas repercussões funcionais. Recomenda-se concessão de auxílio-doença por um período estimado de 3 a 6 meses, com reavaliação periódica para acompanhamento da evolução clínica.
+
+**CID-10**  
+M54.5 – Dor lombar baixa (principal)
+
+**DATA:** [Data atual]  
+**MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  
+**CRM:** [Número do CRM]

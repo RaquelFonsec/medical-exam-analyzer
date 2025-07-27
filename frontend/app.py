@@ -87,8 +87,8 @@ def intelligent_medical_analysis():
             return jsonify({
                 "success": True,
                 "transcription": result.get("transcription", "Sem transcrição"),
-                "anamnese": result.get("anamnese", "Erro na anamnese"),  # NOVO!
-                "laudo_medico": result.get("laudo_medico", "Erro no laudo"),  # NOVO!
+                            "anamnese": result.get("anamnese", "Anamnese não disponível"),  # ANAMNESE ESPECÍFICA
+            "laudo_medico": result.get("laudo_medico", "Laudo não disponível"),  # LAUDO ESPECÍFICO
                 "medical_report": result.get("laudo_medico", "Erro no laudo"),  # Compatibilidade
                 "context_analysis": result.get("context_analysis", {}),  # NOVO!
                 "specialized_type": result.get("specialized_type", "clinica"),  # NOVO!

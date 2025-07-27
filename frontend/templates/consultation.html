@@ -147,7 +147,12 @@
                    <div class="card p-4">
                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                            <h5 class="text-primary mb-0">3. Laudo Especializado</h5>
-                           <button class="edit-btn" id="editLaudoBtn" onclick="toggleEditLaudo()">Editar</button>
+                           <div style="display: flex; gap: 0.5rem;">
+                               <button class="edit-btn" id="editLaudoBtn" onclick="toggleEditLaudo()">Editar</button>
+                               <button class="copy-btn" id="copyLaudoBtn" onclick="copyLaudo()" title="Copiar conteúdo">
+                                   <i class="fas fa-copy"></i> Copiar
+                               </button>
+                           </div>
                        </div>
                        
                        <div id="laudoText" class="editable-content" contenteditable="false" style="line-height: 1.7; max-height: 400px; overflow-y: auto;">
@@ -159,14 +164,7 @@
                            <button class="cancel-btn" onclick="cancelEditLaudo()">Cancelar</button>
                        </div>
                        
-                       <div class="mt-3">
-                           <button class="btn btn-sm btn-primary me-2" onclick="downloadLaudo()">
-                               <i class="fas fa-download me-1"></i>Download
-                           </button>
-                           <button class="btn btn-sm btn-outline-primary" onclick="window.print()">
-                               <i class="fas fa-print me-1"></i>Imprimir
-                           </button>
-                       </div>
+
                    </div>
                </div>
            </div>
@@ -485,11 +483,11 @@
            document.getElementById('transcriptionText').innerHTML = 
                result.transcription || 'Nenhuma transcrição de áudio disponível';
 
-           const anamnese = result.anamnese || 'Erro ao gerar anamnese especializada';
+           const anamnese = result.anamnese || 'Gerando anamnese especializada...';
            document.getElementById('anamneseText').innerHTML = 
                formatMedicalContent(anamnese);
 
-           const laudo = result.laudo_medico || 'Erro ao gerar laudo híbrido';
+           const laudo = result.laudo_medico || 'Gerando laudo especializado...';
            document.getElementById('laudoText').innerHTML = 
                formatMedicalContent(laudo);
 
@@ -629,18 +627,58 @@
            editingLaudo = false;
        }
 
-       function downloadLaudo() {
-           const laudoText = document.getElementById('laudoText').innerText;
-           const blob = new Blob([laudoText], { type: 'text/plain' });
-           const url = URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = url;
-           a.download = `laudo_medico_${new Date().toISOString().slice(0, 10)}.txt`;
-           document.body.appendChild(a);
-           a.click();
-           document.body.removeChild(a);
-           URL.revokeObjectURL(url);
+       function copyLaudo() {
+           const laudoContent = document.getElementById('laudoText').innerText;
+           
+           // Usar a API moderna de clipboard se disponível
+           if (navigator.clipboard && window.isSecureContext) {
+               navigator.clipboard.writeText(laudoContent).then(() => {
+                   showCopySuccess();
+               }).catch(err => {
+                   console.error('Erro ao copiar:', err);
+                   fallbackCopy(laudoContent);
+               });
+           } else {
+               // Fallback para navegadores mais antigos
+               fallbackCopy(laudoContent);
+           }
        }
+
+       function fallbackCopy(text) {
+           const textArea = document.createElement('textarea');
+           textArea.value = text;
+           textArea.style.position = 'fixed';
+           textArea.style.left = '-999999px';
+           textArea.style.top = '-999999px';
+           document.body.appendChild(textArea);
+           textArea.focus();
+           textArea.select();
+           
+           try {
+               document.execCommand('copy');
+               showCopySuccess();
+           } catch (err) {
+               console.error('Erro ao copiar:', err);
+               alert('Erro ao copiar o conteúdo. Tente selecionar manualmente.');
+           }
+           
+           document.body.removeChild(textArea);
+       }
+
+       function showCopySuccess() {
+           const btn = document.getElementById('copyLaudoBtn');
+           const originalText = btn.innerHTML;
+           btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+           btn.style.backgroundColor = '#28a745';
+           btn.style.color = 'white';
+           
+           setTimeout(() => {
+               btn.innerHTML = originalText;
+               btn.style.backgroundColor = '';
+               btn.style.color = '';
+           }, 2000);
+       }
+
    </script>
 </body>
 </html>

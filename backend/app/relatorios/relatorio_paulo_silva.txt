@@ -1,38 +1,27 @@
 **LAUDO MÉDICO PREVIDENCIÁRIO**
 
-**IDENTIFICAÇÃO:**
+**IDENTIFICAÇÃO:**  
 Nome: Paulo Silva  
-Idade: 35 anos  
-Profissão: Soldador  
+Idade: 55 anos  
+Profissão: motorista de ônibus
 
-**ANAMNESE:**
-Paulo Silva, 35 anos, exerce a profissão de soldador, atividade que exige esforço físico e movimentação constante. Relata dor no joelho direito há aproximadamente duas semanas, iniciada após uma queda. A dor é contínua, de intensidade moderada, e piora com a movimentação e carga sobre o membro afetado. Não há relato de episódios prévios semelhantes ou de outras lesões articulares. O paciente não apresenta histórico de doenças articulares crônicas.
+**História Clínica Resumida**  
+Paulo Silva, 55 anos, exerce a profissão de motorista de ônibus e apresenta quadro de hipertensão arterial descontrolada, com valores registrados de 18x11 mmHg. Os sintomas iniciaram de forma insidiosa, com piora progressiva, culminando em episódios de tontura e visão embaçada. Tais sintomas têm impactado significativamente sua capacidade de conduzir veículos, atividade essencial para sua função laboral. O diagnóstico estabelecido é de hipertensão essencial (CID-10: I10), com repercussões diretas em sua segurança e desempenho profissional.
 
-**EXAME FÍSICO:**
-No exame físico, observa-se edema leve no joelho direito, com sensibilidade à palpação na região lateral. A amplitude de movimento está reduzida devido à dor, especialmente na flexão completa. Não há sinais de instabilidade ligamentar evidente. Testes de Lachman e gaveta anterior são negativos. Não há eritema ou calor local significativo.
+**Limitação Funcional**  
+Atualmente, Paulo enfrenta limitações sensoriais, principalmente relacionadas à visão embaçada, e sintomas de tontura que comprometem sua capacidade de concentração e reação, essenciais para a condução segura de um ônibus. Estas limitações afetam diretamente sua funcionalidade no trabalho, impedindo-o de realizar suas atividades laborais de forma segura e eficaz. A persistência dos sintomas agrava a situação, aumentando o risco de acidentes e comprometendo sua autonomia.
 
-**HIPÓTESE DIAGNÓSTICA:**
-Entorse do joelho direito, possivelmente envolvendo estruturas ligamentares, sem evidência de lesão grave ou ruptura completa.
+**Tratamento**  
+O tratamento para hipertensão arterial geralmente inclui o uso de medicamentos anti-hipertensivos, mudanças no estilo de vida e monitoramento regular da pressão arterial. No entanto, não foram fornecidas informações específicas sobre os tratamentos ou medicamentos em uso por Paulo Silva. A continuidade e adequação do tratamento são cruciais para o controle dos sintomas e a recuperação da capacidade laboral.
 
-**CID-10 PRINCIPAL:** S83.2 - Entorse e distensão do joelho
+**Prognóstico (Tendência Reservada/Desfavorável)**  
+Com o tratamento adequado, espera-se que Paulo Silva alcance o controle da pressão arterial, o que poderá permitir o retorno às suas atividades laborais habituais. O tempo estimado de afastamento dependerá da resposta ao tratamento e do controle dos sintomas. É essencial o acompanhamento médico contínuo para ajustar o tratamento conforme necessário e garantir a segurança no retorno ao trabalho.
 
-**CLASSIFICAÇÃO PREVIDENCIÁRIA:**
-Tipo de Benefício Indicado: **AUXÍLIO-DOENÇA**
+**Conclusão Congruente com o Benefício (AUXÍLIO-DOENÇA)**  
+Paulo Silva apresenta incapacidade temporária para o exercício de sua função como motorista de ônibus devido à hipertensão arterial descontrolada e seus sintomas associados. O tempo estimado de afastamento dependerá da resposta ao tratamento e do controle efetivo dos sintomas, com previsão de retorno às atividades laborais após estabilização clínica.
 
-**JUSTIFICATIVA MÉDICA:**
-O paciente apresenta um quadro de entorse do joelho direito, uma condição aguda decorrente de trauma físico. A natureza da lesão sugere uma incapacidade temporária para o trabalho, especialmente considerando as exigências físicas da profissão de soldador, que requer estabilidade e força nos membros inferiores. Não há indicação de lesão permanente ou sequela que comprometa a capacidade laboral a longo prazo.
-
-**PROGNÓSTICO:**
-Com tratamento adequado, incluindo repouso, fisioterapia e analgesia, espera-se recuperação completa em um período de 4 a 6 semanas. Não há indicação de incapacidade permanente.
-
-**CAPACIDADE LABORAL:**
-O paciente apresenta incapacidade laboral temporária devido à dor e limitação funcional no joelho direito, incompatível com as atividades de soldador. Espera-se retorno às atividades normais após o período de recuperação.
-
-**RECOMENDAÇÕES:**
-1. Repouso relativo, evitando atividades que exijam carga excessiva sobre o joelho afetado.
-2. Uso de anti-inflamatórios não esteroides (AINEs) para controle da dor e inflamação.
-3. Início de fisioterapia para fortalecimento muscular e recuperação da amplitude de movimento.
-4. Reavaliação médica em 4 semanas para monitoramento da recuperação e ajuste do plano terapêutico.
+**CID-10**  
+I10 – Hipertensão essencial (primária) (principal)
 
 **DATA:** [Data atual]  
 **MÉDICO RESPONSÁVEL:** Dr. [Nome do Médico]  

@@ -48,6 +48,141 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def generate_anamnese_from_data(multimodal_result: dict) -> str:
+    """Gera anamnese seguindo o Modelo Ideal para Telemedicina"""
+    try:
+        patient_data = multimodal_result.get("patient_data", {})
+        transcription = multimodal_result.get("transcription", "")
+        benefit_classification = multimodal_result.get("benefit_classification", {})
+        
+        nome = patient_data.get("nome", "Não informado")
+        idade = patient_data.get("idade", "Não informada")
+        profissao = patient_data.get("profissao", "Não informada")
+        queixa = patient_data.get("queixa_principal", "Não informada")
+        sintomas = patient_data.get("sintomas", "Não informados")
+        
+        tipo_beneficio = benefit_classification.get("tipo_beneficio", "A definir")
+        cid = benefit_classification.get("cid_principal", "A definir")
+        cid_desc = benefit_classification.get("cid_descricao", "Diagnóstico a confirmar")
+        justificativa = benefit_classification.get("justificativa", "Análise médica necessária")
+        
+        data_atual = datetime.now().strftime("%d/%m/%Y")
+        
+        anamnese = f"""**ANAMNESE MÉDICA - TELEMEDICINA**
+
+**1. IDENTIFICAÇÃO DO PACIENTE**
+• Nome: {nome}
+• Idade: {idade}
+• Sexo: Não informado
+• Profissão: {profissao}
+• Documento de identificação: Não informado
+• Número de processo/referência: Não informado
+
+**2. QUEIXA PRINCIPAL**
+• Motivo da consulta: {queixa}
+• Solicitação específica: {tipo_beneficio}
+• Objetivo: Avaliação médica para fins previdenciários
+
+**3. HISTÓRIA DA DOENÇA ATUAL (HDA)**
+• Data de início dos sintomas: Não especificada na consulta
+• Sintomas atuais: {sintomas}
+• Fatores desencadeantes: A investigar mediante documentação complementar
+• Tratamentos realizados: Não relatados especificamente
+• Situação atual: Limitações funcionais compatíveis com o quadro apresentado
+
+**4. ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES**
+• Doenças prévias: A investigar mediante documentação médica
+• Histórico ocupacional: {profissao}
+• Histórico previdenciário: A confirmar mediante documentação específica
+
+**5. DOCUMENTAÇÃO APRESENTADA**
+• Exames complementares: A avaliar documentação apresentada
+• Relatórios médicos: Análise baseada nas informações disponíveis
+• Observação: Recomenda-se apresentação de documentação médica completa
+
+**6. EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)**
+• Autoavaliação guiada: Relatadas limitações funcionais
+• Observação por vídeo: Limitações da modalidade telemedicina
+• Limitações funcionais: Compatíveis com {sintomas}
+• Capacidade de comunicação: Preservada durante a consulta
+
+**7. AVALIAÇÃO MÉDICA (ASSESSMENT)**
+• Hipótese diagnóstica: {cid_desc} (CID: {cid})
+• Justificativa clínica: {justificativa}
+• Recomendação: {tipo_beneficio}
+• Observações: Avaliação realizada por telemedicina conforme protocolos vigentes
+
+---
+**Data:** {data_atual}  
+**Modalidade:** Telemedicina  
+**Observação:** Esta anamnese segue o modelo ideal para telemedicina e deve ser complementada com documentação médica quando disponível."""
+        
+        return anamnese.strip()
+        
+    except Exception as e:
+        return f"**ANAMNESE MÉDICA**\n\nErro ao gerar anamnese: {str(e)}\n\nRecomenda-se coleta manual das informações do paciente."
+
+def generate_laudo_from_data(multimodal_result: dict) -> str:
+    """Gera laudo médico estruturado conforme especificação profissional"""
+    try:
+        patient_data = multimodal_result.get("patient_data", {})
+        classification = multimodal_result.get("benefit_classification", {})
+        transcription = multimodal_result.get("transcription", "")
+        
+        # Se já existe um relatório médico estruturado, usá-lo
+        medical_report = multimodal_result.get("medical_report", "")
+        if medical_report and "LAUDO MÉDICO" in medical_report and len(medical_report) > 500:
+            return medical_report
+        
+        nome = patient_data.get("nome", "Não informado")
+        idade = patient_data.get("idade", "Não informada")
+        profissao = patient_data.get("profissao", "Não informada")
+        queixa = patient_data.get("queixa_principal", "Não informada")
+        sintomas = patient_data.get("sintomas", "Não informados")
+        
+        tipo_beneficio = classification.get("tipo_beneficio", "AUXÍLIO-DOENÇA")
+        cid = classification.get("cid_principal", "I10.0")
+        cid_desc = classification.get("cid_descricao", "Condição médica")
+        gravidade = classification.get("gravidade", "MODERADA")
+        justificativa = classification.get("justificativa", "Análise médica baseada nos dados fornecidos")
+        prognostico = classification.get("prognostico", "Prognóstico reservado, necessita acompanhamento especializado")
+        
+        data_atual = datetime.now().strftime("%d/%m/%Y")
+        
+        laudo = f"""**LAUDO MÉDICO**
+
+**IDENTIFICAÇÃO:**
+- Nome: {nome}
+- Idade: {idade}
+- Profissão: {profissao}
+
+**1. HISTÓRIA CLÍNICA RESUMIDA**
+Paciente apresenta {queixa} com sintomas incluindo {sintomas}. O quadro clínico atual demonstra evolução compatível com a condição diagnosticada, com impacto significativo na capacidade funcional e laborativa. As manifestações clínicas atuais justificam a classificação diagnóstica principal como {cid} - {cid_desc}.
+
+**2. LIMITAÇÃO FUNCIONAL**
+O paciente apresenta limitações funcionais decorrentes da condição clínica atual, com comprometimento da capacidade laborativa. As limitações observadas impactam significativamente a funcionalidade, especialmente considerando as exigências da atividade profissional ({profissao}). Os sintomas relatados ({sintomas}) contribuem para o agravamento das limitações funcionais.
+
+**3. TRATAMENTO**
+Paciente em seguimento médico conforme protocolo estabelecido para a condição diagnosticada. O tratamento atual visa controle sintomático e melhora funcional, com necessidade de acompanhamento médico regular e reavaliações periódicas para monitorização da evolução clínica.
+
+**4. PROGNÓSTICO**
+{prognostico} A evolução do quadro requer observação continuada para adequação terapêutica. Considerando a gravidade {gravidade.lower()}, o prognóstico é reservado com necessidade de acompanhamento especializado.
+
+**5. CONCLUSÃO**
+Com base na avaliação clínica realizada, o quadro apresentado é compatível com {tipo_beneficio}. O paciente apresenta limitações funcionais que justificam a classificação proposta, considerando os critérios estabelecidos pela legislação previdenciária vigente. {justificativa}
+
+**6. CID-10:**
+- Principal: {cid} - {cid_desc}
+
+---
+**Data:** {data_atual}  
+**Avaliação médica realizada conforme critérios técnicos e legislação vigente**"""
+        
+        return laudo.strip()
+        
+    except Exception as e:
+        return f"**LAUDO MÉDICO**\n\nErro ao gerar laudo: {str(e)}\n\nRecomenda-se avaliação médica presencial."
+
 # Configurar templates e arquivos estáticos
 templates = None
 static_dir = None
@@ -377,8 +512,8 @@ async def intelligent_medical_analysis_with_rag(
             "transcription": multimodal_result.get("transcription", ""),
             "patient_data": multimodal_result.get("patient_data", {}),
             "medical_report": multimodal_result.get("medical_report", ""),
-            "anamnese": multimodal_result.get("medical_report", ""),  # Alias para compatibilidade
-            "laudo_medico": multimodal_result.get("medical_report", ""),  # Alias para compatibilidade
+            "anamnese": generate_anamnese_from_data(multimodal_result),  # ANAMNESE ESPECÍFICA
+            "laudo_medico": generate_laudo_from_data(multimodal_result),  # LAUDO ESPECÍFICO  
             "image_analysis": multimodal_result.get("image_analysis", ""),
             "analysis": multimodal_result.get("analysis", ""),
             "benefit_classification": multimodal_result.get("benefit_classification", {}),  # CLASSIFICAÇÃO ADICIONADA
@@ -676,20 +811,18 @@ if __name__ == "__main__":
     print(f"✅ RAG Service: {'Carregado' if rag_service else 'Não disponível'}")
     print(f"🌐 Frontend: {'Disponível' if templates else 'Fallback mode'}")
     print("📍 Rotas disponíveis:")
-    print("   - http://localhost:5003/ (Página inicial → consulta)")
-    print("   - http://localhost:5003/consultation (Página de consulta)")
-    print("   - http://localhost:5003/login (Login)")
-    print("   - http://localhost:5003/upload (Upload de arquivos)")
-    print("   - http://localhost:5003/report (Relatórios)")
-    print("   - http://localhost:5003/debug (Debug)")
-    print("   - http://localhost:5003/premium (Versão premium)")
-    print("   - http://localhost:5003/api/health (Health check)")
-    print("   - http://localhost:5003/docs (Documentação API)")
+    print("   - http://localhost:8000/api/health (Health check)")
+    print("   - http://localhost:8000/docs (Documentação API)")
+    print("   - http://localhost:8000/api/intelligent-medical-analysis (Análise)")
+    print("   - http://localhost:8000/api/search-rag (Busca RAG)")
+    print("")
+    print("🌐 FRONTEND EM: http://localhost:5003")
+    print("🔌 BACKEND EM: http://localhost:8000")
     
     uvicorn.run(
         app, 
         host="0.0.0.0", 
-        port=5003, 
+        port=8000, 
         reload=False,  
         log_level="info"
     )
