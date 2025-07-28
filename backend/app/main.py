@@ -50,17 +50,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Importações dos serviços existentes
-multimodal_service = None
+# Serviço médico principal
+pydantic_ai_service = None
 
 try:
-    # Importar o serviço multimodal que realmente existe
-    from services.multimodal_ai_service import MultimodalAIService
-    multimodal_service = MultimodalAIService()
-    print("✅ MultimodalAIService carregado")
-except ImportError as e:
-    print(f"❌ Erro ao carregar MultimodalAIService: {e}")
-    multimodal_service = None
+    # SISTEMA PRINCIPAL: PYDANTIC AI (LangGraph + RAG + FAISS + Pydantic)
+    from app.services.pydantic_ai_medical_service import get_pydantic_medical_ai
+    pydantic_ai_service = get_pydantic_medical_ai()
+    
+    if pydantic_ai_service is None:
+        print("❌ ERRO CRÍTICO: PydanticMedicalAI retornou None")
+        pydantic_ai_service = None
+    else:
+        print("✅ PydanticMedicalAI carregado (LangGraph + RAG + FAISS + Pydantic)")
+        
+except Exception as e:
+    print(f"❌ ERRO CRÍTICO: PydanticMedicalAI não disponível: {type(e).__name__}: {e}")
+    import traceback
+    traceback.print_exc()
+    pydantic_ai_service = None
 
 
 def is_audio_file(content_type: str, filename: str) -> bool:
@@ -105,135 +113,7 @@ def is_image_file(content_type: str, filename: str) -> bool:
     return False
 
 
-def generate_anamnese_from_data(analysis_data: Dict[str, Any]) -> str:
-    """Gera anamnese estruturada seguindo padrão ideal para telemedicina"""
-    try:
-        patient_data = analysis_data.get("patient_data", {})
-        transcription = analysis_data.get("transcription", "")
-        classification = analysis_data.get("classification", {})
-        
-        # Dados do paciente
-        nome = patient_data.get('nome', 'Não informado')
-        idade = patient_data.get('idade', 'Não informada')
-        sexo = patient_data.get('sexo', 'Não informado')
-        profissao = patient_data.get('profissao', 'Não informada')
-        
-        # Sintomas e condições
-        sintomas = patient_data.get('sintomas', [])
-        medicamentos = patient_data.get('medicamentos', [])
-        condicoes = patient_data.get('condicoes', [])
-        
-        # Classificação
-        cid = classification.get('cid_principal', 'A definir')
-        tipo_beneficio = classification.get('tipo_beneficio', 'Em avaliação')
-        
-        # Determinar queixa principal baseada no tipo de benefício
-        queixa_map = {
-            'AUXÍLIO-DOENÇA': 'Afastamento do trabalho por incapacidade temporária',
-            'BPC/LOAS': 'Avaliação para Benefício de Prestação Continuada',
-            'APOSENTADORIA POR INVALIDEZ': 'Avaliação para aposentadoria por invalidez',
-            'AUXÍLIO-ACIDENTE': 'Redução da capacidade laborativa pós-acidente',
-            'ISENÇÃO IMPOSTO DE RENDA': 'Isenção de IR por doença grave'
-        }
-        queixa_principal = queixa_map.get(tipo_beneficio, 'Avaliação de incapacidade')
-        
-        anamnese = f"""**ANAMNESE MÉDICA - TELEMEDICINA**
-
-**1. IDENTIFICAÇÃO DO PACIENTE**
-Nome: {nome}
-Idade: {idade} anos
-Sexo: {sexo}
-Profissão: {profissao}
-Documento de identificação: Conforme processo
-Número de processo: Conforme solicitação
-
-**2. QUEIXA PRINCIPAL**
-{queixa_principal}
-Solicitação específica: {tipo_beneficio}
-
-**3. HISTÓRIA DA DOENÇA ATUAL (HDA)**
-{transcription if transcription.strip() else 'Paciente relata quadro clínico atual conforme dados fornecidos via telemedicina. Apresenta sintomas compatíveis com a condição referida, com impacto sobre a funcionalidade e capacidade laborativa.'}
-
-Fatores desencadeantes ou agravantes: {', '.join(condicoes) if condicoes else 'A esclarecer em avaliação presencial'}
-Tratamentos realizados: {', '.join(medicamentos) if medicamentos else 'Conforme prescrição médica'}
-Sintomas atuais: {', '.join(sintomas) if sintomas else 'Conforme relato do paciente'}
-
-**4. ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES**
-Doenças prévias: {', '.join(condicoes) if condicoes else 'Conforme histórico médico'}
-Histórico ocupacional: {profissao if profissao != 'Não informada' else 'Conforme CTPS'}
-Histórico previdenciário: Conforme CNIS
-
-**5. DOCUMENTAÇÃO APRESENTADA**
-Documentos médicos: Conforme processo
-Exames complementares: Conforme anexos
-Observação: Análise baseada em documentação disponível e consulta por telemedicina
-
-**6. EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)**
-Relato de autoavaliação: Limitações funcionais referidas pelo paciente
-Observação visual: Por videoconferência/telemedicina
-Limitações observadas: Compatíveis com o quadro clínico relatado
-Avaliação funcional: Restrições evidentes para atividade laboral habitual
-
-**7. AVALIAÇÃO MÉDICA (ASSESSMENT)**
-Hipótese diagnóstica: Compatível com CID-10: {cid}
-Correlação clínico-funcional: Quadro clínico com repercussões sobre a capacidade laborativa
-Enquadramento previdenciário: {tipo_beneficio}
-
-Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-"""
-        
-        return anamnese.strip()
-        
-    except Exception as e:
-        print(f"❌ Erro ao gerar anamnese: {e}")
-        return "**ANAMNESE MÉDICA - TELEMEDICINA**\n\nErro na geração automática. Recomenda-se consulta médica presencial para elaboração completa da anamnese."
-
-
-def generate_laudo_from_data(analysis_data: Dict[str, Any]) -> str:
-    """Gera laudo médico baseado nos dados da análise"""
-    try:
-        patient_data = analysis_data.get("patient_data", {})
-        classification = analysis_data.get("classification", {})
-        medical_report = analysis_data.get("medical_report", "")
-        
-        laudo = f"""
-LAUDO MÉDICO ESPECIALIZADO
-
-IDENTIFICAÇÃO:
-Paciente: {patient_data.get('nome', 'Não informado')}
-Idade: {patient_data.get('idade', 'Não informada')} anos
-Documento: {patient_data.get('documento', 'Não informado')}
-
-DIAGNÓSTICO:
-CID-10: {classification.get('cid_principal', 'A definir')}
-Gravidade: {classification.get('gravidade', 'A avaliar')}
-
-ANÁLISE FUNCIONAL:
-{classification.get('prognostico', 'Prognóstico requer avaliação médica continuada')}
-
-CONCLUSÃO:
-Com base na avaliação médica realizada por telemedicina, o paciente apresenta condições compatíveis com:
-Tipo de Benefício Recomendado: {classification.get('tipo_beneficio', 'A definir')}
-
-RECOMENDAÇÕES:
-- Acompanhamento médico especializado
-- Reavaliação periódica das condições funcionais
-- Cumprimento do plano terapêutico proposto
-
-{medical_report if medical_report else ''}
-
-___________________________
-Dr(a). Sistema de IA Médica
-CRM: Virtual
-Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-
-IMPORTANTE: Este laudo foi gerado por sistema de IA e deve ser validado por médico habilitado.
-"""
-        return laudo.strip()
-        
-    except Exception as e:
-        print(f"❌ Erro ao gerar laudo: {e}")
-        return "Laudo: Erro na geração - consulte o relatório médico completo"
+# Funções antigas removidas - agora usamos PydanticAI que gera anamnese e laudo automaticamente
 
 
 # ============================================================================
@@ -250,11 +130,12 @@ async def root():
 async def health_check():
     """Health check da API"""
     return {
-        "status": "healthy",
+        "status": "healthy" if pydantic_ai_service else "error",
         "timestamp": datetime.now().isoformat(),
         "services": {
-            "multimodal": multimodal_service is not None
-        }
+            "pydantic_ai": pydantic_ai_service is not None
+        },
+        "active_system": "PydanticAI (LangGraph + RAG + FAISS + Pydantic)" if pydantic_ai_service else "Sistema indisponível"
     }
 
 
@@ -264,85 +145,66 @@ async def intelligent_medical_analysis(
     audio: UploadFile = File(None),
     image: UploadFile = File(None)
 ):
-    """Análise médica inteligente multimodal"""
+    """Análise médica inteligente com PydanticAI + LangGraph + RAG + FAISS"""
     try:
-        if not multimodal_service:
-            raise HTTPException(status_code=500, detail="Serviço multimodal não disponível")
+        if not pydantic_ai_service:
+            raise HTTPException(status_code=500, detail="Sistema PydanticAI não disponível")
 
-        print(f"🧠 Análise inteligente: {patient_info[:50]}...")
+        print(f"🧠 Análise médica: {patient_info[:50]}...")
+        print("🚀 Sistema: PydanticAI + LangGraph + RAG + FAISS + Pydantic")
         
-        audio_bytes = None
+        # Processar áudio se enviado
+        transcription = ""
         if audio and audio.filename:
-            print(f"🎤 Áudio enviado: {audio.filename}")
-            print(f"🔍 Tipo de conteúdo do áudio: {audio.content_type}")
-            audio_bytes = await audio.read()
-            print(f"📊 Tamanho do áudio: {len(audio_bytes)} bytes")
-            
-            if len(audio_bytes) < 100:
-                print("⚠️ Arquivo de áudio muito pequeno - ignorando")
-                audio_bytes = None
-        elif audio:
-            print("⚠️ Áudio sem nome de arquivo - tentando processar")
-            audio_bytes = await audio.read()
-            if len(audio_bytes) < 100:
-                print("⚠️ Áudio inválido - ignorando")
-                audio_bytes = None
+            print(f"🎤 Processando áudio: {audio.filename}")
+            try:
+                from app.services.transcription_service import TranscriptionService
+                transcription_service = TranscriptionService()
+                audio_bytes = await audio.read()
+                transcription = await transcription_service.transcribe_audio(audio_bytes)
+                print(f"✅ Transcrição: {transcription[:100]}...")
+            except Exception as e:
+                print(f"⚠️ Erro na transcrição (continuando sem áudio): {e}")
+                transcription = ""
         
-        image_path = None
-        if image:
-            print(f"🖼️ Imagem enviada: {image.filename}")
-            # Salvar imagem temporariamente se necessário
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                tmp.write(await image.read())
-                image_path = tmp.name
-        else:
-            print("ℹ️ Nenhuma imagem recebida")
-
-        print("🔄 Executando análise multimodal...")
-        
-        # Executar análise multimodal
-        multimodal_result = await multimodal_service.analyze_multimodal(
-            patient_info=patient_info,
-            audio_bytes=audio_bytes,
-            image_path=image_path
+        # Executar análise COMPLETA com PydanticAI
+        pydantic_result = await pydantic_ai_service.analyze_complete(
+            patient_text=patient_info,
+            transcription=transcription
         )
         
-        # Limpar arquivo temporário
-        if image_path and os.path.exists(image_path):
-            os.unlink(image_path)
+        print("✅ ANÁLISE COMPLETA FINALIZADA!")
         
-        print("✅ Análise multimodal concluída")
-        
-        # Preparar resposta (com suporte ao Pydantic AI)
-        if multimodal_result.get("pydantic_analysis"):
-            # Usar dados do Pydantic AI diretamente
-            response_data = {
-                "success": True,
-                "transcription": multimodal_result.get("transcription", ""),
-                "anamnese": multimodal_result.get("anamnese", "Anamnese gerada pelo Pydantic AI"),
-                "laudo_medico": multimodal_result.get("medical_report", "Laudo gerado pelo Pydantic AI"),
-                "classification": multimodal_result.get("classification", {}),
-                "patient_data": multimodal_result.get("patient_data", {}),
-                "medical_report": multimodal_result.get("medical_report", ""),
-                "rag_results": multimodal_result.get("rag_results", []),
-                "confidence_score": multimodal_result.get("confidence_score", 0.8),
-                "analysis_method": "Pydantic AI + LangGraph + RAG + FAISS",
-                "timestamp": datetime.now().isoformat()
-            }
-        else:
-            # Usar método tradicional
-            response_data = {
-                "success": True,
-                "transcription": multimodal_result.get("transcription", ""),
-                "anamnese": generate_anamnese_from_data(multimodal_result),
-                "laudo_medico": generate_laudo_from_data(multimodal_result),
-                "classification": multimodal_result.get("classification", {}),
-                "patient_data": multimodal_result.get("patient_data", {}),
-                "medical_report": multimodal_result.get("medical_report", ""),
-                "rag_results": multimodal_result.get("rag_results", []),
-                "analysis_method": "Tradicional + RAG",
-                "timestamp": datetime.now().isoformat()
-            }
+        # Preparar resposta estruturada
+        response_data = {
+            "success": True,
+            "transcription": transcription,
+            "anamnese": pydantic_result.anamnese,
+            "laudo_medico": pydantic_result.laudo_medico,
+            "classification": {
+                "tipo_beneficio": pydantic_result.classification.tipo_beneficio.value,
+                "cid_principal": pydantic_result.classification.cid_principal,
+                "cids_secundarios": pydantic_result.classification.cids_secundarios,
+                "gravidade": pydantic_result.classification.gravidade.value,
+                "prognostico": pydantic_result.classification.prognostico,
+                "elegibilidade": pydantic_result.classification.elegibilidade,
+                "justificativa": pydantic_result.classification.justificativa,
+                "especificidade_cid": pydantic_result.classification.especificidade_cid
+            },
+            "patient_data": {
+                "nome": pydantic_result.patient_data.nome,
+                "idade": pydantic_result.patient_data.idade,
+                "sexo": pydantic_result.patient_data.sexo,
+                "profissao": pydantic_result.patient_data.profissao,
+                "sintomas": pydantic_result.patient_data.sintomas,
+                "medicamentos": pydantic_result.patient_data.medicamentos,
+                "condicoes": pydantic_result.patient_data.condicoes
+            },
+            "rag_results": pydantic_result.rag_context,
+            "confidence_score": pydantic_result.confidence_score,
+            "analysis_method": "PydanticAI + LangGraph + RAG + FAISS + Pydantic",
+            "timestamp": datetime.now().isoformat()
+        }
         
         return JSONResponse(content=response_data)
         
@@ -363,15 +225,14 @@ async def intelligent_medical_analysis(
 
 
 @app.post("/api/analyze-document")
-async def analyze_document_with_textract(
+async def analyze_document_with_pydantic_ai(
     document: UploadFile = File(...),
-    patient_info: str = Form(""),
-    use_textract: bool = Form(True)
+    patient_info: str = Form("")
 ):
-    """Analisa documento médico usando AWS Textract ou OCR básico"""
+    """Analisa documento médico usando PydanticAI + OCR"""
     try:
-        if not multimodal_service:
-            raise HTTPException(status_code=500, detail="Serviço multimodal não disponível")
+        if not pydantic_ai_service:
+            raise HTTPException(status_code=500, detail="Sistema PydanticAI não disponível")
 
         print(f"📄 Analisando documento: {document.filename}")
         
@@ -381,38 +242,53 @@ async def analyze_document_with_textract(
             temp_path = tmp.name
         
         try:
-            # Analisar documento
-            analysis_result = await multimodal_service._analyze_documents([temp_path])
+            # Extrair texto do documento usando OCR simples
+            document_text = ""
+            try:
+                from app.services.ocr_service import OCRService
+                ocr_service = OCRService()
+                document_text = ocr_service.extract_text_from_file(temp_path)
+                print(f"✅ Texto extraído do documento: {len(document_text)} caracteres")
+            except Exception as e:
+                print(f"⚠️ Erro na extração de texto: {e}")
+                document_text = "Documento anexado - texto não extraído"
             
-            # Combinar análise com informações do paciente
-            if patient_info:
-                combined_text = f"{patient_info}\n"
-                for doc in analysis_result.get("documents", []):
-                    combined_text += f"{doc.get('text', '')}\n"
-                
-                # Executar análise completa
-                multimodal_result = await multimodal_service.analyze_multimodal(
-                    patient_info=combined_text,
-                    document_paths=[temp_path]
-                )
-                
-                response_data = {
-                    "success": True,
-                    "document_analysis": analysis_result,
-                    "transcription": "",
-                    "anamnese": generate_anamnese_from_data(multimodal_result),
-                    "laudo_medico": generate_laudo_from_data(multimodal_result),
-                    "classification": multimodal_result.get("classification", {}),
-                    "patient_data": multimodal_result.get("patient_data", {}),
-                    "medical_report": multimodal_result.get("medical_report", ""),
-                    "timestamp": datetime.now().isoformat()
-                }
-            else:
-                response_data = {
-                    "success": True,
-                    "document_analysis": analysis_result,
-                    "timestamp": datetime.now().isoformat()
-                }
+            # Combinar texto do documento com informações do paciente
+            combined_text = f"{patient_info}\n\nDocumento anexado:\n{document_text}"
+            
+            # Executar análise completa com PydanticAI
+            pydantic_result = await pydantic_ai_service.analyze_complete(
+                patient_text=combined_text,
+                transcription=""
+            )
+            
+            response_data = {
+                "success": True,
+                "document_text": document_text,
+                "anamnese": pydantic_result.anamnese,
+                "laudo_medico": pydantic_result.laudo_medico,
+                "classification": {
+                    "tipo_beneficio": pydantic_result.classification.tipo_beneficio.value,
+                    "cid_principal": pydantic_result.classification.cid_principal,
+                    "gravidade": pydantic_result.classification.gravidade.value,
+                    "prognostico": pydantic_result.classification.prognostico,
+                    "elegibilidade": pydantic_result.classification.elegibilidade,
+                    "justificativa": pydantic_result.classification.justificativa
+                },
+                "patient_data": {
+                    "nome": pydantic_result.patient_data.nome,
+                    "idade": pydantic_result.patient_data.idade,
+                    "sexo": pydantic_result.patient_data.sexo,
+                    "profissao": pydantic_result.patient_data.profissao,
+                    "sintomas": pydantic_result.patient_data.sintomas,
+                    "medicamentos": pydantic_result.patient_data.medicamentos,
+                    "condicoes": pydantic_result.patient_data.condicoes
+                },
+                "rag_results": pydantic_result.rag_context,
+                "confidence_score": pydantic_result.confidence_score,
+                "analysis_method": "PydanticAI + OCR + LangGraph + RAG + FAISS",
+                "timestamp": datetime.now().isoformat()
+            }
             
             return JSONResponse(content=response_data)
             

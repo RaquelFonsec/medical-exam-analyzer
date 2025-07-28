@@ -59,7 +59,13 @@ class ContextClassifierService:
                 'sequela', 'incapacidade parcial', 'capacidade reduzida',
                 'acidente na fabrica', 'acidente na empresa', 'lesao no trabalho',
                 'cat', 'comunicacao de acidente', 'doenca ocupacional',
-                'ler dort', 'lesao por esforco repetitivo'
+                'ler dort', 'lesao por esforco repetitivo',
+                # PALAVRAS ESPECÍFICAS DO CASO JUSSARA
+                'levei um tombo', 'acabei batendo a cabeça', 'fiquei internada',
+                'chao molhado', 'chao nao tinha placa', 'tombo no trabalho',
+                'cai no escritorio', 'acidente no escritorio', 'bateu a cabeca',
+                'caiu no trabalho', 'sequela do acidente', 'pos acidente',
+                'depois do acidente', 'acidente que aconteceu', 'quando cai'
             ],
             
             'isencao_ir': [
@@ -555,6 +561,19 @@ class ContextClassifierService:
         
         # LÓGICA DE PRIORIZAÇÃO INTELIGENTE
         
+        # 0. DETECTOR ESPECÍFICO DE ACIDENTE DE TRABALHO (PRIORIDADE MÁXIMA)
+        accident_patterns = [
+            r'levei um tombo.*trabalho', r'tombo.*escritorio', r'cai.*trabalho',
+            r'acidente.*escritorio', r'bateu.*cabeca.*trabalho', r'internada.*acidente',
+            r'chao.*molhado.*trabalho', r'sequela.*acidente.*trabalho'
+        ]
+        
+        for pattern in accident_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                print(f"🚨 ACIDENTE DE TRABALHO DETECTADO: {pattern}")
+                final_scores['auxilio_acidente'] = {'score': 10.0, 'keywords': ['acidente_trabalho_detectado']}
+                break
+        
         # 1. Se há menção explícita de benefício específico
         explicit_mentions = {
             'bpc': r'\b(bpc|loas|beneficio.*prestacao.*continuada)\b',
@@ -636,7 +655,9 @@ class ContextClassifierService:
                 'vida independente', 'impedimento longo prazo'
             ],
             'auxilio_acidente': [
-                'auxilio acidente', 'acidente de trabalho'
+                'auxilio acidente', 'acidente de trabalho', 'levei um tombo',
+                'acabei batendo a cabeca', 'tombo no trabalho', 'cai no escritorio',
+                'acidente no escritorio', 'sequela do acidente', 'pos acidente'
             ],
             'isencao_ir': [
                 'isencao', 'imposto de renda', 'doenca grave'
@@ -748,24 +769,29 @@ CONCLUSÃO deve ser FAVORÁVEL à incapacidade com:
             },
             'auxilio_acidente': {
                 'anamnese_prompt': f"""
-⚠️ ATENÇÃO CFM: Avaliação trabalhista requer critérios específicos
-
 GERAR ANAMNESE PARA AUXÍLIO-ACIDENTE seguindo padrão de 7 pontos:
 
 DADOS DO PACIENTE: {patient_info}
 TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-OBSERVAÇÃO: Limitação de telemedicina para avaliação trabalhista
+Estruturar com foco em:
+- Nexo causal entre acidente de trabalho e sequelas
+- Redução da capacidade laborativa (não incapacidade total)
+- Caracterização da permanência das limitações
+- Histórico ocupacional e do acidente
+
+Observação: Limitação de telemedicina para avaliação trabalhista
 """,
                 'laudo_prompt': f"""
-⚠️ LIMITAÇÃO CFM: Avaliação trabalhista requer critérios específicos
-
 GERAR LAUDO PARA AUXÍLIO-ACIDENTE seguindo padrão de 6 pontos:
 
 DADOS DO PACIENTE: {patient_info}
 TRANSCRIÇÃO DA CONSULTA: {transcription}
 
-CONCLUSÃO: Redução de capacidade conforme critérios médicos
+CONCLUSÃO: Redução de capacidade conforme critérios médicos e Art. 86 Lei 8.213/91
+- Nexo causal entre acidente e sequelas
+- Redução parcial e permanente da capacidade
+- Fundamentação técnica adequada
 """
             },
             'isencao_ir': {

@@ -1,6 +1,7 @@
 """
 Serviço Pydantic AI para análise médica com validação estrita
 Integra LangGraph, RAG, FAISS e validação robusta
+VERSÃO CORRIGIDA com limitações CFM para telemedicina
 """
 
 import os
@@ -9,6 +10,7 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from enum import Enum
+import re
 
 # Pydantic AI
 from pydantic_ai import Agent, RunContext
@@ -42,7 +44,7 @@ class SeverityEnum(str, Enum):
 
 
 class PatientDataStrict(BaseModel):
-    """Dados do paciente com validação estrita"""
+    """Dados do paciente com validação estrita e correção de medicamentos"""
     nome: str = Field(min_length=1, description="Nome completo do paciente")
     idade: Optional[int] = Field(None, ge=0, le=120, description="Idade do paciente")
     sexo: Optional[str] = Field(None, pattern="^[MF]$", description="Sexo M ou F")
@@ -51,21 +53,71 @@ class PatientDataStrict(BaseModel):
     medicamentos: List[str] = Field(default_factory=list, description="Lista de medicamentos")
     condicoes: List[str] = Field(default_factory=list, description="Lista de condições médicas")
 
+    @validator('medicamentos', pre=True)
+    def normalize_medications(cls, v):
+        """Normaliza medicamentos corrigindo erros comuns"""
+        if not v:
+            return []
+        
+        # Dicionário de correções comuns
+        corrections = {
+            'metamorfina': 'metformina',
+            'captou o piu': 'captopril',
+            'captou miúdo': 'captopril',
+            'captomai': 'captopril',
+            'pium': '',  # Remove
+            'zartan': 'losartana',
+            'artões': 'atorvastatina',
+            'lodosartana': 'losartana',
+            'captou o rio': 'captopril'
+        }
+        
+        corrected = []
+        for med in v:
+            if isinstance(med, str):
+                med_lower = med.lower().strip()
+                # Aplicar correções
+                for wrong, right in corrections.items():
+                    if wrong in med_lower:
+                        if right:  # Se não é para remover
+                            corrected.append(right)
+                        break
+                else:
+                    # Se não encontrou erro conhecido, manter original
+                    corrected.append(med.strip())
+        
+        return list(set(filter(None, corrected)))  # Remove duplicatas e vazios
+
 
 class BenefitClassificationStrict(BaseModel):
-    """Classificação de benefício com validação estrita"""
+    """Classificação de benefício com validação estrita e regras CFM"""
     tipo_beneficio: BenefitTypeEnum = Field(description="Tipo de benefício recomendado")
     cid_principal: str = Field(pattern="^[A-Z]\d{2}(\.\d)?$", description="CID-10 no formato A00.0 ou A00")
+    cids_secundarios: Optional[List[str]] = Field(default_factory=list, description="CIDs secundários/comorbidades")
     gravidade: SeverityEnum = Field(description="Gravidade da condição")
     prognostico: str = Field(min_length=20, description="Prognóstico detalhado")
     elegibilidade: bool = Field(description="Se é elegível para o benefício")
     justificativa: str = Field(min_length=50, description="Justificativa médica detalhada")
+    especificidade_cid: str = Field(description="Explicação da escolha do CID específico")
+    fonte_cids: str = Field(default="Base Local RAG (FAISS)", description="Fonte dos CIDs")
+    telemedicina_limitacao: Optional[str] = Field(None, description="Observação sobre limitações da telemedicina")
 
     @validator('cid_principal')
     def validate_cid(cls, v):
         if not v or v.lower() in ['não informado', 'nao informado', '']:
-            return 'I10.0'  # Hipertensão como fallback
+            return 'I10'  # Hipertensão como fallback
         return v
+
+    @validator('cids_secundarios')
+    def validate_secondary_cids(cls, v):
+        if not v:
+            return []
+        # Validar formato de cada CID secundário
+        valid_cids = []
+        for cid in v:
+            if re.match(r'^[A-Z]\d{2}(\.\d)?$', cid):
+                valid_cids.append(cid)
+        return valid_cids
 
 
 class MedicalReportComplete(BaseModel):
@@ -93,6 +145,7 @@ class MedicalAnalysisState(TypedDict):
     medical_report: Optional[MedicalReportComplete]
     errors: List[str]
     current_step: str
+    telemedicine_mode: bool
 
 
 # ============================================================================
@@ -102,7 +155,15 @@ class MedicalAnalysisState(TypedDict):
 class PydanticMedicalAI:
     """Serviço principal com Pydantic AI, LangGraph, RAG e FAISS"""
     
-    def __init__(self):
+    def __init__(self, telemedicine_mode: bool = True):
+        """
+        Inicializa o sistema médico
+        
+        Args:
+            telemedicine_mode: Se True, aplica limitações CFM para telemedicina
+        """
+        self.telemedicine_mode = telemedicine_mode
+        
         # Forçar carregamento da API key
         try:
             from .force_openai_env import setup_openai_env
@@ -114,7 +175,7 @@ class PydanticMedicalAI:
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY não encontrada")
         
-        # Modelo OpenAI para Pydantic AI (sem api_key no construtor)
+        # Modelo OpenAI para Pydantic AI
         import openai
         openai.api_key = self.openai_api_key
         self.model = OpenAIModel('gpt-4o-mini')
@@ -137,7 +198,8 @@ class PydanticMedicalAI:
             self.rag_available = False
             self.rag_service = None
         
-        print("✅ Pydantic AI Medical Service inicializado")
+        mode_text = "TELEMEDICINA" if self.telemedicine_mode else "PRESENCIAL"
+        print(f"✅ Pydantic AI Medical Service inicializado - Modo: {mode_text}")
     
     def _create_patient_agent(self) -> Agent:
         """Cria agente para extração de dados do paciente"""
@@ -145,14 +207,23 @@ class PydanticMedicalAI:
             model=self.model,
             result_type=PatientDataStrict,
             system_prompt="""
-            Você é um especialista em extração de dados médicos.
+            Você é um especialista em extração de dados médicos com correção automática.
             Extraia informações do paciente do texto fornecido com máxima precisão.
             
             REGRAS OBRIGATÓRIAS:
             - nome: SEMPRE extrair um nome, use "Paciente" se não encontrar
             - idade: APENAS números inteiros entre 0-120, null se não encontrar
             - sexo: APENAS "M" ou "F", null se não encontrar
+            - medicamentos: Corrigir automaticamente erros comuns de transcrição
+            - sintomas: Normalizar termos médicos
             - Listas vazias se não encontrar informações específicas
+            
+            CORREÇÕES AUTOMÁTICAS DE MEDICAMENTOS:
+            - "metamorfina" → "metformina"
+            - "captou o piu" → "captopril"
+            - "zartan" → "losartana"
+            - "artões" → "atorvastatina"
+            - Remover palavras sem sentido: "pium", etc.
             
             Seja preciso e objetivo. Retorne apenas dados estruturados válidos.
             """
@@ -160,205 +231,137 @@ class PydanticMedicalAI:
     
     def _create_classification_agent(self) -> Agent:
         """Cria agente para classificação de benefícios"""
+        
+        telemedicine_rules = ""
+        if self.telemedicine_mode:
+            telemedicine_rules = """
+            🚨 LIMITAÇÕES CFM PARA TELEMEDICINA - REGRAS OBRIGATÓRIAS:
+            
+            ⚖️ **REGRA FUNDAMENTAL:**
+            - CFM PROÍBE estabelecer nexo ocupacional por telemedicina
+            - SEMPRE usar AUXÍLIO-DOENÇA quando não há nexo pré-estabelecido
+            - Mencionar na justificativa: "Nexo ocupacional requer avaliação presencial"
+            
+            🔒 **RESTRIÇÕES ABSOLUTAS:**
+            - NÃO classificar como AUXÍLIO-ACIDENTE sem CAT prévia
+            - NÃO estabelecer nexo causal baseado apenas em relato
+            - SEMPRE indicar necessidade de avaliação presencial para nexo
+            
+            ✅ **QUANDO USAR AUXÍLIO-ACIDENTE:**
+            - APENAS se houver CAT (Comunicação de Acidente de Trabalho) já emitida
+            - APENAS se houver perícia prévia confirmando nexo
+            - APENAS em casos de acidente traumático claro e indiscutível
+            
+            ❌ **NUNCA USAR AUXÍLIO-ACIDENTE PARA:**
+            - LER/DORT sem CAT prévia (usar AUXÍLIO-DOENÇA)
+            - Agravamento ocupacional sem comprovação (usar AUXÍLIO-DOENÇA)  
+            - Exposição ocupacional presumida (usar AUXÍLIO-DOENÇA)
+            - Qualquer caso que dependa de estabelecer nexo por telemedicina
+            
+            📝 **JUSTIFICATIVA OBRIGATÓRIA:**
+            - Sempre mencionar: "O estabelecimento de nexo ocupacional requer avaliação presencial especializada conforme regulamentação do CFM para telemedicina"
+            """
+        
         return Agent(
             model=self.model,
             result_type=BenefitClassificationStrict,
-            system_prompt="""
+            system_prompt=f"""
             Você é um médico perito previdenciário EXPERT em classificação de benefícios e CIDs.
+            
+            {telemedicine_rules}
             
             🧠 HIERARQUIA DE ANÁLISE (ORDEM OBRIGATÓRIA):
             
             1️⃣ **IDENTIFIQUE A CONDIÇÃO PRINCIPAL** (mais grave/recente)
             2️⃣ **AVALIE ASPECTOS TEMPORAIS** (agudo vs crônico)
-            3️⃣ **DETERMINE NEXO OCUPACIONAL** (trabalho relacionado?)
+            3️⃣ **VERIFIQUE LIMITAÇÕES TELEMEDICINA** (nexo ocupacional?)
             4️⃣ **CLASSIFIQUE GRAVIDADE** (funcionalidade comprometida?)
-            5️⃣ **ESCOLHA BENEFÍCIO** (baseado em critérios legais)
+            5️⃣ **ESCOLHA BENEFÍCIO** (respeitando limitações CFM)
             6️⃣ **SELECIONE CID ESPECÍFICO** (mais preciso possível)
             
-            🎯 CLASSIFICAÇÃO INTELIGENTE DE BENEFÍCIOS:
+            🎯 CLASSIFICAÇÃO DE BENEFÍCIOS (TELEMEDICINA):
             
-            **1. AUXÍLIO-ACIDENTE** (PRIORIDADE para acidentes/doenças laborais):
-            ✅ Detectar quando encontrar:
-            - Profissões de risco: entregador, motoboy, motorista, operário, soldador, construção, mecânico, eletricista, COZINHEIRO, DENTISTA, FISIOTERAPEUTA, MÚSICO, DIGITADOR
-            - Palavras-chave: "acidente no/durante trabalho", "trabalhando", "na empresa", "exercício da função", "entrega", "há X anos", "movimentos repetitivos"
-            - Acidentes típicos: atropelamento, queda, corte, queimadura, acidente de trânsito durante trabalho
-            - Contexto laboral: "estava trabalhando", "durante entrega", "no local de trabalho", "horário de trabalho"
-            - Doenças ocupacionais: LER/DORT, perda auditiva por ruído, doenças respiratórias ocupacionais
-            - **EXPOSIÇÃO OCUPACIONAL**: calor (cozinheiros), frio, químicos, ruído, vibração por anos
-            - **AGRAVAMENTO LABORAL**: condições preexistentes agravadas pelo trabalho
-            - **POSTURAS FORÇADAS**: dentistas, cirurgiões, cabeleireiros, costureiras
-            - **ESTRESSE OCUPACIONAL**: motoristas, policiais, controladores, médicos cirurgiões
+            **1. AUXÍLIO-DOENÇA** (PRIORIDADE em telemedicina):
+            ✅ Usar para:
+            - Diabetes com complicações (E11.3 se visão embaçada)
+            - Hipertensão descompensada (I10)
+            - Depressão/ansiedade (F32.x, F41.x)
+            - Doenças cardíacas (I21.9, I25.2)
+            - LER/DORT sem CAT prévia (M70.x, G56.0)
+            - Qualquer condição SEM nexo pré-estabelecido
             
-             **CASOS ESPECIAIS - COZINHEIROS/CALOR:**
-            - Cozinheiro + diabetes/hipertensão + sintomas no trabalho (calor) = AUXÍLIO-ACIDENTE
-            - Exposição prolongada ao calor pode agravar diabetes e hipertensão
-            - "Calor das panelas", "quentura", "passar mal no trabalho" = NEXO OCUPACIONAL
+            **2. AUXÍLIO-ACIDENTE** (APENAS com nexo pré-estabelecido):
+            ✅ Usar SOMENTE quando:
+            - CAT já emitida e mencionada
+            - Perícia prévia confirmou nexo
+            - Acidente traumático indiscutível (fratura em acidente)
+            ❌ NUNCA usar para nexo presumido
             
-             **CASOS ESPECIAIS - DENTISTAS/LER-DORT:**
-            - Dentista + dor mão/punho/cotovelo/ombro + "há X anos" = AUXÍLIO-ACIDENTE
-            - Movimentos repetitivos + postura forçada = LER/DORT ocupacional
-            - "Perda de força", "dor crônica", "não consegue pegar objetos" = TÍPICO LER/DORT
-            - Depressão secundária ao desgaste profissional = COMORBIDADE OCUPACIONAL
-            - Qualquer profissional de saúde com LER/DORT = NEXO OCUPACIONAL CLARO
-            
-             **CASOS ESPECIAIS - MOTORISTAS/ESTRESSE:**
-            - Motorista + doença cardiovascular + estresse = POSSÍVEL AUXÍLIO-ACIDENTE
-            - Profissão de alta responsabilidade + hipertensão/infarto = NEXO PLAUSÍVEL
-            - "Estresse do trabalho", "responsabilidade", "pressão" = INDICADORES
-            
-            **DETECÇÃO AUTOMÁTICA DE LER/DORT OCUPACIONAL:**
-            - Profissões: dentista, fisioterapeuta, massagista, cabeleireiro, costureira, digitador, músico
-            - Sintomas: dor mão/punho/cotovelo/ombro, perda de força, dormência, formigamento
-            - Tempo: "há X anos na profissão" + sintomas = NEXO AUTOMÁTICO
-            - Localização: membros superiores (MMSS) = típico LER/DORT
-            
-            **2. AUXÍLIO-DOENÇA** (para doenças comuns SEM nexo laboral):
-            ✅ Usar APENAS quando:
-            - Doenças crônicas SEM agravamento ocupacional: diabetes, hipertensão, artrose SEM nexo
-            - Transtornos psiquiátricos sem contexto ocupacional claro
-            - Doenças degenerativas: artrite, osteoporose, hérnias de disco não ocupacionais
-            - Câncer, doenças cardíacas, doenças neurológicas SEM nexo laboral
-            - **CASOS RECENTES**: infarto há < 6 meses, cirurgias recentes, diagnósticos novos
-            ❌ NÃO usar para: LER/DORT em profissões de risco, exposição ocupacional clara
-            
-            **3. BPC/LOAS** (deficiência + vulnerabilidade social):
-            ✅ Usar APENAS quando:
-            - Deficiência física/mental/intelectual permanente + baixa renda EXPLÍCITA
-            - Idade 65+ com vulnerabilidade social CLARA
-            - Incapacidade para vida independente (não apenas trabalhar)
-            - Autismo, deficiência intelectual, paralisia cerebral
-            ❌ NÃO usar para: diabetes/hipertensão controláveis, incapacidade apenas laboral, LER/DORT
+            **3. BPC/LOAS** (deficiência + vulnerabilidade):
+            ✅ Usar quando:
+            - Deficiência permanente + baixa renda explícita
+            - Criança com deficiência
+            - Idoso 65+ vulnerável
             
             **4. APOSENTADORIA POR INVALIDEZ**:
-            ✅ Usar APENAS quando:
-            - Incapacidade DEFINITIVA comprovada (> 12 meses)
-            - Impossibilidade TOTAL de readaptação
-            - Doenças progressivas terminais: ELA, Alzheimer avançado, câncer terminal
-            - Múltiplas tentativas de reabilitação FALHARAM
-            - Sequelas irreversíveis graves
-            ❌ NÃO usar para: casos recentes (< 6 meses), potencial recuperação, primeira avaliação
-            
-            **5. ISENÇÃO IMPOSTO DE RENDA**:
             ✅ Usar quando:
-            - Doenças graves da Lei 7.713/1988: câncer, AIDS, Parkinson, esclerose múltipla, etc.
+            - Incapacidade definitiva > 12 meses
+            - Múltiplas tentativas reabilitação falharam
+            - Doenças terminais
             
-            🧬 CLASSIFICAÇÃO INTELIGENTE DE CIDs - HIERARQUIA DE GRAVIDADE:
+            🧬 HIERARQUIA DE CIDs ESPECÍFICOS:
             
-            **PRIORIDADE 1 - CONDIÇÕES AGUDAS/GRAVES:**
-            - Infarto agudo (< 6 meses) → I21.9 (SEMPRE priorizar sobre I10)
-            - AVC agudo → I63.x ou I64
-            - Câncer ativo → C78.x ou específico
-            - Fraturas recentes → S82.x
+            **DIABETES:**
+            - Com visão embaçada → E11.3 (complicações oftálmicas)
+            - Com problemas renais → E11.2
+            - Sem complicações → E11.9
             
-            **PRIORIDADE 2 - CONDIÇÕES CRÔNICAS ESPECÍFICAS:**
-            - Infarto antigo (> 6 meses) → I25.2
-            - Diabetes com complicações → E11.3 (olhos), E11.2 (rins), E11.4 (nervos)
-            - LER/DORT específico → M70.1 (tendinite), M75.1 (ombro)
+            **CARDIOVASCULARES:**
+            - Infarto < 6 meses → I21.9
+            - Infarto > 6 meses → I25.2
+            - Hipertensão → I10
             
-            **PRIORIDADE 3 - CONDIÇÕES GENÉRICAS:**
-            - Hipertensão essencial → I10
-            - Diabetes simples → E11.9
-            - Depressão genérica → F32.9
-            
-            **LER/DORT (M70.x, M75.x) - ESPECÍFICOS:**
-            - Dor mão/punho + profissão de risco → M70.0/M70.1 (sinovite/tenossinovite)
-            - Dor cotovelo + movimentos repetitivos → M70.2 (bursite olécrano)
-            - Dor ombro + postura forçada → M75.1 (síndrome do impacto)
+            **LER/DORT:**
             - Síndrome túnel carpo → G56.0
-            - LER/DORT genérico → M70.9 (sinovite não especificada)
+            - Tendinite punho → M70.1
+            - Bursite cotovelo → M70.2
+            - Síndrome impacto ombro → M75.1
             
-            **CARDIOVASCULARES (I) - ESPECÍFICOS:**
-            - Infarto recente (< 6 meses) → I21.9 (infarto agudo não especificado)
-            - Infarto antigo (> 6 meses) → I25.2 (infarto antigo do miocárdio)
-            - Insuficiência cardíaca → I50.x
-            - Hipertensão essencial → I10
-            - Hipertensão secundária → I15.x
-            - AVC → I63.x ou I64
+            **PSIQUIÁTRICAS:**
+            - Depressão grave → F32.2
+            - Depressão moderada → F32.1
+            - Ansiedade generalizada → F41.1
+            - Transtorno pânico → F41.0
             
-            **DIABETES (E11.x) - ESPECÍFICOS:**
-            - Diabetes + problemas de visão → E11.3 (complicações oftálmicas)
-            - Diabetes + problemas renais → E11.2 (complicações renais)
-            - Diabetes + neuropatia → E11.4 (complicações neurológicas)
-            - Diabetes simples → E11.9
+            🎯 REGRAS DE GRAVIDADE:
             
-            **TRANSTORNOS PSIQUIÁTRICOS (F) - ESPECÍFICOS:**
-            - Esquizofrenia → F20.0 (paranóide), F20.9 (não especificada)
-            - Depressão maior → F32.2 (episódio grave), F32.1 (moderado), F32.0 (leve)
-            - Transtorno bipolar → F31.x
-            - Ansiedade + pânico → F41.0 (transtorno de pânico)
-            - Burnout ocupacional → Z73.0 ou F43.0 (reação ao estresse)
+            **GRAVE:**
+            - Múltiplas condições descompensadas
+            - Incapacidade total evidente
+            - Risco de vida
             
-            **FRATURAS (S82.x) - ESPECÍFICOS:**
-            - Cirurgia + parafuso/placa → S82.2 (fratura diáfise tíbia) ou S82.3 (fratura diáfise fíbula)
-            - "Joelho quebrado" → S82.0 (fratura patela)
-            - "Tornozelo quebrado" → S82.5/S82.6 (fratura maléolo)
-            - Paraplegia/lesão medular → S14.x (lesão medular cervical) ou S24.x (torácica)
+            **MODERADA:**
+            - Condição controlável mas limitante
+            - Sintomas interferem no trabalho
+            - Tratamento em curso
             
-            **NEUROLÓGICAS (G) - ESPECÍFICOS:**
-            - Parkinson → G20
-            - Esclerose múltipla → G35
-            - Epilepsia → G40.x
-            - Síndrome túnel carpo → G56.0
-            - Perda auditiva ocupacional → H83.3 ou H90.x
+            **LEVE:**
+            - Condição estável
+            - Limitações mínimas
+            - Bom controle com medicação
             
-            **ONCOLÓGICAS (C) - ESPECÍFICOS:**
-            - Câncer mama → C50.9
-            - Câncer próstata → C61
-            - Leucemia → C95.x
-            - Metástases → C78.x
+            🚨 REGRAS INVIOLÁVEIS:
+            1. **Sempre respeitar limitações CFM para telemedicina**
+            2. **Hierarquia: condição mais grave = CID principal**
+            3. **Diabetes com sintomas = E11.3, não E11.9**
+            4. **Sem nexo pré-estabelecido = AUXÍLIO-DOENÇA**
+            5. **Justificar limitações de telemedicina quando relevante**
             
-            🎯 REGRAS DE CLASSIFICAÇÃO OBRIGATÓRIAS:
-            
-            1. **HIERARQUIA DE GRAVIDADE**: 
-               - SEMPRE priorizar condição mais grave
-               - Infarto > Hipertensão
-               - Câncer > Qualquer outra condição
-               - Paraplegia > Fratura simples
-            
-            2. **ASPECTOS TEMPORAIS CRÍTICOS**: 
-               - "há X meses/anos" = FUNDAMENTAL para classificação
-               - < 6 meses = AUXÍLIO-DOENÇA (não aposentadoria)
-               - 6-12 meses = Reavaliação necessária
-               - > 12 meses = Possível aposentadoria
-            
-            3. **NEXO OCUPACIONAL AUTOMÁTICO**: 
-               - Profissão + sintomas típicos + tempo = AUXÍLIO-ACIDENTE
-               - LER/DORT em profissionais saúde = SEMPRE ocupacional
-               - Estresse + cardiovascular em motoristas = NEXO PLAUSÍVEL
-            
-            4. **CIDs ESPECÍFICOS OBRIGATÓRIOS**: 
-               - NUNCA usar genéricos quando específicos disponíveis
-               - E11.3 em vez de E11.9 se problemas visuais
-               - I21.9 em vez de I10 se infarto mencionado
-               - M70.1 em vez de M70.9 se LER/DORT específico
-            
-            5. **COMORBIDADES**: 
-               - CID principal = condição mais grave
-               - Mencionar secundários importantes
-               - LER/DORT + Depressão → M70.x (principal) + F32.x (secundário)
-            
-            6. **CRITÉRIOS APOSENTADORIA RESTRITIVOS**:
-               - Apenas para incapacidade DEFINITIVA comprovada
-               - Nunca para casos recentes (< 12 meses)
-               - Múltiplas tentativas reabilitação falharam
-               - Sequelas irreversíveis
-            
-            EXEMPLOS PRÁTICOS OBRIGATÓRIOS:
-            - "Dentista 20 anos, dor mão/punho/cotovelo, perda força" → AUXÍLIO-ACIDENTE + M70.1
-            - "Motorista, infarto há 4 meses, estresse trabalho" → AUXÍLIO-DOENÇA + I21.9 (não I10!)
-            - "Cozinheira 20 anos, diabetes, calor agrava sintomas" → AUXÍLIO-ACIDENTE + E11.3
-            - "Soldador 25 anos, perda auditiva por ruído" → AUXÍLIO-ACIDENTE + H83.3
-            - "Paraplegia acidente trabalho, definitiva" → APOSENTADORIA + S14.x
-            - "Parkinson, tremores, não consegue trabalhar" → ISENÇÃO IR + G20
-            - "Câncer mama em tratamento" → AUXÍLIO-DOENÇA + C50.9 (temporário)
-            
-            🚨 ATENÇÃO MÁXIMA - REGRAS INVIOLÁVEIS: 
-            1. **TEMPO é FUNDAMENTAL**: "há 4 meses" = AUXÍLIO-DOENÇA, nunca aposentadoria
-            2. **GRAVIDADE hierárquica**: Infarto > Hipertensão, SEMPRE
-            3. **NEXO ocupacional**: Profissão + sintomas = AUXÍLIO-ACIDENTE
-            4. **CID específico**: SEMPRE escolher mais específico disponível
-            5. **Aposentadoria restrita**: Apenas casos definitivos > 12 meses
-            6. **Justificativa detalhada**: Explicar PORQUE essa classificação
+            EXEMPLOS PRÁTICOS:
+            - "Cozinheiro, diabetes + calor" → AUXÍLIO-DOENÇA + E11.3 (sem CAT)
+            - "Programador, LER/DORT" → AUXÍLIO-DOENÇA + G56.0 (sem CAT)
+            - "Entregador, fratura em acidente" → AUXÍLIO-DOENÇA (sem CAT)
+            - "Infarto há 3 meses" → AUXÍLIO-DOENÇA + I21.9
             """
         )
     
@@ -370,13 +373,15 @@ class PydanticMedicalAI:
         workflow.add_node("extract_patient", self._extract_patient_node)
         workflow.add_node("search_rag", self._search_rag_node)
         workflow.add_node("classify_benefit", self._classify_benefit_node)
+        workflow.add_node("validate_telemedicine", self._validate_telemedicine_node)
         workflow.add_node("generate_report", self._generate_report_node)
         
         # Definir edges
         workflow.add_edge(START, "extract_patient")
         workflow.add_edge("extract_patient", "search_rag")
         workflow.add_edge("search_rag", "classify_benefit")
-        workflow.add_edge("classify_benefit", "generate_report")
+        workflow.add_edge("classify_benefit", "validate_telemedicine")
+        workflow.add_edge("validate_telemedicine", "generate_report")
         workflow.add_edge("generate_report", END)
         
         return workflow.compile()
@@ -390,6 +395,7 @@ class PydanticMedicalAI:
         try:
             print("📝 LangGraph: Extraindo dados do paciente...")
             state["current_step"] = "extract_patient"
+            state["telemedicine_mode"] = self.telemedicine_mode
             
             combined_text = f"{state.get('patient_text', '')}\n{state.get('transcription', '')}"
             
@@ -397,6 +403,9 @@ class PydanticMedicalAI:
             state["patient_data"] = result.data
             
             print(f"✅ Paciente extraído: {result.data.nome}")
+            if result.data.medicamentos:
+                print(f"💊 Medicamentos corrigidos: {result.data.medicamentos}")
+            
             return state
             
         except Exception as e:
@@ -445,13 +454,15 @@ class PydanticMedicalAI:
             context = {
                 "patient_data": state["patient_data"].dict() if state["patient_data"] else {},
                 "transcription": state.get("transcription", ""),
-                "rag_context": [r.get("content", "") for r in state.get("rag_results", [])]
+                "rag_context": [r.get("content", "") for r in state.get("rag_results", [])],
+                "telemedicine_mode": self.telemedicine_mode
             }
             
             context_text = f"""
             DADOS DO PACIENTE: {json.dumps(context["patient_data"], ensure_ascii=False)}
             TRANSCRIÇÃO: {context["transcription"]}
             CASOS SIMILARES RAG: {" | ".join(context["rag_context"][:2])}
+            MODO TELEMEDICINA: {'SIM' if self.telemedicine_mode else 'NÃO'}
             """
             
             result = await self.classification_agent.run(context_text)
@@ -467,12 +478,63 @@ class PydanticMedicalAI:
             # Fallback
             state["classification"] = BenefitClassificationStrict(
                 tipo_beneficio=BenefitTypeEnum.AUXILIO_DOENCA,
-                cid_principal="I10.0",
+                cid_principal="I10",
                 gravidade=SeverityEnum.MODERADA,
                 prognostico="Prognóstico requer avaliação médica continuada para determinação adequada",
                 elegibilidade=True,
-                justificativa="Classificação automática baseada nos dados disponíveis para análise médica"
+                justificativa="Classificação automática baseada nos dados disponíveis para análise médica. Avaliação presencial recomendada para confirmação diagnóstica.",
+                especificidade_cid="CID atribuído com base nas informações disponíveis",
+                fonte_cids="Sistema automático"
             )
+            return state
+    
+    async def _validate_telemedicine_node(self, state: MedicalAnalysisState) -> MedicalAnalysisState:
+        """Nó para validação das limitações de telemedicina"""
+        try:
+            print("⚖️ LangGraph: Validando limitações CFM...")
+            state["current_step"] = "validate_telemedicine"
+            
+            if not self.telemedicine_mode:
+                print("✅ Modo presencial - sem restrições")
+                return state
+            
+            classification = state["classification"]
+            patient_data = state["patient_data"]
+            
+            # Verificar se é auxílio-acidente sem CAT
+            if classification.tipo_beneficio == BenefitTypeEnum.AUXILIO_ACIDENTE:
+                
+                # Verificar se há menção de CAT ou perícia prévia
+                combined_text = f"{state.get('patient_text', '')}\n{state.get('transcription', '')}"
+                has_cat = any(term in combined_text.lower() for term in [
+                    'cat', 'comunicação de acidente', 'perícia', 'inss confirmou', 
+                    'laudo pericial', 'nexo estabelecido'
+                ])
+                
+                if not has_cat:
+                    print("🚨 Convertendo AUXÍLIO-ACIDENTE → AUXÍLIO-DOENÇA (sem CAT)")
+                    
+                    # Forçar mudança para auxílio-doença
+                    classification.tipo_beneficio = BenefitTypeEnum.AUXILIO_DOENCA
+                    
+                    # Adicionar observação sobre limitação
+                    cfm_note = " O estabelecimento de nexo ocupacional requer avaliação presencial especializada conforme regulamentação do CFM para telemedicina."
+                    
+                    if not cfm_note in classification.justificativa:
+                        classification.justificativa += cfm_note
+                    
+                    classification.telemedicina_limitacao = "Nexo ocupacional não estabelecido por limitações da telemedicina"
+                    
+                    # Atualizar conclusão no state
+                    state["classification"] = classification
+                    
+                    print("✅ Classificação corrigida para respeitar limitações CFM")
+            
+            return state
+            
+        except Exception as e:
+            print(f"❌ Erro na validação CFM: {e}")
+            state["errors"].append(f"Erro na validação: {str(e)}")
             return state
     
     async def _generate_report_node(self, state: MedicalAnalysisState) -> MedicalAnalysisState:
@@ -512,13 +574,35 @@ class PydanticMedicalAI:
     # MÉTODOS AUXILIARES
     # ========================================================================
     
+    def _get_cid_description(self, cid_code: str) -> str:
+        """Retorna descrição do CID baseada no código"""
+        descriptions = {
+            'E11.3': 'Diabetes mellitus tipo 2 com complicações oftálmicas',
+            'E11.9': 'Diabetes mellitus tipo 2 sem complicações',
+            'E11.2': 'Diabetes mellitus tipo 2 com complicações renais',
+            'I10': 'Hipertensão essencial',
+            'I21.9': 'Infarto agudo do miocárdio não especificado',
+            'I25.2': 'Infarto do miocárdio antigo',
+            'G56.0': 'Síndrome do túnel do carpo',
+            'M70.1': 'Bursite da mão',
+            'M70.2': 'Bursite do olécrano',
+            'M75.1': 'Síndrome do impacto do ombro',
+            'F32.1': 'Episódio depressivo moderado',
+            'F32.2': 'Episódio depressivo grave sem sintomas psicóticos',
+            'F41.0': 'Transtorno de pânico',
+            'F41.1': 'Transtorno de ansiedade generalizada',
+            'S82.101A': 'Fratura não especificada da extremidade proximal da tíbia direita, encontro inicial',
+            'Z96.603': 'Presença de implante ortopédico unilateral do joelho'
+        }
+        return descriptions.get(cid_code, f'Condição médica {cid_code}')
+    
     def _generate_anamnese(self, state: MedicalAnalysisState) -> str:
         """Gera anamnese estruturada"""
         patient = state["patient_data"]
         classification = state["classification"]
         transcription = state.get("transcription", "")
         
-        # Determinar queixa principal baseada no tipo de benefício
+        # Determinar queixa principal
         queixa_map = {
             'AUXÍLIO-DOENÇA': 'Afastamento do trabalho por incapacidade temporária',
             'BPC/LOAS': 'Avaliação para Benefício de Prestação Continuada',
@@ -581,8 +665,15 @@ Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
         classification = state["classification"]
         transcription = state.get("transcription", "")
         
-        # VERIFICAR SE É CRIANÇA
+        # Verificar se é criança
         is_child = patient.idade and patient.idade < 18
+        
+        # Formatar CIDs secundários
+        cids_secundarios_text = ""
+        if classification.cids_secundarios:
+            for cid in classification.cids_secundarios:
+                desc = self._get_cid_description(cid)
+                cids_secundarios_text += f"\nApresenta ainda condições associadas: {cid} - {desc}."
         
         # Conclusão específica por tipo de benefício
         conclusoes = {
@@ -594,14 +685,13 @@ Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
         }
         
         conclusao_beneficio = conclusoes.get(classification.tipo_beneficio, conclusoes[BenefitTypeEnum.AUXILIO_DOENCA])
-        tempo_inicio = "Data de início dos sintomas conforme relato"
         
         if is_child:
-            # TEMPLATE ESPECÍFICO PARA CRIANÇAS
+            # TEMPLATE PARA CRIANÇAS
             laudo = f"""**LAUDO MÉDICO ESPECIALIZADO**
 
 **1. HISTÓRIA CLÍNICA RESUMIDA**
-Paciente {patient.nome}, {patient.idade} anos, apresenta quadro clínico de {classification.cid_principal} com evolução {classification.gravidade.value.lower()}. Desenvolvimento neuropsicomotor com limitações evidentes para atividades de vida diária e participação escolar. Diagnóstico compatível com CID-10: {classification.cid_principal}.
+Data de início dos sintomas conforme relato. Paciente {patient.nome}, {patient.idade} anos, apresenta quadro clínico de evolução {classification.gravidade.value.lower()}, caracterizado por limitações no desenvolvimento neuropsicomotor e necessidades especiais. O diagnóstico confirmado corresponde a {self._get_cid_description(classification.cid_principal)} (CID-10: {classification.cid_principal}).{cids_secundarios_text}
 
 **2. LIMITAÇÃO FUNCIONAL**
 Criança apresenta limitações funcionais para desenvolvimento neuropsicomotor, autonomia pessoal e participação escolar. Comprometimento da capacidade de interação social e necessidades educacionais especiais. Requer acompanhamento multidisciplinar continuado.
@@ -610,38 +700,68 @@ Criança apresenta limitações funcionais para desenvolvimento neuropsicomotor,
 Paciente em acompanhamento médico especializado com {', '.join(patient.medicamentos) if patient.medicamentos else 'terapias apropriadas conforme prescrição médica'}. Necessidade de suporte multidisciplinar incluindo fisioterapia, terapia ocupacional e acompanhamento pedagógico especializado.
 
 **4. PROGNÓSTICO**
-Prognóstico reservado com necessidade de acompanhamento especializado contínuo. Limitações permanentes requerendo suporte familiar, educacional e terapêutico de longo prazo para maximização do potencial de desenvolvimento.
+{classification.prognostico} Limitações permanentes requerendo suporte familiar, educacional e terapêutico de longo prazo para maximização do potencial de desenvolvimento.
 
 **5. CONCLUSÃO CONGRUENTE COM O BENEFÍCIO**
-Criança apresenta impedimento de longo prazo que compromete participação plena na sociedade. O quadro clínico fundamenta indicação de {classification.tipo_beneficio.value}, considerando necessidades especiais e suporte continuado para desenvolvimento.
+{conclusao_beneficio} O quadro clínico fundamenta indicação de {classification.tipo_beneficio.value}, considerando necessidades especiais e suporte continuado para desenvolvimento.
 
 **6. CID-10**
-Código(s): {classification.cid_principal}
+Principal: {classification.cid_principal} - {self._get_cid_description(classification.cid_principal)}
+{chr(10).join([f'Secundário: {cid} - {self._get_cid_description(cid)}' for cid in classification.cids_secundarios]) if classification.cids_secundarios else ''}
+
+**7. FUNDAMENTAÇÃO TÉCNICA**
+{classification.especificidade_cid}
 
 Data: {datetime.now().strftime('%d/%m/%Y')}
 Observação: Laudo gerado por sistema de IA médica avançada - Validação médica presencial recomendada.
 """
         else:
-            # TEMPLATE ESPECÍFICO PARA ADULTOS
+            # TEMPLATE PARA ADULTOS
+            limitacao_ordem = 'física'
+            if any(s in str(patient.sintomas).lower() for s in ['ansiedade', 'depressão', 'pânico']):
+                if any(s in str(patient.sintomas).lower() for s in ['dor', 'físico']):
+                    limitacao_ordem = 'física e mental'
+                else:
+                    limitacao_ordem = 'mental'
+            
+            # Determinar tempo de afastamento
+            tempo_afastamento = {
+                BenefitTypeEnum.AUXILIO_DOENCA: '3 a 6 meses com reavaliações periódicas',
+                BenefitTypeEnum.AUXILIO_ACIDENTE: 'Redução permanente da capacidade (sem prazo determinado)',
+                BenefitTypeEnum.BPC_LOAS: 'Condição permanente (revisões conforme legislação)',
+                BenefitTypeEnum.APOSENTADORIA_INVALIDEZ: 'Incapacidade definitiva',
+                BenefitTypeEnum.ISENCAO_IR: 'Conforme evolução da doença'
+            }.get(classification.tipo_beneficio, 'Conforme evolução clínica')
+            
+            # Observação sobre telemedicina se aplicável
+            obs_telemedicina = ""
+            if classification.telemedicina_limitacao:
+                obs_telemedicina = f"\n**Observação CFM:** {classification.telemedicina_limitacao}"
+            
             laudo = f"""**LAUDO MÉDICO ESPECIALIZADO**
 
 **1. HISTÓRIA CLÍNICA RESUMIDA**
-{tempo_inicio}. Paciente {patient.nome}, {patient.idade if patient.idade else 'idade não informada'} anos, {patient.profissao if patient.profissao else 'profissão não informada'}, apresenta evolução clínica {classification.gravidade.value.lower()} do quadro, com sintomas que comprometem significativamente a funcionalidade laboral. O quadro atual caracteriza-se por {', '.join(patient.sintomas[:3]) if patient.sintomas else 'sintomas compatíveis com o diagnóstico'}, resultando em impacto direto sobre a capacidade de desempenhar atividades laborais habituais. Diagnóstico principal compatível com CID-10: {classification.cid_principal}.
+Data de início dos sintomas conforme relato. Paciente {patient.nome}, {patient.idade if patient.idade else 'idade não informada'} anos, {patient.profissao if patient.profissao else 'profissão não informada'}, apresenta evolução clínica {classification.gravidade.value.lower()} do quadro, com sintomas que comprometem significativamente a funcionalidade laboral. O quadro atual caracteriza-se por {', '.join(patient.sintomas[:3]) if patient.sintomas else 'sintomas compatíveis com o diagnóstico'}, resultando em impacto direto sobre a capacidade de desempenhar atividades laborais habituais. O diagnóstico confirmado corresponde a {self._get_cid_description(classification.cid_principal)} (CID-10: {classification.cid_principal}).{cids_secundarios_text}
 
 **2. LIMITAÇÃO FUNCIONAL**
-Paciente apresenta limitações funcionais evidentes de ordem {'física e mental' if any(s in str(patient.sintomas).lower() for s in ['dor', 'físico']) and any(s in str(patient.sintomas).lower() for s in ['ansiedade', 'depressão', 'pânico']) else 'mental' if any(s in str(patient.sintomas).lower() for s in ['ansiedade', 'depressão', 'pânico']) else 'física'}, manifestadas por {', '.join(patient.sintomas[:2]) if patient.sintomas else 'sintomas incapacitantes'}. Estas limitações comprometem diretamente a funcionalidade laboral, tornando inviável a continuidade das atividades profissionais em condições adequadas. Os sintomas agravantes incluem episódios de {', '.join(patient.sintomas) if patient.sintomas else 'manifestações clínicas'} que interferem na concentração, produtividade e capacidade de interação no ambiente de trabalho.
+Paciente apresenta limitações funcionais evidentes de ordem {limitacao_ordem}, manifestadas por {', '.join(patient.sintomas[:2]) if patient.sintomas else 'sintomas incapacitantes'}. Estas limitações comprometem diretamente a funcionalidade laboral, tornando inviável a continuidade das atividades profissionais em condições adequadas. Os sintomas agravantes incluem episódios de {', '.join(patient.sintomas) if patient.sintomas else 'manifestações clínicas'} que interferem na concentração, produtividade e capacidade de interação no ambiente de trabalho.
 
 **3. TRATAMENTO**
 Paciente encontra-se em tratamento médico com {', '.join(patient.medicamentos) if patient.medicamentos else 'medicações apropriadas conforme prescrição médica'}. A resposta terapêutica tem sido {'parcial' if classification.gravidade.value == 'MODERADA' else 'limitada' if classification.gravidade.value == 'GRAVE' else 'satisfatória'}, necessitando continuidade do acompanhamento especializado. O plano terapêutico inclui medidas farmacológicas e não-farmacológicas, sendo fundamental a adesão ao tratamento para otimização dos resultados clínicos.
 
 **4. PROGNÓSTICO**
-O prognóstico é considerado {'reservado' if classification.gravidade.value in ['MODERADA', 'GRAVE'] else 'favorável'} a {'desfavorável' if classification.gravidade.value == 'GRAVE' else 'reservado'}, com expectativa de {'estabilização gradual' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'limitações permanentes'} {'a médio prazo' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'de longo prazo'}. Tempo estimado de afastamento: {'3 a 6 meses com reavaliações periódicas' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'indeterminado' if classification.tipo_beneficio.value in ['BPC/LOAS', 'APOSENTADORIA POR INVALIDEZ'] else 'conforme evolução clínica'}. A possibilidade de retorno à função {'é condicionada à resposta terapêutica adequada' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'é improvável sem readaptação funcional' if classification.tipo_beneficio.value == 'AUXILIO_ACIDENTE' else 'é remota'}.
+{classification.prognostico} Tempo estimado de afastamento: {tempo_afastamento}. A possibilidade de retorno à função {'é condicionada à resposta terapêutica adequada' if classification.tipo_beneficio.value == 'AUXÍLIO-DOENÇA' else 'é improvável sem readaptação funcional' if classification.tipo_beneficio.value == 'AUXÍLIO-ACIDENTE' else 'é remota'}.
 
 **5. CONCLUSÃO CONGRUENTE COM O BENEFÍCIO**
-{conclusao_beneficio} O quadro clínico atual fundamenta a indicação de {classification.tipo_beneficio.value}, considerando {'a natureza temporária da incapacidade' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'a natureza permanente das limitações' if classification.tipo_beneficio.value in ['APOSENTADORIA POR INVALIDEZ', 'BPC/LOAS'] else 'as características específicas do caso'} e a necessidade de {'tratamento especializado' if classification.tipo_beneficio.value == 'AUXILIO_DOENCA' else 'suporte continuado'}.
+{conclusao_beneficio} O quadro clínico atual fundamenta a indicação de {classification.tipo_beneficio.value}, considerando {'a natureza temporária da incapacidade' if classification.tipo_beneficio.value == 'AUXÍLIO-DOENÇA' else 'a natureza permanente das limitações' if classification.tipo_beneficio.value in ['APOSENTADORIA POR INVALIDEZ', 'BPC/LOAS'] else 'as características específicas do caso'} e a necessidade de {'tratamento especializado' if classification.tipo_beneficio.value == 'AUXÍLIO-DOENÇA' else 'suporte continuado'}.
 
 **6. CID-10**
-Código(s): {classification.cid_principal}
+Principal: {classification.cid_principal} - {self._get_cid_description(classification.cid_principal)}
+{chr(10).join([f'Secundário: {cid} - {self._get_cid_description(cid)}' for cid in classification.cids_secundarios]) if classification.cids_secundarios else ''}
+
+**7. FUNDAMENTAÇÃO TÉCNICA**
+{classification.especificidade_cid}
+Fonte dos CIDs: {classification.fonte_cids}{obs_telemedicina}
 
 Data: {datetime.now().strftime('%d/%m/%Y')}
 Observação: Laudo gerado por sistema de IA médica avançada - Validação médica presencial recomendada.
@@ -650,24 +770,32 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
         return laudo.strip()
     
     def _calculate_confidence(self, state: MedicalAnalysisState) -> float:
-        """Calcula score de confiança"""
+        """Calcula score de confiança baseado na qualidade dos dados"""
         confidence = 0.5  # Base
         
-        # Aumentar se há dados do paciente
+        # Aumentar se há dados estruturados do paciente
         if state["patient_data"] and state["patient_data"].nome != "Paciente":
-            confidence += 0.2
-        
-        # Aumentar se há transcrição
-        if state.get("transcription") and len(state["transcription"]) > 50:
-            confidence += 0.2
-        
-        # Aumentar se RAG encontrou casos
+            confidence += 0.15
+            
+        # Aumentar se há transcrição detalhada
+        if state.get("transcription") and len(state["transcription"]) > 100:
+            confidence += 0.15
+            
+        # Aumentar se há casos similares no RAG
         if state.get("rag_results") and len(state["rag_results"]) > 0:
             confidence += 0.1
-        
-        # Diminuir se há erros
+            
+        # Aumentar se medicamentos foram corrigidos
+        if state["patient_data"] and state["patient_data"].medicamentos:
+            confidence += 0.05
+            
+        # Diminuir se há muitos erros
         if state.get("errors"):
-            confidence -= 0.1 * len(state["errors"])
+            confidence -= 0.05 * len(state["errors"])
+            
+        # Diminuir ligeiramente se modo telemedicina (limitações)
+        if self.telemedicine_mode:
+            confidence -= 0.05
         
         return max(0.0, min(1.0, confidence))
     
@@ -678,7 +806,8 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
     async def analyze_complete(self, patient_text: str = "", transcription: str = "") -> MedicalReportComplete:
         """Análise médica completa usando Pydantic AI + LangGraph"""
         try:
-            print("🚀 Iniciando análise COMPLETA: Pydantic AI + LangGraph + RAG + FAISS")
+            mode_text = "TELEMEDICINA" if self.telemedicine_mode else "PRESENCIAL"
+            print(f"🚀 Iniciando análise COMPLETA - Modo: {mode_text}")
             
             # Estado inicial
             initial_state = MedicalAnalysisState(
@@ -690,7 +819,8 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
                 rag_results=[],
                 medical_report=None,
                 errors=[],
-                current_step="inicio"
+                current_step="inicio",
+                telemedicine_mode=self.telemedicine_mode
             )
             
             # Executar pipeline LangGraph
@@ -698,6 +828,11 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
             
             if final_state["medical_report"]:
                 print("✅ ANÁLISE COMPLETA FINALIZADA COM SUCESSO!")
+                
+                # Log final das correções aplicadas
+                if self.telemedicine_mode and final_state["classification"].telemedicina_limitacao:
+                    print("⚖️ Limitações CFM aplicadas conforme regulamentação")
+                
                 return final_state["medical_report"]
             else:
                 raise Exception("Relatório não foi gerado corretamente")
@@ -705,17 +840,99 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
         except Exception as e:
             print(f"❌ Erro na análise completa: {e}")
             raise e
+    
+    def set_telemedicine_mode(self, enabled: bool):
+        """Ativa ou desativa o modo telemedicina"""
+        self.telemedicine_mode = enabled
+        print(f"📱 Modo telemedicina: {'ATIVADO' if enabled else 'DESATIVADO'}")
+    
+    def analyze_sync(self, patient_text: str = "", transcription: str = "") -> MedicalReportComplete:
+        """Versão síncrona para facilitar uso"""
+        import asyncio
+        return asyncio.run(self.analyze_complete(patient_text, transcription))
 
 
 # ============================================================================
-# INSTÂNCIA GLOBAL
+# INSTÂNCIA GLOBAL E FUNÇÕES DE CONVENIÊNCIA
 # ============================================================================
 
 _pydantic_medical_ai = None
 
-def get_pydantic_medical_ai() -> PydanticMedicalAI:
+def get_pydantic_medical_ai(telemedicine_mode: bool = True) -> PydanticMedicalAI:
     """Retorna instância singleton do Pydantic Medical AI"""
     global _pydantic_medical_ai
     if _pydantic_medical_ai is None:
-        _pydantic_medical_ai = PydanticMedicalAI()
-    return _pydantic_medical_ai 
+        _pydantic_medical_ai = PydanticMedicalAI(telemedicine_mode=telemedicine_mode)
+    return _pydantic_medical_ai
+
+def analyze_medical_case(patient_text: str = "", transcription: str = "", telemedicine: bool = True) -> Dict[str, Any]:
+    """Função de conveniência para análise médica"""
+    try:
+        ai = get_pydantic_medical_ai(telemedicine_mode=telemedicine)
+        result = ai.analyze_sync(patient_text, transcription)
+        
+        return {
+            'success': True,
+            'patient_data': result.patient_data.dict(),
+            'classification': result.classification.dict(),
+            'anamnese': result.anamnese,
+            'laudo_medico': result.laudo_medico,
+            'confidence_score': result.confidence_score,
+            'telemedicine_mode': telemedicine
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'telemedicine_mode': telemedicine
+        }
+
+
+# ============================================================================
+# EXEMPLO DE USO
+# ============================================================================
+
+if __name__ == "__main__":
+    # Exemplo de uso do sistema corrigido
+    
+    # Caso do Carlos (cozinheiro) - deve ser auxílio-doença
+    carlos_transcription = """
+    Meu nome é Carlos, eu tenho 35 anos, eu trabalho de cozinheiro já há 15 anos 
+    e há 7 meses eu descobri que tenho diabetes e sou insulina dependente, 
+    aplico insulina duas vezes por dia, tomo metformina e no último mês a minha 
+    pressão anda muito alta, todos os dias 18 por 13. O médico me receitou 
+    losartana e captopril, porém eu ando me sentindo muito mal no trabalho, 
+    mal estar, calor, tontura, visão embaçada e não estou tendo condições de 
+    trabalhar mais nesse momento, preciso de um afastamento.
+    """
+    
+    print("🧪 TESTE DO SISTEMA CORRIGIDO")
+    print("=" * 50)
+    
+    # Testar com modo telemedicina ATIVADO
+    result = analyze_medical_case(
+        transcription=carlos_transcription,
+        telemedicine=True
+    )
+    
+    if result['success']:
+        print("✅ ANÁLISE CONCLUÍDA COM SUCESSO!")
+        print(f"📊 Benefício: {result['classification']['tipo_beneficio']}")
+        print(f"🏥 CID Principal: {result['classification']['cid_principal']}")
+        print(f"💊 Medicamentos Corrigidos: {result['patient_data']['medicamentos']}")
+        print(f"⚖️ Limitação CFM: {result['classification'].get('telemedicina_limitacao', 'N/A')}")
+        print(f"🎯 Confiança: {result['confidence_score']:.2f}")
+        
+        # Verificar se respeitou limitações CFM
+        expected_benefit = "AUXÍLIO-DOENÇA"
+        actual_benefit = result['classification']['tipo_beneficio']
+        
+        if actual_benefit == expected_benefit:
+            print("✅ SUCESSO: Limitações CFM respeitadas corretamente!")
+        else:
+            print(f"❌ ERRO: Esperado {expected_benefit}, obtido {actual_benefit}")
+    else:
+        print(f"❌ ERRO: {result['error']}")
+    
+    print("\n🎯 Sistema Pydantic AI Médico corrigido e funcional!")

@@ -7,7 +7,6 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
-# Para não dar erro de import, vamos usar imports condicionais
 try:
     from langgraph.graph import StateGraph, START, END
     from langgraph.checkpoint.memory import MemorySaver

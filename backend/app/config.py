@@ -2,7 +2,12 @@ import os
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
-load_dotenv("../.env")
+# Tentar diferentes caminhos para o .env
+import pathlib
+project_root = pathlib.Path(__file__).parent.parent.parent
+load_dotenv(project_root / ".env")  # /home/raquel/medical-exam-analyzer/.env
+load_dotenv("../.env")  # fallback para path antigo
+load_dotenv(".env")     # fallback para path relativo
 
 class Settings:
     # APIs
