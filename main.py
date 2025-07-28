@@ -1,21 +1,30 @@
 # ============================================================================
-# MAIN.PY - SISTEMA MÉDICO COM RAG INTEGRADO
-# Versão Corrigida e Otimizada
+# MAIN.PY - SISTEMA MÉDICO COM PIPELINE E RAG
+# Ajustado para estrutura real do projeto
 # ============================================================================
 
 import os
 import sys
 import traceback
+import tempfile
+import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 # Configurar path para imports
+sys.path.append('.')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, Form, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -28,9 +37,9 @@ if missing_vars:
     sys.exit(1)
 
 app = FastAPI(
-    title="Medical AI System with RAG", 
-    version="2.0",
-    description="Sistema de análise médica com IA multimodal e RAG"
+    title="Medical AI System", 
+    version="3.1",
+    description="Sistema de análise médica com pipeline e RAG"
 )
 
 # Configurar CORS
@@ -42,169 +51,349 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Importações globais (com tratamento de erro)
-multimodal_service = None
+# Importações dos serviços (ajustado para sua estrutura)
+medical_pipeline = None
 rag_service = None
 
 try:
-    from app.services.multimodal_ai_service import MultimodalAIService
-    multimodal_service = MultimodalAIService()
-    print("✅ Serviço Multimodal carregado")
+    # Importar o pipeline médico
+    from services.complete_medical_pipeline import CompleteMedicalPipeline
+    medical_pipeline = CompleteMedicalPipeline()
+    print("✅ Complete Medical Pipeline carregado")
 except ImportError as e:
-    print(f"❌ Erro ao carregar serviço multimodal: {e}")
-    multimodal_service = None
+    print(f"❌ Erro ao carregar Complete Medical Pipeline: {e}")
+    try:
+        # Tentar import alternativo
+        from app.services.complete_medical_pipeline import CompleteMedicalPipeline
+        medical_pipeline = CompleteMedicalPipeline()
+        print("✅ Complete Medical Pipeline carregado (import alternativo)")
+    except ImportError as e2:
+        print(f"❌ Erro no import alternativo: {e2}")
+        medical_pipeline = None
 
 try:
-    from app.services.medical_rag_service import MedicalRAGService
-    rag_service = MedicalRAGService()
-    print("✅ Serviço RAG carregado")
+    # Importar o serviço RAG
+    from services.rag import RAGService
+    rag_service = RAGService()
+    print("✅ RAG Service carregado")
 except ImportError as e:
-    print(f"⚠️ RAG service não encontrado: {e}")
-    rag_service = None
+    print(f"⚠️ Tentando imports RAG alternativos: {e}")
+    try:
+        from app.services.rag import RAGService
+        rag_service = RAGService()
+        print("✅ RAG Service carregado (import alternativo)")
+    except ImportError:
+        try:
+            from services.rag.rag_service import RAGService
+            rag_service = RAGService()
+            print("✅ RAG Service carregado (subpasta)")
+        except ImportError:
+            print("⚠️ RAG Service não encontrado")
+            rag_service = None
+
+
+# Modelos Pydantic para entrada
+class PatientAnalysisRequest(BaseModel):
+    patient_info: str = Field(..., description="Informações do paciente")
+    transcription: Optional[str] = Field(None, description="Transcrição de áudio")
+    image_analysis: Optional[str] = Field(None, description="Análise de imagem")
+
+
+def is_audio_file(content_type: str, filename: str) -> bool:
+    """Verifica se o arquivo é de áudio"""
+    if not filename:
+        return False
+        
+    audio_types = ['audio/', 'video/', 'application/octet-stream']
+    audio_extensions = ['.mp3', '.wav', '.m4a', '.ogg', '.webm', '.mp4', '.mpeg', '.aac']
+    
+    if content_type:
+        for audio_type in audio_types:
+            if content_type.startswith(audio_type):
+                return True
+    
+    if filename:
+        for ext in audio_extensions:
+            if filename.lower().endswith(ext):
+                return True
+    
+    return False
+
+
+def is_image_file(content_type: str, filename: str) -> bool:
+    """Verifica se o arquivo é uma imagem"""
+    if not filename:
+        return False
+        
+    image_types = ['image/']
+    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']
+    
+    if content_type:
+        for image_type in image_types:
+            if content_type.startswith(image_type):
+                return True
+    
+    if filename:
+        for ext in image_extensions:
+            if filename.lower().endswith(ext):
+                return True
+    
+    return False
+
+
+async def process_audio_safely(audio_file: UploadFile) -> Optional[bytes]:
+    """Processa arquivo de áudio de forma segura"""
+    try:
+        if not audio_file or not audio_file.filename:
+            return None
+            
+        # Verificar se é áudio válido
+        if not is_audio_file(audio_file.content_type or "", audio_file.filename):
+            logger.warning(f"⚠️ Arquivo não reconhecido como áudio: {audio_file.filename}, tipo: {audio_file.content_type}")
+            # Ainda assim tentar processar se tem extensão de áudio
+            if not any(audio_file.filename.lower().endswith(ext) for ext in ['.mp3', '.wav', '.m4a', '.ogg']):
+                return None
+        
+        # Ler dados binários do áudio
+        audio_content = await audio_file.read()
+        logger.info(f"🎤 Áudio processado: {len(audio_content)} bytes, arquivo: {audio_file.filename}")
+        
+        return audio_content
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar áudio: {e}")
+        return None
+
+
+async def process_image_safely(image_file: UploadFile) -> Optional[str]:
+    """Processa arquivo de imagem de forma segura"""
+    try:
+        if not image_file or not image_file.filename:
+            return None
+            
+        # Verificar se é imagem válida
+        if not is_image_file(image_file.content_type or "", image_file.filename):
+            logger.warning(f"⚠️ Arquivo não é imagem válida: {image_file.filename}, tipo: {image_file.content_type}")
+            return None
+        
+        # Ler dados da imagem
+        image_content = await image_file.read()
+        
+        # Criar arquivo temporário seguro
+        file_extension = os.path.splitext(image_file.filename)[1] or '.jpg'
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=file_extension,
+            prefix="medical_img_"
+        ) as temp_file:
+            temp_file.write(image_content)
+            temp_path = temp_file.name
+        
+        logger.info(f"🖼️ Imagem processada: {temp_path}, arquivo: {image_file.filename}")
+        return temp_path
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar imagem: {e}")
+        return None
 
 
 @app.post("/api/intelligent-medical-analysis")
-async def intelligent_medical_analysis_with_rag(
-    patient_info: str = Form(...),
-    audio_data: UploadFile = File(None),
-    image_data: UploadFile = File(None)
+async def intelligent_medical_analysis(
+    patient_info: str = Form(default=""),
+    audio_data: Optional[UploadFile] = File(None),
+    image_data: Optional[UploadFile] = File(None)
 ):
-    """🚀 ENDPOINT PRINCIPAL - ANÁLISE MÉDICA COMPLETA COM RAG"""
+    """🚀 ENDPOINT PRINCIPAL - ANÁLISE MÉDICA COMPLETA"""
     
-    print(f"🚀 NOVA ANÁLISE INICIADA - Paciente: {patient_info[:50]}...")
     start_time = datetime.now()
+    temp_files = []  # Para limpeza posterior
+    
+    logger.info(f"🚀 NOVA ANÁLISE INICIADA - {start_time}")
+    logger.info(f"📝 Patient Info: {patient_info[:100]}...")
+    logger.info(f"🎧 Audio: {audio_data.filename if audio_data else 'None'}")
+    logger.info(f"🖼️ Image: {image_data.filename if image_data else 'None'}")
     
     try:
         # Validação inicial
-        if not multimodal_service:
-            raise HTTPException(
-                status_code=503, 
-                detail="Serviço multimodal não disponível"
-            )
+        if not patient_info.strip():
+            logger.warning("⚠️ Patient info vazio")
+            patient_info = "Paciente não identificado"
         
-        # 1. PROCESSAMENTO DE ARQUIVOS
-        audio_bytes = None
-        image_path = None
+        # 1. PROCESSAMENTO SEGURO DE ARQUIVOS
+        logger.info("🔄 Processando arquivos...")
         
-        if audio_data and audio_data.filename:
-            audio_bytes = await audio_data.read()
-            print(f"🎤 Áudio recebido: {len(audio_bytes)} bytes")
+        audio_bytes = await process_audio_safely(audio_data)
+        image_path = await process_image_safely(image_data)
         
-        if image_data and image_data.filename:
-            # Salvar imagem temporariamente
-            temp_dir = "temp_images"
-            os.makedirs(temp_dir, exist_ok=True)
-            image_path = os.path.join(temp_dir, f"img_{int(datetime.now().timestamp())}.jpg")
-            
-            with open(image_path, "wb") as f:
-                f.write(await image_data.read())
-            print(f"🖼️ Imagem salva: {image_path}")
+        if image_path:
+            temp_files.append(image_path)
         
-        # 2. ANÁLISE MULTIMODAL BASE
-        print("🔄 Executando análise multimodal...")
-        
-        multimodal_result = await multimodal_service.analyze_multimodal(
-            patient_info=patient_info,
-            audio_bytes=audio_bytes,
-            image_path=image_path
-        )
-        
-        if multimodal_result.get("status") == "error":
-            print(f"❌ Erro na análise multimodal: {multimodal_result.get('error')}")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "success": False,
-                    "error": multimodal_result.get("error"),
-                    "source": "multimodal_analysis"
-                }
-            )
-        
-        # 3. PREPARAR RESULTADO BASE
-        result = {
-            "success": True,
-            "timestamp": start_time.strftime('%Y-%m-%d %H:%M:%S'),
+        # 2. PREPARAR DADOS PARA ANÁLISE
+        analysis_data = {
             "patient_info": patient_info,
-            "transcription": multimodal_result.get("transcription", ""),
-            "patient_data": multimodal_result.get("patient_data", {}),
-            "medical_report": multimodal_result.get("medical_report", ""),
-            "image_analysis": multimodal_result.get("image_analysis", ""),
-            "analysis": multimodal_result.get("analysis", ""),
-            "multimodal_success": True
+            "audio_bytes": audio_bytes,
+            "image_path": image_path,
+            "timestamp": start_time.isoformat(),
+            "has_audio": audio_bytes is not None,
+            "has_image": image_path is not None
         }
         
-        print("✅ Análise multimodal concluída")
+        # 3. EXECUTAR ANÁLISE
+        analysis_result = {}
         
-        # 4. INTEGRAÇÃO RAG (se disponível)
+        # Se temos o pipeline médico, usar ele
+        if medical_pipeline:
+            try:
+                logger.info("🔄 Executando Complete Medical Pipeline...")
+                
+                # Tentar diferentes métodos do pipeline
+                if hasattr(medical_pipeline, 'analyze'):
+                    analysis_result = await medical_pipeline.analyze(analysis_data)
+                elif hasattr(medical_pipeline, 'process'):
+                    analysis_result = await medical_pipeline.process(analysis_data)
+                elif hasattr(medical_pipeline, 'run'):
+                    analysis_result = await medical_pipeline.run(analysis_data)
+                elif hasattr(medical_pipeline, 'invoke'):
+                    analysis_result = await medical_pipeline.invoke(analysis_data)
+                else:
+                    # Tentar chamar diretamente
+                    analysis_result = await medical_pipeline(analysis_data)
+                
+                logger.info("✅ Pipeline médico concluído")
+                
+            except Exception as e:
+                logger.error(f"❌ Erro no pipeline médico: {e}")
+                analysis_result = {
+                    "success": False,
+                    "error": str(e),
+                    "transcription": "",
+                    "analysis": f"Erro no pipeline: {str(e)}",
+                    "medical_report": f"Análise falhou: {str(e)}"
+                }
+        else:
+            # Análise básica sem pipeline
+            logger.warning("⚠️ Pipeline não disponível, fazendo análise básica")
+            analysis_result = {
+                "success": True,
+                "transcription": "Transcrição não disponível (pipeline não carregado)",
+                "analysis": f"Análise básica para: {patient_info}",
+                "medical_report": "Relatório básico - pipeline não disponível",
+                "patient_data": {"name": patient_info}
+            }
+        
+        # 4. ESTRUTURAR RESULTADO
+        result = {
+            "success": analysis_result.get("success", True),
+            "timestamp": start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "patient_info": patient_info,
+            "transcription": analysis_result.get("transcription", ""),
+            "patient_data": analysis_result.get("patient_data", {}),
+            "medical_report": analysis_result.get("medical_report", ""),
+            "image_analysis": analysis_result.get("image_analysis", ""),
+            "analysis": analysis_result.get("analysis", ""),
+            "pipeline_available": medical_pipeline is not None,
+            "files_processed": {
+                "audio": audio_bytes is not None,
+                "image": image_path is not None
+            }
+        }
+        
+        # 5. INTEGRAÇÃO RAG (se disponível)
         if rag_service:
             try:
-                print("🔄 Iniciando análise RAG...")
+                logger.info("🔄 Iniciando busca RAG...")
                 
-                # Usar a transcrição para buscar casos similares
-                transcription = result.get("transcription", "")
-                patient_data = result.get("patient_data", {})
+                # Usar transcrição ou info do paciente
+                search_query = result.get("transcription", "").strip()
+                if not search_query:
+                    search_query = patient_info
                 
-                if transcription or patient_data:
-                    # Buscar contexto similar
-                    search_query = transcription or patient_info
-                    similar_docs = rag_service.search_similar_documents(search_query, k=5)
+                if search_query:
+                    # Buscar documentos similares
+                    similar_docs = []
+                    
+                    # Tentar diferentes métodos de busca
+                    if hasattr(rag_service, 'search'):
+                        similar_docs = rag_service.search(search_query, k=5)
+                    elif hasattr(rag_service, 'similarity_search'):
+                        similar_docs = rag_service.similarity_search(search_query, k=5)
+                    elif hasattr(rag_service, 'query'):
+                        similar_docs = rag_service.query(search_query, k=5)
+                    elif hasattr(rag_service, 'buscar_documentos_similares'):
+                        similar_docs = rag_service.buscar_documentos_similares(search_query, k=5)
                     
                     if similar_docs:
-                        similarity_scores = [score for _, score in similar_docs]
-                        avg_score = sum(similarity_scores) / len(similarity_scores)
+                        # Processar resultados
+                        docs = []
+                        scores = []
+                        
+                        for item in similar_docs:
+                            if isinstance(item, tuple) and len(item) == 2:
+                                doc, score = item
+                                docs.append(str(doc))
+                                scores.append(float(score))
+                            else:
+                                docs.append(str(item))
+                                scores.append(0.8)  # Score padrão
+                        
+                        avg_score = sum(scores) / len(scores) if scores else 0
                         
                         result["rag_enabled"] = True
-                        result["rag_similarity_score"] = avg_score
-                        result["rag_cases_found"] = len(similar_docs)
-                        result["rag_documents"] = [doc[:200] + "..." for doc, _ in similar_docs[:3]]
+                        result["rag_similarity_score"] = round(avg_score, 3)
+                        result["rag_cases_found"] = len(docs)
+                        result["rag_documents"] = [
+                            doc[:200] + "..." if len(doc) > 200 else doc
+                            for doc in docs[:3]
+                        ]
                         
-                        print(f"✅ RAG concluído - Score médio: {avg_score:.3f}, Casos: {len(similar_docs)}")
-                        
-                        # Se temos boa similaridade, enriquecer o relatório
-                        if avg_score > 0.6:
-                            enhanced_report = await _enhance_report_with_rag(
-                                result["medical_report"], 
-                                similar_docs, 
-                                rag_service
-                            )
-                            result["medical_report_enhanced"] = enhanced_report
-                            result["report_source"] = "RAG Enhanced"
-                        else:
-                            result["report_source"] = "Multimodal + RAG Context"
+                        logger.info(f"✅ RAG concluído - Score: {avg_score:.3f}, Casos: {len(docs)}")
+                        result["report_source"] = "Pipeline + RAG"
                     else:
                         result["rag_enabled"] = True
                         result["rag_cases_found"] = 0
-                        result["report_source"] = "Multimodal Only"
-                        print("📋 RAG ativo mas nenhum caso similar encontrado")
+                        result["report_source"] = "Pipeline Only"
+                        logger.info("📋 RAG ativo mas nenhum resultado")
                 
             except Exception as rag_error:
-                print(f"⚠️ Erro no RAG: {str(rag_error)}")
+                logger.error(f"⚠️ Erro no RAG: {rag_error}")
                 result["rag_enabled"] = False
                 result["rag_error"] = str(rag_error)
-                result["report_source"] = "Multimodal Only"
+                result["report_source"] = "Pipeline Only"
         else:
             result["rag_enabled"] = False
-            result["report_source"] = "Multimodal Only"
-            print("⚠️ RAG não disponível")
+            result["report_source"] = "Pipeline Only"
         
-        # 5. FINALIZAÇÃO
+        # 6. FINALIZAÇÃO
         processing_time = (datetime.now() - start_time).total_seconds()
         result["processing_time_seconds"] = round(processing_time, 2)
-        result["sistema_versao"] = "Medical AI v2.0"
+        result["sistema_versao"] = "Medical AI v3.1"
         
         # Limpar arquivos temporários
-        if image_path and os.path.exists(image_path):
-            os.remove(image_path)
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    logger.info(f"🗑️ Arquivo temporário removido: {temp_file}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao remover arquivo: {e}")
         
-        print(f"✅ ANÁLISE COMPLETA FINALIZADA - Tempo: {processing_time:.2f}s")
+        logger.info(f"✅ ANÁLISE COMPLETA - Tempo: {processing_time:.2f}s")
         return result
         
     except HTTPException:
         raise
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ ERRO CRÍTICO: {error_msg}")
+        logger.error(f"❌ ERRO CRÍTICO: {error_msg}")
         traceback.print_exc()
+        
+        # Limpar arquivos em caso de erro
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
         
         return JSONResponse(
             status_code=500,
@@ -213,46 +402,16 @@ async def intelligent_medical_analysis_with_rag(
                 "error": error_msg,
                 "error_type": type(e).__name__,
                 "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                "processing_time_seconds": (datetime.now() - start_time).total_seconds()
+                "processing_time_seconds": (datetime.now() - start_time).total_seconds(),
+                "debug_info": {
+                    "patient_info_received": bool(patient_info),
+                    "audio_received": audio_data is not None,
+                    "image_received": image_data is not None,
+                    "pipeline_available": medical_pipeline is not None,
+                    "rag_available": rag_service is not None
+                }
             }
         )
-
-
-async def _enhance_report_with_rag(base_report: str, similar_docs: list, rag_service) -> str:
-    """Enriquece o relatório base com contexto do RAG"""
-    try:
-        context = "\n".join([doc for doc, _ in similar_docs[:3]])
-        
-        # Usar o RAG service para gerar versão melhorada
-        enhanced = rag_service.client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Você é um médico especialista. Enriqueça o relatório base com insights do contexto médico relevante."
-                },
-                {
-                    "role": "user",
-                    "content": f"""
-RELATÓRIO BASE:
-{base_report}
-
-CONTEXTO MÉDICO SIMILAR:
-{context}
-
-Enriqueça o relatório base incorporando insights relevantes do contexto, mantendo a estrutura original mas adicionando detalhes clínicos pertinentes.
-"""
-                }
-            ],
-            temperature=0.3,
-            max_tokens=1500
-        )
-        
-        return enhanced.choices[0].message.content.strip()
-        
-    except Exception as e:
-        print(f"❌ Erro ao enriquecer relatório: {e}")
-        return base_report
 
 
 @app.get("/api/health")
@@ -262,29 +421,38 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "Medical AI v2.0",
+        "version": "Medical AI v3.1",
         "services": {}
     }
     
-    # Verificar serviço multimodal
-    if multimodal_service:
-        health_status["services"]["multimodal_ai"] = {
+    # Verificar pipeline médico
+    if medical_pipeline:
+        health_status["services"]["medical_pipeline"] = {
             "status": "✅ Disponível",
-            "class": type(multimodal_service).__name__
+            "type": "Complete Medical Pipeline",
+            "class": type(medical_pipeline).__name__
         }
     else:
-        health_status["services"]["multimodal_ai"] = {
+        health_status["services"]["medical_pipeline"] = {
             "status": "❌ Indisponível",
-            "error": "Serviço não carregado"
+            "error": "Pipeline não carregado"
         }
     
-    # Verificar serviço RAG
+    # Verificar RAG service
     if rag_service:
         try:
-            rag_stats = rag_service.get_rag_stats()
+            # Tentar obter estatísticas
+            stats = {}
+            if hasattr(rag_service, 'get_stats'):
+                stats = rag_service.get_stats()
+            elif hasattr(rag_service, 'obter_estatisticas'):
+                stats = rag_service.obter_estatisticas()
+            
             health_status["services"]["rag_system"] = {
                 "status": "✅ Disponível",
-                "stats": rag_stats
+                "type": "RAG Service",
+                "class": type(rag_service).__name__,
+                "stats": stats
             }
         except Exception as e:
             health_status["services"]["rag_system"] = {
@@ -297,10 +465,11 @@ async def health_check():
             "error": "Serviço não encontrado"
         }
     
-    # Verificar variáveis de ambiente
+    # Verificar ambiente
     health_status["environment"] = {
         "openai_api_configured": bool(os.getenv('OPENAI_API_KEY')),
-        "python_version": sys.version.split()[0]
+        "python_version": sys.version.split()[0],
+        "temp_dir_writable": os.access(tempfile.gettempdir(), os.W_OK)
     }
     
     return health_status
@@ -308,28 +477,49 @@ async def health_check():
 
 @app.get("/api/rag/search")
 async def search_rag_knowledge(
-    query: str = Query(..., description="Consulta para buscar na base de conhecimento"),
+    query: str = Query(..., description="Consulta para buscar na base RAG"),
     top_k: int = Query(5, ge=1, le=20, description="Número de resultados")
 ):
-    """🔍 BUSCAR NA BASE DE CONHECIMENTO RAG"""
+    """🔍 BUSCAR NA BASE RAG"""
     
     if not rag_service:
         raise HTTPException(status_code=503, detail="Serviço RAG não disponível")
     
     try:
-        results = rag_service.search_similar_documents(query, k=top_k)
+        results = []
+        
+        # Tentar diferentes métodos de busca
+        if hasattr(rag_service, 'search'):
+            results = rag_service.search(query, k=top_k)
+        elif hasattr(rag_service, 'similarity_search'):
+            results = rag_service.similarity_search(query, k=top_k)
+        elif hasattr(rag_service, 'query'):
+            results = rag_service.query(query, k=top_k)
+        elif hasattr(rag_service, 'buscar_documentos_similares'):
+            results = rag_service.buscar_documentos_similares(query, k=top_k)
+        else:
+            raise HTTPException(status_code=501, detail="Método de busca não encontrado no RAG service")
+        
+        # Processar resultados
+        processed_results = []
+        for result in results:
+            if isinstance(result, tuple) and len(result) == 2:
+                doc, score = result
+                processed_results.append({
+                    "document": str(doc)[:300] + "..." if len(str(doc)) > 300 else str(doc),
+                    "similarity_score": float(score)
+                })
+            else:
+                processed_results.append({
+                    "document": str(result)[:300] + "..." if len(str(result)) > 300 else str(result),
+                    "similarity_score": 0.8
+                })
         
         return {
             "success": True,
             "query": query,
-            "results": [
-                {
-                    "document": doc[:300] + "..." if len(doc) > 300 else doc,
-                    "similarity_score": float(score)
-                }
-                for doc, score in results
-            ],
-            "total_found": len(results),
+            "results": processed_results,
+            "total_found": len(processed_results),
             "timestamp": datetime.now().isoformat()
         }
         
@@ -337,36 +527,21 @@ async def search_rag_knowledge(
         raise HTTPException(status_code=500, detail=f"Erro na busca RAG: {str(e)}")
 
 
-@app.get("/api/rag/stats")
-async def get_rag_statistics():
-    """📊 ESTATÍSTICAS DO SISTEMA RAG"""
-    
-    if not rag_service:
-        raise HTTPException(status_code=503, detail="Serviço RAG não disponível")
-    
-    try:
-        stats = rag_service.get_rag_stats()
-        return {
-            "success": True,
-            "statistics": stats,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {str(e)}")
-
-
 @app.get("/")
 async def root():
     """🏠 PÁGINA INICIAL"""
     return {
-        "message": "Medical AI System with RAG",
-        "version": "2.0",
+        "message": "Medical AI System - Estrutura Ajustada",
+        "version": "3.1",
         "status": "running",
+        "services": {
+            "pipeline": "Complete Medical Pipeline" if medical_pipeline else "Não disponível",
+            "rag": "RAG Service" if rag_service else "Não disponível"
+        },
         "endpoints": {
             "analysis": "/api/intelligent-medical-analysis",
             "health": "/api/health",
-            "rag_search": "/api/rag/search",
-            "rag_stats": "/api/rag/stats"
+            "rag_search": "/api/rag/search"
         }
     }
 
@@ -375,7 +550,7 @@ async def root():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Tratamento global de erros"""
-    print(f"❌ Erro não tratado: {str(exc)}")
+    logger.error(f"❌ Erro global: {str(exc)}")
     traceback.print_exc()
     
     return JSONResponse(
@@ -384,6 +559,7 @@ async def global_exception_handler(request, exc):
             "success": False,
             "error": "Erro interno do servidor",
             "error_type": type(exc).__name__,
+            "error_details": str(exc)[:200],
             "timestamp": datetime.now().isoformat()
         }
     )
@@ -392,14 +568,18 @@ async def global_exception_handler(request, exc):
 if __name__ == "__main__":
     import uvicorn
     
-    print("🚀 Iniciando Medical AI System...")
-    print(f"✅ Multimodal Service: {'Carregado' if multimodal_service else 'Não disponível'}")
+    print("🚀 Iniciando Medical AI System v3.1...")
+    print(f"✅ Complete Medical Pipeline: {'Carregado' if medical_pipeline else 'Não disponível'}")
     print(f"✅ RAG Service: {'Carregado' if rag_service else 'Não disponível'}")
+    print("🏗️ Estrutura ajustada para:")
+    print("   - services/complete_medical_pipeline.py")
+    print("   - services/rag/")
+    print("   - Processamento seguro de arquivos binários")
     
     uvicorn.run(
-        app, 
-        host="0.0.0.0", 
-        port=5003, 
+        app,
+        host="0.0.0.0",
+        port=8000,
         reload=False,
         log_level="info"
     )

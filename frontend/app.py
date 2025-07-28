@@ -22,6 +22,11 @@ def consultation():
     """Interface de consulta médica inteligente"""
     return render_template("consultation.html")
 
+@app.route("/test_audio_button.html")
+def test_audio_button():
+    """Página de diagnóstico do botão de áudio"""
+    return app.send_static_file('../test_audio_button.html')
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API de login - redirecionar para backend"""
@@ -58,18 +63,18 @@ def intelligent_medical_analysis():
         data = {'patient_info': patient_info}
         files = {}
         
-        # Arquivo de áudio (gravação) - NOME CORRETO
-        if 'audio_data' in request.files:
-            audio_file = request.files['audio_data']
+        # Arquivo de áudio (gravação) - NOME CORRIGIDO
+        if 'audio' in request.files:
+            audio_file = request.files['audio']
             if audio_file.filename:
-                files['audio_data'] = (audio_file.filename, audio_file, audio_file.content_type)
+                files['audio'] = (audio_file.filename, audio_file, audio_file.content_type)
                 print(f"🎤 Áudio enviado: {audio_file.filename}")
         
-        # Arquivo de imagem/documento - NOME CORRETO
-        if 'image_data' in request.files:
-            image_file = request.files['image_data']
+        # Arquivo de imagem/documento - NOME CORRIGIDO  
+        if 'image' in request.files:
+            image_file = request.files['image']
             if image_file.filename:
-                files['image_data'] = (image_file.filename, image_file, image_file.content_type)
+                files['image'] = (image_file.filename, image_file, image_file.content_type)
                 print(f"📄 Documento enviado: {image_file.filename}")
         
         # Chamar backend na ROTA CORRETA
@@ -87,15 +92,15 @@ def intelligent_medical_analysis():
             return jsonify({
                 "success": True,
                 "transcription": result.get("transcription", "Sem transcrição"),
-                            "anamnese": result.get("anamnese", "Anamnese não disponível"),  # ANAMNESE ESPECÍFICA
-            "laudo_medico": result.get("laudo_medico", "Laudo não disponível"),  # LAUDO ESPECÍFICO
-                "medical_report": result.get("laudo_medico", "Erro no laudo"),  # Compatibilidade
-                "context_analysis": result.get("context_analysis", {}),  # NOVO!
-                "specialized_type": result.get("specialized_type", "clinica"),  # NOVO!
-                "confidence": result.get("confidence", 0.95),
-                "model": result.get("model", "PREVIDAS Intelligence"),
-                "timestamp": result.get("timestamp", ""),
-                "processing_details": result.get("processing_details", {})  # NOVO!
+                "anamnese": result.get("anamnese", "Anamnese não disponível"),
+                "laudo_medico": result.get("laudo_medico", "Laudo não disponível"),
+                "medical_report": result.get("medical_report", "Relatório não disponível"),
+                "classification": result.get("classification", {}),
+                "patient_data": result.get("patient_data", {}),
+                "rag_results": result.get("rag_results", []),
+                "analysis_method": result.get("analysis_method", "Não informado"),
+                "confidence_score": result.get("confidence_score", 0.8),
+                "timestamp": result.get("timestamp", "")
             })
         else:
             print(f"❌ Erro backend: {response.status_code}")

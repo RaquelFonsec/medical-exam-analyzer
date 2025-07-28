@@ -28,7 +28,7 @@
        .context-ortopedia { background: #ecfccb; color: #65a30d; }
        .context-reumatologia { background: #fff7ed; color: #ea580c; }
        .context-oftalmologia { background: #f0fdfa; color: #0d9488; }
-       .edit-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+       .copy-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
        .save-btn { background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; }
        .cancel-btn { background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
        .edit-controls { margin-top: 10px; display: none; }
@@ -76,10 +76,23 @@
                        </p>
                    </div>
 
-                   <div class="mb-4">
-                       <label class="form-label fw-semibold">Documentos Médicos</label>
-                       <input type="file" name="documents" class="form-control" accept=".pdf,.png,.jpg,.jpeg" multiple>
-                       <small class="text-muted">Anexe exames, laudos, receitas, etc. (PDF, PNG, JPG)</small>
+                   <!-- SEÇÃO CORRIGIDA: UPLOAD DE DOCUMENTOS -->
+                   <div class="document-upload-section mb-4" style="border: 2px dashed #6c757d; border-radius: 12px; padding: 1.5rem; background: #f8f9fa;">
+                       <h5 class="text-secondary mb-3">
+                           <i class="fas fa-file-medical me-2"></i>📄 Upload de Documentos/Exames
+                       </h5>
+                       
+                       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('documentInput').click()" style="cursor: pointer; padding: 1rem; border: 2px dashed #dee2e6; border-radius: 8px; background: white; text-align: center;">
+                           <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+                           <p class="mb-1">Clique para selecionar ou arraste arquivos aqui</p>
+                           <small class="text-muted">Suporta: PDF, JPG, PNG, TIFF</small>
+                           <input type="file" id="documentInput" name="documents" accept=".pdf,.jpg,.jpeg,.png,.tiff,.bmp" multiple style="display: none;">
+                       </div>
+                       
+                       <div id="selectedFiles" style="margin-top: 1rem; display: none;">
+                           <h6 class="text-primary">📋 Arquivos Selecionados:</h6>
+                           <div id="fileList" style="max-height: 100px; overflow-y: auto;"></div>
+                       </div>
                    </div>
 
                    <div class="text-center">
@@ -123,7 +136,12 @@
                    <div class="card p-4">
                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                            <h5 class="text-success mb-0">2. Anamnese (Prontuário)</h5>
-                           <button class="edit-btn" id="editAnamneseBtn" onclick="toggleEditAnamnese()">Editar</button>
+                           <div style="display: flex; gap: 0.5rem;">
+                               <button class="edit-btn" id="editAnamneseBtn" onclick="toggleEditAnamnese()">Editar</button>
+                               <button class="copy-btn" id="copyAnamneseBtn" onclick="copyAnamnese()" title="Copiar conteúdo">
+                                   <i class="fas fa-copy"></i> Copiar
+                               </button>
+                           </div>
                        </div>
                        
                        <div class="bg-light p-3 rounded editable-content" style="max-height: 400px; overflow-y: auto;" contenteditable="false">
@@ -133,12 +151,6 @@
                        <div class="edit-controls" id="anamneseControls" style="display: none;">
                            <button class="save-btn" onclick="saveAnamnese()">Salvar</button>
                            <button class="cancel-btn" onclick="cancelEditAnamnese()">Cancelar</button>
-                       </div>
-                       
-                       <div class="mt-3">
-                           <button class="btn btn-sm btn-success" onclick="copyAnamnese()">
-                               <i class="fas fa-copy me-1"></i>Copiar para Prontuário
-                           </button>
                        </div>
                    </div>
                </div>
@@ -163,8 +175,6 @@
                            <button class="save-btn" onclick="saveLaudo()">Salvar</button>
                            <button class="cancel-btn" onclick="cancelEditLaudo()">Cancelar</button>
                        </div>
-                       
-
                    </div>
                </div>
            </div>
@@ -230,6 +240,34 @@
            'clinica_geral': 'Clínica Geral'
        };
 
+       // ============================================================================
+       // FUNÇÃO UTILITÁRIA PARA VERIFICAR VALORES - EVITA ERROS DE UNDEFINED
+       // ============================================================================
+       function safeString(value, defaultValue = '') {
+           if (value === undefined || value === null) {
+               return defaultValue;
+           }
+           return String(value);
+       }
+
+       function safeAccess(obj, path, defaultValue = '') {
+           try {
+               const keys = path.split('.');
+               let result = obj;
+               for (const key of keys) {
+                   if (result && typeof result === 'object' && key in result) {
+                       result = result[key];
+                   } else {
+                       return defaultValue;
+                   }
+               }
+               return result !== undefined && result !== null ? result : defaultValue;
+           } catch (error) {
+               console.warn(`Erro ao acessar propriedade ${path}:`, error);
+               return defaultValue;
+           }
+       }
+
        recordBtn.addEventListener('click', toggleRecording);
 
        async function toggleRecording() {
@@ -244,13 +282,12 @@
            try {
                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                
-               // Tentar diferentes formatos de áudio suportados
                const options = [
                    { mimeType: 'audio/webm;codecs=opus' },
                    { mimeType: 'audio/webm' },
                    { mimeType: 'audio/mp4' },
                    { mimeType: 'audio/ogg;codecs=opus' },
-                   {} // Fallback para formato padrão
+                   {}
                ];
                
                let selectedOptions = {};
@@ -326,31 +363,33 @@
            const formData = new FormData();
            formData.append('patient_info', patientInfo);
 
+           // CORRIGIDO: Usar o input correto
            if (audioChunks.length > 0) {
-               // Detectar o tipo MIME real dos chunks de áudio
                const firstChunk = audioChunks[0];
                const detectedType = firstChunk.type || 'audio/webm';
                
                console.log("🔍 Tipo de áudio detectado:", detectedType);
                
-               // Criar blob com o tipo correto
                const audioBlob = new Blob(audioChunks, { type: detectedType });
                
-               // Determinar extensão do arquivo baseada no tipo
                let fileExtension = 'webm';
                if (detectedType.includes('mp4')) fileExtension = 'mp4';
                else if (detectedType.includes('ogg')) fileExtension = 'ogg';
                else if (detectedType.includes('wav')) fileExtension = 'wav';
                
                const fileName = `consulta_${Date.now()}.${fileExtension}`;
-               formData.append('audio_data', audioBlob, fileName);
+               formData.append('audio', audioBlob, fileName);
                console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes", "tipo:", detectedType, "arquivo:", fileName);
            }
 
-           const documentsInput = document.querySelector('input[name="documents"]');
-           if (documentsInput.files.length > 0) {
-               formData.append('image_data', documentsInput.files[0]);
-               console.log("📄 Documento adicionado:", documentsInput.files[0].name);
+           // CORRIGIDO: Usar o input correto para documentos
+           const documentsInput = document.getElementById('documentInput');
+           if (documentsInput && documentsInput.files.length > 0) {
+               // Adicionar todos os arquivos selecionados
+               for (let i = 0; i < documentsInput.files.length; i++) {
+                   formData.append('image', documentsInput.files[i]);
+                   console.log("📄 Documento adicionado:", documentsInput.files[i].name);
+               }
            }
 
            try {
@@ -358,7 +397,7 @@
                generateBtn.innerHTML = '🧠 Análise Híbrida...';
                document.getElementById('processing').style.display = 'block';
 
-               console.log("📤 Enviando para /api/intelligent-medical-analysis");
+               console.log("📤 Enviando para Frontend Flask → Backend");
 
                const response = await fetch('/api/intelligent-medical-analysis', {
                    method: 'POST',
@@ -386,15 +425,28 @@
            }
        }
 
+       // ============================================================================
+       // FUNÇÃO CORRIGIDA PARA EXIBIR RESULTADOS - SEM ERROS DE UNDEFINED
+       // ============================================================================
        function displayHybridResults(result) {
            console.log("📊 Exibindo resultados híbridos inteligentes");
+           console.log("🔍 DEBUG - Resultado recebido:", result);
 
-           // Adicionar seção de classificação antes dos dados do contexto
            let classificationHtml = "";
-           if (result.benefit_classification) {
-               const bc = result.benefit_classification;
-               const benefitClass = bc.tipo_beneficio === 'AUXILIO_DOENCA' ? 'badge-warning' : 'badge-info';
-               const gravityClass = bc.gravidade === 'GRAVE' ? 'text-danger' : bc.gravidade === 'MODERADA' ? 'text-warning' : 'text-success';
+           // ✅ CORREÇÃO: usar 'classification' em vez de 'benefit_classification'
+           if (result.classification) {
+               const bc = result.classification;
+               
+               // ✅ CORREÇÃO: Usar safeAccess para evitar undefined
+               const tipoBeneficio = safeAccess(bc, 'tipo_beneficio', 'A definir');
+               const gravidade = safeAccess(bc, 'gravidade', 'MODERADA');
+               const cidPrincipal = safeAccess(bc, 'cid_principal', '');
+               const cidDescricao = safeAccess(bc, 'cid_descricao', '');
+               const prognostico = safeAccess(bc, 'prognostico', 'A avaliar'); // ✅ SEM ACENTO
+               const justificativa = safeAccess(bc, 'justificativa', '');
+               
+               const benefitClass = tipoBeneficio === 'AUXILIO_DOENCA' ? 'badge-warning' : 'badge-info';
+               const gravityClass = gravidade === 'GRAVE' ? 'text-danger' : gravidade === 'MODERADA' ? 'text-warning' : 'text-success';
                
                classificationHtml = `
                    <div class="row mb-3">
@@ -407,27 +459,27 @@
                                    <div class="row">
                                        <div class="col-md-6">
                                            <h6>Tipo de Benefício:</h6>
-                                           <span class="badge ${benefitClass} fs-6">${bc.tipo_beneficio.replace('_', ' ')}</span>
+                                           <span class="badge ${benefitClass} fs-6">${tipoBeneficio.replace('_', ' ')}</span>
                                        </div>
                                        <div class="col-md-6">
                                            <h6>Gravidade:</h6>
-                                           <span class="${gravityClass} fw-bold">${bc.gravidade}</span>
+                                           <span class="${gravityClass} fw-bold">${gravidade}</span>
                                        </div>
                                    </div>
                                    <div class="row mt-3">
                                        <div class="col-md-6">
                                            <h6>CID Principal:</h6>
-                                           <code class="fs-6">${bc.cid_principal}</code> - ${bc.cid_descricao}
+                                           <code class="fs-6">${cidPrincipal}</code> - ${cidDescricao}
                                        </div>
                                        <div class="col-md-6">
                                            <h6>Prognóstico:</h6>
-                                           <small>${bc.prognóstico}</small>
+                                           <small>${prognostico}</small>
                                        </div>
                                    </div>
                                    <div class="row mt-2">
                                        <div class="col-12">
                                            <h6>Justificativa:</h6>
-                                           <small class="text-muted">${bc.justificativa}</small>
+                                           <small class="text-muted">${justificativa}</small>
                                        </div>
                                    </div>
                                </div>
@@ -437,12 +489,12 @@
                `;
            }
 
-           const hybridContext = result.template_used || result.specialized_type || 'clinica';
+           const hybridContext = safeAccess(result, 'template_used', '') || safeAccess(result, 'specialized_type', '') || 'clinica';
            const contextClass = getContextClass(hybridContext);
            const contextDisplayName = contextNames[hybridContext] || hybridContext.toUpperCase();
 
-           const specialty = result.classification?.main_specialty || 'clinica_geral';
-           const benefit = result.classification?.main_benefit || 'clinica';
+           const specialty = safeAccess(result, 'classification.main_specialty', 'clinica_geral');
+           const benefit = safeAccess(result, 'classification.main_benefit', 'clinica');
            
            let contextHtml = `
                <div class="context-badge ${contextClass}">
@@ -451,50 +503,60 @@
                <span class="specialty-badge">${specialtyNames[specialty] || specialty}</span>
            `;
 
-           if (!result.cfm_compliant && result.cfm_warning) {
+           const cfmCompliant = safeAccess(result, 'cfm_compliant', true);
+           const cfmWarning = safeAccess(result, 'cfm_warning', '');
+           
+           if (!cfmCompliant && cfmWarning) {
                contextHtml += `
                    <div class="cfm-warning mt-2">
-                       <i class="fas fa-exclamation-triangle me-2"></i>${result.cfm_warning}
+                       <i class="fas fa-exclamation-triangle me-2"></i>${cfmWarning}
                    </div>
                `;
            }
 
+           const confidence = safeAccess(result, 'confidence', 0);
+           const model = safeAccess(result, 'model', 'Medical AI v2.0');
+           const timestamp = safeAccess(result, 'timestamp', new Date().toISOString());
+
            contextHtml += `
                <div class="row mt-3">
                    <div class="col-md-6">
-                       <strong>Confiança:</strong> ${result.confidence} pontos<br>
+                       <strong>Confiança:</strong> ${confidence} pontos<br>
                        <strong>Especialidade:</strong> ${specialtyNames[specialty] || specialty}
                    </div>
                    <div class="col-md-6">
                        <strong>Benefício:</strong> ${benefit}<br>
-                       <strong>CFM Compliant:</strong> ${result.cfm_compliant ? '✅ Sim' : '⚠️ Limitações'}
+                       <strong>CFM Compliant:</strong> ${cfmCompliant ? '✅ Sim' : '⚠️ Limitações'}
                    </div>
                </div>
                <div class="row mt-2">
                    <div class="col-12">
-                       <small><strong>Modelo:</strong> ${result.model}</small><br>
-                       <small><strong>Timestamp:</strong> ${new Date(result.timestamp).toLocaleString()}</small>
+                       <small><strong>Modelo:</strong> ${model}</small><br>
+                       <small><strong>Timestamp:</strong> ${new Date(timestamp).toLocaleString()}</small>
                    </div>
                </div>
            `;
 
            document.getElementById('contextInfo').innerHTML = classificationHtml + contextHtml;
 
-           document.getElementById('transcriptionText').innerHTML = 
-               result.transcription || 'Nenhuma transcrição de áudio disponível';
+           // ✅ CORREÇÃO: Usar safeAccess e adicionar logs de debug
+           const transcription = safeAccess(result, 'transcription', 'Nenhuma transcrição de áudio disponível');
+           console.log("📝 Transcrição:", transcription ? transcription.length : 0, "chars");
+           document.getElementById('transcriptionText').innerHTML = transcription;
 
-           const anamnese = result.anamnese || 'Gerando anamnese especializada...';
-           document.getElementById('anamneseText').innerHTML = 
-               formatMedicalContent(anamnese);
+           const anamnese = safeAccess(result, 'anamnese', 'Gerando anamnese especializada...');
+           console.log("📋 Anamnese:", anamnese ? anamnese.length : 0, "chars");
+           document.getElementById('anamneseText').innerHTML = formatMedicalContent(anamnese);
 
-           const laudo = result.laudo_medico || 'Gerando laudo especializado...';
-           document.getElementById('laudoText').innerHTML = 
-               formatMedicalContent(laudo);
+           const laudo = safeAccess(result, 'laudo_medico', 'Gerando laudo especializado...');
+           console.log("🏥 Laudo:", laudo ? laudo.length : 0, "chars");
+           document.getElementById('laudoText').innerHTML = formatMedicalContent(laudo);
 
            document.getElementById('results').style.display = 'block';
            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
-           console.log("✅ Resultados híbridos exibidos");
+           console.log("✅ Resultados híbridos exibidos com sucesso!");
+           console.log("🎉 Transcrição, Anamnese e Laudo devem estar visíveis na tela!");
        }
 
        function getContextClass(context) {
@@ -513,7 +575,10 @@
        }
 
        function formatMedicalContent(content) {
-           return content
+           // ✅ CORREÇÃO: Verificar se content não é undefined antes de usar .replace()
+           const safeContent = safeString(content);
+           
+           return safeContent
                .replace(/\n/g, '<br>')
                .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
                .replace(/### (.*)/g, '<h6 class="text-success mt-2 mb-1">$1</h6>')
@@ -527,63 +592,122 @@
        }
 
        function copyAnamnese() {
-           const anamneseText = document.getElementById('anamneseText').innerText;
-           navigator.clipboard.writeText(anamneseText).then(() => {
-               alert('✅ Anamnese copiada! Cole no prontuário eletrônico.');
-           }).catch(() => {
-               alert('Erro ao copiar. Selecione e copie manualmente.');
-           });
+           const anamneseElement = document.getElementById('anamneseText');
+           const anamneseContent = anamneseElement ? anamneseElement.innerText : '';
+           
+           if (navigator.clipboard && window.isSecureContext) {
+               navigator.clipboard.writeText(anamneseContent).then(() => {
+                   showCopySuccessAnamnese();
+               }).catch(err => {
+                   console.error('Erro ao copiar:', err);
+                   fallbackCopyAnamnese(anamneseContent);
+               });
+           } else {
+               fallbackCopyAnamnese(anamneseContent);
+           }
+       }
+
+       function fallbackCopyAnamnese(text) {
+           const textArea = document.createElement('textarea');
+           textArea.value = text;
+           textArea.style.position = 'fixed';
+           textArea.style.left = '-999999px';
+           textArea.style.top = '-999999px';
+           document.body.appendChild(textArea);
+           textArea.focus();
+           textArea.select();
+           
+           try {
+               document.execCommand('copy');
+               showCopySuccessAnamnese();
+           } catch (err) {
+               console.error('Erro ao copiar:', err);
+               alert('Erro ao copiar o conteúdo. Tente selecionar manualmente.');
+           }
+           
+           document.body.removeChild(textArea);
+       }
+
+       function showCopySuccessAnamnese() {
+           const btn = document.getElementById('copyAnamneseBtn');
+           if (!btn) return;
+           
+           const originalText = btn.innerHTML;
+           btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+           btn.style.backgroundColor = '#28a745';
+           btn.style.color = 'white';
+           
+           setTimeout(() => {
+               btn.innerHTML = originalText;
+               btn.style.backgroundColor = '';
+               btn.style.color = '';
+           }, 2000);
        }
 
        function toggleEditAnamnese() {
-           const content = document.getElementById("anamneseText").parentElement;
-           const textDiv = document.getElementById("anamneseText");
+           const content = document.getElementById("anamneseText");
+           if (!content) return;
+           
+           const parentElement = content.parentElement;
            const controls = document.getElementById("anamneseControls");
            const btn = document.getElementById("editAnamneseBtn");
            
            if (!editingAnamnese) {
-               originalAnamneseContent = textDiv.innerHTML;
-               content.classList.add("edit-mode");
-               content.contentEditable = true;
-               content.focus();
-               controls.style.display = "block";
-               btn.textContent = "Editando...";
-               btn.disabled = true;
+               originalAnamneseContent = content.innerHTML;
+               parentElement.classList.add("edit-mode");
+               parentElement.contentEditable = true;
+               parentElement.focus();
+               if (controls) controls.style.display = "block";
+               if (btn) {
+                   btn.textContent = "Editando...";
+                   btn.disabled = true;
+               }
                editingAnamnese = true;
            }
        }
 
        function saveAnamnese() {
-           const content = document.getElementById("anamneseText").parentElement;
+           const content = document.getElementById("anamneseText");
+           if (!content) return;
+           
+           const parentElement = content.parentElement;
            const controls = document.getElementById("anamneseControls");
            const btn = document.getElementById("editAnamneseBtn");
            
-           content.classList.remove("edit-mode");
-           content.contentEditable = false;
-           controls.style.display = "none";
-           btn.textContent = "Editar";
-           btn.disabled = false;
+           parentElement.classList.remove("edit-mode");
+           parentElement.contentEditable = false;
+           if (controls) controls.style.display = "none";
+           if (btn) {
+               btn.textContent = "Editar";
+               btn.disabled = false;
+           }
            editingAnamnese = false;
            alert("Anamnese salva!");
        }
 
        function cancelEditAnamnese() {
-           const content = document.getElementById("anamneseText").parentElement;
-           const textDiv = document.getElementById("anamneseText");
+           const content = document.getElementById("anamneseText");
+           if (!content) return;
+           
+           const parentElement = content.parentElement;
            const controls = document.getElementById("anamneseControls");
            const btn = document.getElementById("editAnamneseBtn");
            
-           textDiv.innerHTML = originalAnamneseContent;
-           content.classList.remove("edit-mode");
-           content.contentEditable = false;
-           controls.style.display = "none";
-           btn.textContent = "Editar";
-           btn.disabled = false;
+           content.innerHTML = originalAnamneseContent;
+           parentElement.classList.remove("edit-mode");
+           parentElement.contentEditable = false;
+           if (controls) controls.style.display = "none";
+           if (btn) {
+               btn.textContent = "Editar";
+               btn.disabled = false;
+           }
            editingAnamnese = false;
        }
 
        function toggleEditLaudo() {
            const content = document.getElementById("laudoText");
+           if (!content) return;
+           
            const controls = document.getElementById("laudoControls");
            const btn = document.getElementById("editLaudoBtn");
            
@@ -592,45 +716,55 @@
                content.classList.add("edit-mode");
                content.contentEditable = true;
                content.focus();
-               controls.style.display = "block";
-               btn.textContent = "Editando...";
-               btn.disabled = true;
+               if (controls) controls.style.display = "block";
+               if (btn) {
+                   btn.textContent = "Editando...";
+                   btn.disabled = true;
+               }
                editingLaudo = true;
            }
        }
 
        function saveLaudo() {
            const content = document.getElementById("laudoText");
+           if (!content) return;
+           
            const controls = document.getElementById("laudoControls");
            const btn = document.getElementById("editLaudoBtn");
            
            content.classList.remove("edit-mode");
            content.contentEditable = false;
-           controls.style.display = "none";
-           btn.textContent = "Editar";
-           btn.disabled = false;
+           if (controls) controls.style.display = "none";
+           if (btn) {
+               btn.textContent = "Editar";
+               btn.disabled = false;
+           }
            editingLaudo = false;
            alert("Laudo salvo!");
        }
 
        function cancelEditLaudo() {
            const content = document.getElementById("laudoText");
+           if (!content) return;
+           
            const controls = document.getElementById("laudoControls");
            const btn = document.getElementById("editLaudoBtn");
            
            content.innerHTML = originalLaudoContent;
            content.classList.remove("edit-mode");
            content.contentEditable = false;
-           controls.style.display = "none";
-           btn.textContent = "Editar";
-           btn.disabled = false;
+           if (controls) controls.style.display = "none";
+           if (btn) {
+               btn.textContent = "Editar";
+               btn.disabled = false;
+           }
            editingLaudo = false;
        }
 
        function copyLaudo() {
-           const laudoContent = document.getElementById('laudoText').innerText;
+           const laudoElement = document.getElementById('laudoText');
+           const laudoContent = laudoElement ? laudoElement.innerText : '';
            
-           // Usar a API moderna de clipboard se disponível
            if (navigator.clipboard && window.isSecureContext) {
                navigator.clipboard.writeText(laudoContent).then(() => {
                    showCopySuccess();
@@ -639,7 +773,6 @@
                    fallbackCopy(laudoContent);
                });
            } else {
-               // Fallback para navegadores mais antigos
                fallbackCopy(laudoContent);
            }
        }
@@ -667,6 +800,8 @@
 
        function showCopySuccess() {
            const btn = document.getElementById('copyLaudoBtn');
+           if (!btn) return;
+           
            const originalText = btn.innerHTML;
            btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
            btn.style.backgroundColor = '#28a745';
@@ -678,6 +813,94 @@
                btn.style.color = '';
            }, 2000);
        }
+
+       // ============================================================================
+       // EVENTOS DE UPLOAD DE ARQUIVO CORRIGIDOS
+       // ============================================================================
+
+       const documentInput = document.getElementById('documentInput');
+       const uploadZone = document.getElementById('uploadZone');
+
+       // Event listener para mudança de arquivo
+       if (documentInput) {
+           documentInput.addEventListener('change', function(event) {
+               const files = event.target.files;
+               handleFileSelection(files);
+           });
+       }
+
+       // Drag and drop functionality
+       if (uploadZone) {
+           uploadZone.addEventListener('dragover', (e) => {
+               e.preventDefault();
+               uploadZone.style.backgroundColor = '#e3f2fd';
+               uploadZone.style.borderColor = '#2196f3';
+           });
+
+           uploadZone.addEventListener('dragleave', (e) => {
+               e.preventDefault();
+               uploadZone.style.backgroundColor = 'white';
+               uploadZone.style.borderColor = '#dee2e6';
+           });
+
+           uploadZone.addEventListener('drop', (e) => {
+               e.preventDefault();
+               uploadZone.style.backgroundColor = 'white';
+               uploadZone.style.borderColor = '#dee2e6';
+               
+               const files = e.dataTransfer.files;
+               
+               // Atualizar o input com os arquivos arrastados
+               if (documentInput) {
+                   documentInput.files = files;
+                   handleFileSelection(files);
+               }
+           });
+       }
+
+       function handleFileSelection(files) {
+           const fileListDiv = document.getElementById('fileList');
+           const selectedFilesDiv = document.getElementById('selectedFiles');
+           
+           if (!fileListDiv || !selectedFilesDiv) return;
+           
+           if (files.length > 0) {
+               selectedFilesDiv.style.display = 'block';
+               
+               fileListDiv.innerHTML = Array.from(files).map(file => `
+                   <div class="d-flex justify-content-between align-items-center py-1 px-2 mb-1 bg-light rounded">
+                       <span><i class="fas fa-file-alt me-2"></i>${file.name}</span>
+                       <small class="text-muted">${(file.size / 1024 / 1024).toFixed(2)} MB</small>
+                   </div>
+               `).join('');
+               
+               console.log('📁 Arquivos selecionados:', Array.from(files).map(f => f.name));
+           } else {
+               selectedFilesDiv.style.display = 'none';
+               fileListDiv.innerHTML = '';
+           }
+       }
+
+       // ============================================================================
+       // INICIALIZAÇÃO COM VERIFICAÇÕES DE SEGURANÇA
+       // ============================================================================
+       document.addEventListener('DOMContentLoaded', function() {
+           console.log('✅ DOM carregado - Sistema PREVIDAS Híbrido pronto');
+           
+           // Verificar se todos os elementos essenciais existem
+           const essentialElements = [
+               'recordBtn', 'generateBtn', 'processing', 'results',
+               'transcriptionText', 'anamneseText', 'laudoText'
+           ];
+           
+           const missingElements = essentialElements.filter(id => !document.getElementById(id));
+           
+           if (missingElements.length > 0) {
+               console.warn('⚠️ Elementos não encontrados:', missingElements);
+           } else {
+               console.log('✅ Todos os elementos essenciais encontrados');
+           }
+       });
 
    </script>
 </body>

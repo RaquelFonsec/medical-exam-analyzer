@@ -1,24 +1,28 @@
-**LAUDO MÉDICO**
-
-**IDENTIFICAÇÃO:**
-- Nome: Helena
-- Idade: 45 anos
-- Profissão: professora
+Data: 2025-07-28 14:03:15
+Relatório Médico
+==================================================
+**LAUDO MÉDICO ESPECIALIZADO**
 
 **1. HISTÓRIA CLÍNICA RESUMIDA**
-Helena, 45 anos, professora há 10 anos, relata início dos sintomas depressivos e de ansiedade após a pandemia. A evolução clínica inclui aumento da agitação dos alunos, levando à perda de paciência e episódios de choro sem motivo. Recentemente, apresentou uma crise de ansiedade e pânico no ambiente de trabalho, necessitando de intervenção do SAMU. Atualmente, os sintomas incluem crises de ansiedade e pânico, impactando significativamente sua capacidade laboral. O diagnóstico principal é Transtorno de pânico [ansiedade paroxística episódica], CID-10 F41.0.
+
+Helena, 45 anos, professora há uma década, iniciou sintomas depressivos há aproximadamente seis meses. Desde então, a paciente experimentou uma evolução clínica marcada por episódios de ansiedade e crises de pânico, que se intensificaram ao ponto de comprometer sua capacidade de ministrar aulas. Atualmente, os principais sintomas incluem depressão moderada, ansiedade e ataques de pânico, que resultam em significativa dificuldade para desempenhar suas funções laborais. O impacto na vida diária é notável, com a paciente relatando incapacidade de enfrentar o ambiente escolar sem desencadear crises de pânico. O diagnóstico principal é Transtorno de Ansiedade Generalizada, classificado sob o CID-10 F41.0.
 
 **2. LIMITAÇÃO FUNCIONAL**
-Helena apresenta limitações cognitivas e emocionais significativas, com impacto direto na sua funcionalidade laboral e social. As crises de ansiedade e pânico prejudicam sua capacidade de manter a rotina de trabalho como professora, afetando sua autonomia e interação social. Os sintomas de ansiedade e depressão agravam sua condição, tornando inviável o desempenho de suas funções profissionais.
+
+Helena apresenta limitações funcionais de ordem cognitiva e emocional, manifestadas por crises de pânico e ansiedade que comprometem sua capacidade de concentração e interação social no ambiente de trabalho. Estas limitações afetam diretamente sua autonomia e funcionalidade laboral, tornando inviável a continuidade de suas atividades como professora. Os sintomas agravantes incluem episódios de pânico que são desencadeados em situações de estresse, como a presença no ambiente escolar, resultando em um estado de fadiga mental e emocional.
 
 **3. TRATAMENTO**
-Atualmente, Helena está em tratamento com fluoxetina, prescrita por sua psiquiatra. No entanto, a paciente relata que o medicamento não está proporcionando alívio adequado dos sintomas. A continuidade do tratamento é necessária, com possível ajuste terapêutico para melhor controle dos sintomas.
+
+Atualmente, Helena está em tratamento com fluoxetina, um antidepressivo que visa controlar os sintomas depressivos e ansiosos. No entanto, a resposta ao tratamento tem sido insuficiente, com persistência dos sintomas de ansiedade e crises de pânico. A continuidade do tratamento medicamentoso é necessária, possivelmente com ajustes terapêuticos e inclusão de psicoterapia para melhor manejo dos sintomas.
 
 **4. PROGNÓSTICO**
-A evolução esperada é de estabilização dos sintomas com tratamento adequado. No entanto, no momento, Helena necessita de afastamento do trabalho para recuperação da saúde mental. O tempo estimado de afastamento é indeterminado, dependendo da resposta ao tratamento e da estabilização dos sintomas. O retorno à função de professora deve ser avaliado após melhora significativa do quadro clínico.
 
-**5. CONCLUSÃO**
-Diante do quadro clínico apresentado, Helena encontra-se incapacitada temporariamente para o exercício de suas atividades laborais como professora. Recomenda-se o afastamento do trabalho para tratamento e recuperação, justificando a concessão de AUXÍLIO-DOENÇA.
+A evolução clínica de Helena é considerada reservada, com possibilidade de estabilização dos sintomas a médio prazo, desde que haja adequação do tratamento. O tempo estimado de afastamento é de, no mínimo, seis meses, com a possibilidade de retorno à função condicionada à resposta terapêutica e à reavaliação clínica. A gravidade dos sintomas e a cronicidade do quadro tornam o prognóstico desfavorável no curto prazo.
 
-**6. CID-10:**
-- Principal: F41.0 - Transtorno de pânico [ansiedade paroxística episódica]
+**5. CONCLUSÃO CONGRUENTE COM O BENEFÍCIO**
+
+Helena apresenta uma redução significativa da capacidade laborativa devido aos sintomas de ansiedade e crises de pânico, que inviabilizam o exercício de suas atividades como professora. O quadro clínico atual justifica a concessão de auxílio-doença, considerando a necessidade de afastamento temporário para tratamento e recuperação da saúde mental.
+
+**6. CID-10**
+
+Código(s): F41.0
