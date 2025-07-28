@@ -191,6 +191,7 @@ class MultimodalAIService:
         except Exception as e:
             print(f"⚠️ Erro ao salvar transcrição: {e}")
 
+
     def extract_patient_info(self, text: str) -> Dict[str, Any]:
         """Extrai informações do paciente do texto"""
         if not self.client:
