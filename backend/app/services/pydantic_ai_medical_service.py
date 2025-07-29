@@ -1,5 +1,3 @@
-
-
 import os
 import json
 import logging
@@ -142,6 +140,7 @@ class MedicalAnalysisState(TypedDict):
     errors: List[str]
     current_step: str
     telemedicine_mode: bool
+    universal_analysis: Optional[Dict[str, Any]]
 
 
 # ============================================================================
@@ -312,7 +311,7 @@ class PydanticMedicalAI:
             - Com problemas renais → E11.2
             - Sem complicações → E11.9
             
-            **CARDIOVASCULARES:**
+            **CARDIOVASCULAR:**
             - Infarto < 6 meses → I21.9
             - Infarto > 6 meses → I25.2
             - Hipertensão → I10
@@ -458,30 +457,192 @@ class PydanticMedicalAI:
             return state
     
     async def _classify_benefit_node(self, state: MedicalAnalysisState) -> MedicalAnalysisState:
-        """Nó para classificação de benefícios"""
+        """Nó para classificação de benefícios com lógica universal"""
         try:
-            print("🏥 LangGraph: Classificando benefício...")
+            print("🏥 LangGraph: Classificando benefício com lógica universal...")
             state["current_step"] = "classify_benefit"
             
-            # Preparar contexto
+            patient_data = state["patient_data"]
+            transcription = state.get("transcription", "")
+            
+            # ========================================================================
+            # APLICAR LÓGICA UNIVERSAL
+            # ========================================================================
+            
+            # 0. Extrair detalhes estruturados da transcrição (NOVO MELHORAMENTO)
+            transcription_details = self._extract_transcription_details(transcription, patient_data)
+            print(f"📝 Detalhes extraídos: {len([k for k, v in transcription_details.items() if v])} categorias")
+            
+            # 1. Calcular score de severidade (0-10)
+            severity_score = self._calculate_severity_score(patient_data, transcription)
+            print(f"🎯 Score de severidade: {severity_score['score']}/10")
+            
+            # 2. Aplicar matriz de decisão CID
+            cid_matrix = self._apply_cid_decision_matrix(patient_data, transcription, severity_score['score'])
+            print(f"📊 Matriz CID: {cid_matrix['primary_cid']} ({cid_matrix['gravity']}, {cid_matrix['chronicity']})")
+            
+            # 3. Calcular duração de afastamento
+            duration_analysis = self._calculate_leave_duration(cid_matrix, patient_data, transcription)
+            print(f"⏱️ Duração recomendada: {duration_analysis['recommendation']}")
+            
+            # ========================================================================
+            # PREPARAR CONTEXTO ENRIQUECIDO COM DETALHES DA TRANSCRIÇÃO
+            # ========================================================================
+            
             context = {
-                "patient_data": state["patient_data"].dict() if state["patient_data"] else {},
-                "transcription": state.get("transcription", ""),
+                "patient_data": patient_data.dict() if patient_data else {},
+                "transcription": transcription,
                 "rag_context": [r.get("content", "") for r in state.get("rag_results", [])],
-                "telemedicine_mode": self.telemedicine_mode
+                "telemedicine_mode": self.telemedicine_mode,
+                "severity_analysis": {
+                    "score": severity_score['score'],
+                    "level": cid_matrix['gravity'],
+                    "chronicity": cid_matrix['chronicity'],
+                    "duration_months": cid_matrix['duration_months'],
+                    "details": severity_score['details'],
+                    "systems_detected": severity_score['systems_detected']
+                },
+                "cid_recommendations": {
+                    "primary": cid_matrix['primary_cid'],
+                    "secondary": cid_matrix['secondary_cids'],
+                    "complications": cid_matrix['complications']
+                },
+                "duration_analysis": duration_analysis,
+                "transcription_details": transcription_details
             }
             
+            # Construir texto de contexto enriquecido
             context_text = f"""
             DADOS DO PACIENTE: {json.dumps(context["patient_data"], ensure_ascii=False)}
             TRANSCRIÇÃO: {context["transcription"]}
             CASOS SIMILARES RAG: {" | ".join(context["rag_context"][:2])}
             MODO TELEMEDICINA: {'SIM' if self.telemedicine_mode else 'NÃO'}
+            
+            === ANÁLISE UNIVERSAL ===
+            SCORE SEVERIDADE: {severity_score['score']}/10 ({cid_matrix['gravity']})
+            CRONICIDADE: {cid_matrix['chronicity']} ({cid_matrix['duration_months']} meses)
+            CID RECOMENDADO: {cid_matrix['primary_cid']} 
+            CIDs SECUNDÁRIOS: {', '.join(cid_matrix['secondary_cids']) if cid_matrix['secondary_cids'] else 'Nenhum'}
+            COMPLICAÇÕES: {', '.join(cid_matrix['complications']) if cid_matrix['complications'] else 'Nenhuma'}
+            DURAÇÃO AFASTAMENTO: {duration_analysis['final_days']} dias ({duration_analysis['recommendation']})
+            FATORES MODIFICADORES: {', '.join(duration_analysis['modifying_factors']) if duration_analysis['modifying_factors'] else 'Nenhum'}
+            
+            === DETALHES ESTRUTURADOS DA TRANSCRIÇÃO ===
+            CONTEXTO OCUPACIONAL: {json.dumps(transcription_details.get('occupational_context', {}), ensure_ascii=False)}
+            HISTÓRICO TRATAMENTO: {json.dumps(transcription_details.get('treatment_history', {}), ensure_ascii=False)}
+            PROGRESSÃO SINTOMAS: {json.dumps(transcription_details.get('symptom_progression', {}), ensure_ascii=False)}
+            IMPACTO FUNCIONAL: {json.dumps(transcription_details.get('functional_impact', {}), ensure_ascii=False)}
+            FATORES AMBIENTAIS: {json.dumps(transcription_details.get('environmental_factors', {}), ensure_ascii=False)}
+            QUALIDADE DE VIDA: {json.dumps(transcription_details.get('quality_of_life', {}), ensure_ascii=False)}
             """
             
             result = await self.classification_agent.run(context_text)
+            
+            # ========================================================================
+            # APLICAR CORREÇÕES BASEADAS NA LÓGICA UNIVERSAL
+            # ========================================================================
+            
+            # Sobrescrever com dados da matriz se mais precisos
+            if cid_matrix['primary_cid'] != 'I10':  # Se não for fallback
+                result.data.cid_principal = cid_matrix['primary_cid']
+            
+            if cid_matrix['secondary_cids']:
+                result.data.cids_secundarios = cid_matrix['secondary_cids']
+            
+            # Garantir que gravidade seja consistente com score
+            if severity_score['score'] >= 7:
+                result.data.gravidade = SeverityEnum.GRAVE
+            elif severity_score['score'] >= 4:
+                result.data.gravidade = SeverityEnum.MODERADA
+            else:
+                result.data.gravidade = SeverityEnum.LEVE
+            
+            # Enriquecer justificativa com dados da análise
+            original_justificativa = result.data.justificativa
+            
+            # Construir análise técnica detalhada
+            technical_analysis = f"""
+Análise técnica detalhada: Score de severidade {severity_score['score']}/10 indica gravidade {cid_matrix['gravity'].lower()}. 
+Quadro caracterizado como {cid_matrix['chronicity']} com duração de {cid_matrix['duration_months']} meses. 
+Tempo estimado de afastamento: {duration_analysis['recommendation']}."""
+            
+            # Adicionar detalhes contextuais da transcrição
+            contextual_details = []
+            
+            # Contexto ocupacional
+            if transcription_details.get('occupational_context'):
+                occ_context = transcription_details['occupational_context']
+                if occ_context.get('duration'):
+                    contextual_details.append(f"Experiência profissional de {occ_context['duration']}")
+                
+                work_factors = []
+                if occ_context.get('estresse'): work_factors.append("estresse ocupacional")
+                if occ_context.get('físico'): work_factors.append("esforço físico")
+                if occ_context.get('repetitivo'): work_factors.append("atividade repetitiva")
+                if occ_context.get('ambiente'): work_factors.append("exposição ambiental")
+                
+                if work_factors:
+                    contextual_details.append(f"Fatores ocupacionais identificados: {', '.join(work_factors)}")
+            
+            # Histórico de tratamento
+            if transcription_details.get('treatment_history'):
+                treat_hist = transcription_details['treatment_history']
+                if treat_hist.get('response'):
+                    response_map = {
+                        'boa': 'boa resposta terapêutica',
+                        'parcial': 'resposta terapêutica parcial',
+                        'ruim': 'falha terapêutica documentada',
+                        'efeitos_colaterais': 'limitações por efeitos adversos'
+                    }
+                    contextual_details.append(f"Histórico: {response_map.get(treat_hist['response'], treat_hist['response'])}")
+            
+            # Progressão dos sintomas
+            if transcription_details.get('symptom_progression'):
+                progression = transcription_details['symptom_progression']
+                if progression.get('trend'):
+                    contextual_details.append(f"Evolução: {progression['trend']}")
+                if progression.get('frequency'):
+                    contextual_details.append(f"Frequência: {progression['frequency']}")
+            
+            # Impacto funcional específico
+            if transcription_details.get('functional_impact'):
+                impact_areas = list(transcription_details['functional_impact'].keys())
+                if impact_areas:
+                    contextual_details.append(f"Áreas funcionais comprometidas: {', '.join(impact_areas)}")
+            
+            # Fatores ambientais
+            if transcription_details.get('environmental_factors'):
+                env_factors = list(transcription_details['environmental_factors'].keys())
+                if env_factors:
+                    contextual_details.append(f"Fatores desencadeantes: {', '.join(env_factors)}")
+            
+            # Construir justificativa enriquecida
+            enhanced_justificativa = f"{original_justificativa}\n\n{technical_analysis}"
+            
+            if contextual_details:
+                enhanced_justificativa += f"\n\nContexto clínico específico: {'. '.join(contextual_details)}."
+            
+            if duration_analysis['modifying_factors']:
+                enhanced_justificativa += f" Fatores que influenciam o prognóstico: {', '.join(duration_analysis['modifying_factors'])}."
+            
+            # Adicionar detalhes de consistência se houver
+            if severity_score['details'].get('consistency_adjustments'):
+                adjustments = severity_score['details']['consistency_adjustments']
+                enhanced_justificativa += f" Ajustes aplicados para consistência interna: {', '.join(adjustments)}."
+            
+            result.data.justificativa = enhanced_justificativa
+            
+            # Salvar análise universal no estado para uso posterior
+            state["universal_analysis"] = {
+                "severity_score": severity_score,
+                "cid_matrix": cid_matrix,
+                "duration_analysis": duration_analysis
+            }
+            
             state["classification"] = result.data
             
-            print(f"✅ Classificação: {result.data.tipo_beneficio.value}")
+            print(f"✅ Classificação (Universal): {result.data.tipo_beneficio.value}")
+            print(f"📋 CID aplicado: {result.data.cid_principal} ({result.data.gravidade.value})")
             return state
             
         except Exception as e:
@@ -584,33 +745,1100 @@ class PydanticMedicalAI:
             return state
     
     # ========================================================================
+    # LÓGICA UNIVERSAL PARA CLASSIFICAÇÃO DE CID E AVALIAÇÃO MÉDICA
+    # ========================================================================
+    
+    def _calculate_severity_score(self, patient_data: PatientDataStrict, transcription: str) -> dict:
+        """
+        Sistema de Análise de Severidade Geral MELHORADO
+        Escala Universal de Comprometimento (0-10) com consistência interna
+        """
+        score = 0
+        details = {
+            'duration_points': 0,
+            'intensity_points': 0,
+            'emergency_points': 0,
+            'systems_points': 0,
+            'failure_points': 0,
+            'impact_points': 0,
+            'consistency_adjustments': []
+        }
+        
+        text = transcription.lower() if transcription else ""
+        
+        # ===================================================================
+        # 1. ANÁLISE DE DURAÇÃO (0-3 pontos) - MELHORADA
+        # ===================================================================
+        if text:
+            import re
+            # Padrões mais específicos e precisos
+            duration_patterns = [
+                (r'há\s+(\d+)\s*anos?', 'anos', 3),
+                (r'há\s+(\d+)\s*meses?', 'meses', 2),
+                (r'há\s+(\d+)\s*semanas?', 'semanas', 1),
+                (r'há\s+(\d+)\s*dias?', 'dias', 0.5),
+                (r'desde\s+(\d+)\s*anos?', 'anos', 3),
+                (r'faz\s+(\d+)\s*anos?', 'anos', 3)
+            ]
+            
+            duration_found = False
+            for pattern, unit, base_weight in duration_patterns:
+                match = re.search(pattern, text)
+                if match and not duration_found:
+                    duration = int(match.group(1))
+                    
+                    if unit == 'anos':
+                        duration_points = min(3, duration * 0.8)  # Máximo 3, mais conservador
+                    elif unit == 'meses':
+                        duration_points = min(2.5, duration * 0.3)  # Escala graduada
+                    elif unit == 'semanas':
+                        duration_points = min(1.5, duration * 0.2)
+                    else:  # dias
+                        duration_points = min(1, duration * 0.1)
+                    
+                    score += duration_points
+                    details['duration_points'] = duration_points
+                    duration_found = True
+                    break
+        
+        # ===================================================================
+        # 2. ANÁLISE DE INTENSIDADE (0-3 pontos) - MELHORADA
+        # ===================================================================
+        intensity_score = 0
+        
+        # Termos críticos (3 pontos)
+        critical_terms = [
+            'insuportável', 'excruciante', 'não aguento mais', 
+            'não consigo nem', 'impossível de', 'muito grave'
+        ]
+        
+        # Termos severos (2 pontos)
+        severe_terms = [
+            'muito forte', 'intensa', 'severa', 'todos os dias',
+            'constantemente', 'sempre sinto', 'não para'
+        ]
+        
+        # Termos moderados (1 ponto)
+        moderate_terms = [
+            'dor', 'desconforto', 'incomoda', 'dificulta',
+            'atrapalha', 'chateia', 'perturba'
+        ]
+        
+        if any(term in text for term in critical_terms):
+            intensity_score = 3
+        elif any(term in text for term in severe_terms):
+            intensity_score = 2
+        elif any(term in text for term in moderate_terms):
+            intensity_score = 1
+        
+        score += intensity_score
+        details['intensity_points'] = intensity_score
+        
+        # ===================================================================
+        # 3. INTERVENÇÃO DE EMERGÊNCIA (0-2 pontos) - MELHORADA
+        # ===================================================================
+        emergency_score = 0
+        emergency_terms = [
+            'samu', 'emergência', 'pronto socorro', 'internação', 'uti',
+            'hospitalização', 'cirurgia urgente', 'resgate', '192'
+        ]
+        
+        emergency_count = sum(1 for term in emergency_terms if term in text)
+        if emergency_count >= 2:
+            emergency_score = 2
+        elif emergency_count == 1:
+            emergency_score = 1.5
+        
+        score += emergency_score
+        details['emergency_points'] = emergency_score
+        
+        # ===================================================================
+        # 4. SISTEMAS MÚLTIPLOS (0-2 pontos) - MELHORADA E ESPECÍFICA
+        # ===================================================================
+        systems_detected = set()
+        system_indicators = {
+            'cardiovascular': ['pressão alta', 'coração', 'infarto', 'arritmia', 'palpitação'],
+            'neurológico': ['tontura', 'dor de cabeça', 'confusão', 'memória', 'formigamento'],
+            'musculoesquelético': ['dor nas costas', 'articulação', 'músculo', 'osso', 'bursite'],
+            'digestivo': ['estômago', 'digestão', 'náusea', 'vômito', 'gastrite'],
+            'respiratório': ['falta de ar', 'tosse', 'respiração', 'pulmão', 'asma'],
+            'endócrino': ['diabetes', 'tireóide', 'hormônio', 'açúcar', 'insulina'],
+            'psiquiátrico': ['ansiedade', 'depressão', 'pânico', 'tristeza', 'medo'],
+            'oftálmico': ['visão', 'olho', 'enxergar', 'vista', 'embaçada']
+        }
+        
+        for system, terms in system_indicators.items():
+            if any(term in text for term in terms):
+                systems_detected.add(system)
+        
+        systems_count = len(systems_detected)
+        if systems_count >= 4:
+            systems_score = 2
+        elif systems_count >= 2:
+            systems_score = 1.5
+        elif systems_count == 1:
+            systems_score = 0.5
+        else:
+            systems_score = 0
+        
+        score += systems_score
+        details['systems_points'] = systems_score
+        
+        # ===================================================================
+        # 5. FALHA TERAPÊUTICA (0-2 pontos) - MELHORADA
+        # ===================================================================
+        failure_score = 0
+        
+        strong_failure_terms = [
+            'não melhorou nada', 'piorou muito', 'não adiantou nada',
+            'nenhum resultado', 'totalmente ineficaz'
+        ]
+        
+        moderate_failure_terms = [
+            'não melhorou', 'não funcionou', 'continua igual',
+            'pouco resultado', 'não responde bem'
+        ]
+        
+        if any(term in text for term in strong_failure_terms):
+            failure_score = 2
+        elif any(term in text for term in moderate_failure_terms):
+            failure_score = 1
+        
+        score += failure_score
+        details['failure_points'] = failure_score
+        
+        # ===================================================================
+        # 6. IMPACTO FUNCIONAL (0-3 pontos) - MELHORADA
+        # ===================================================================
+        impact_score = 0
+        
+        severe_impact_terms = [
+            'não consigo trabalhar', 'impossível continuar',
+            'não tenho condições', 'incapaz de', 'totalmente limitado'
+        ]
+        
+        moderate_impact_terms = [
+            'dificulta o trabalho', 'atrapalha muito', 'limita as atividades',
+            'prejudica o desempenho', 'afeta a produtividade'
+        ]
+        
+        mild_impact_terms = [
+            'incomoda', 'chateia', 'perturba um pouco',
+            'dificulta às vezes', 'atrapalha pouco'
+        ]
+        
+        if any(term in text for term in severe_impact_terms):
+            impact_score = 3
+        elif any(term in text for term in moderate_impact_terms):
+            impact_score = 2
+        elif any(term in text for term in mild_impact_terms):
+            impact_score = 1
+        
+        score += impact_score
+        details['impact_points'] = impact_score
+        
+        # ===================================================================
+        # 7. VALIDAÇÕES DE CONSISTÊNCIA INTERNA
+        # ===================================================================
+        
+        # Ajuste para idade (idosos e crianças têm maior vulnerabilidade)
+        if patient_data.idade:
+            if patient_data.idade > 65:
+                adjustment = 0.5
+                score += adjustment
+                details['consistency_adjustments'].append(f"idade avançada (+{adjustment})")
+            elif patient_data.idade < 16:
+                adjustment = 0.3
+                score += adjustment
+                details['consistency_adjustments'].append(f"idade pediátrica (+{adjustment})")
+        
+        # Ajuste para múltiplos medicamentos (indica severidade)
+        if patient_data.medicamentos and len(patient_data.medicamentos) >= 3:
+            adjustment = 0.5
+            score += adjustment
+            details['consistency_adjustments'].append(f"politerapia (+{adjustment})")
+        
+        # Verificação de consistência: alta duração + baixo impacto é inconsistente
+        if details['duration_points'] >= 2 and details['impact_points'] <= 0.5:
+            adjustment = 0.5
+            score += adjustment
+            details['consistency_adjustments'].append("correção duração vs impacto (+0.5)")
+        
+        # Verificação: múltiplos sistemas + baixa intensidade é inconsistente
+        if details['systems_points'] >= 1.5 and details['intensity_points'] <= 1:
+            adjustment = 0.3
+            score += adjustment
+            details['consistency_adjustments'].append("correção sistemas vs intensidade (+0.3)")
+        
+        final_score = min(10, max(0, round(score, 1)))
+        
+        return {
+            'score': int(final_score),
+            'details': details,
+            'raw_score': score,
+            'systems_detected': list(systems_detected)
+        }
+    
+    def _analyze_chronicity(self, transcription: str) -> tuple[str, int]:
+        """
+        Determina se é agudo vs crônico e retorna duração em meses
+        """
+        if not transcription:
+            return 'crônico', 12  # Fallback conservador
+        
+        import re
+        
+        # Buscar padrões de duração
+        patterns = [
+            (r'há\s+(\d+)\s*ano', 12),  # anos para meses
+            (r'há\s+(\d+)\s*meses?', 1),  # meses
+            (r'há\s+(\d+)\s*semana', 0.25),  # semanas para meses
+            (r'há\s+(\d+)\s*dia', 0.03)  # dias para meses
+        ]
+        
+        for pattern, multiplier in patterns:
+            match = re.search(pattern, transcription.lower())
+            if match:
+                duration = int(match.group(1))
+                total_months = duration * multiplier
+                
+                if total_months < 6:
+                    return 'agudo', int(total_months)
+                else:
+                    return 'crônico', int(total_months)
+        
+        # Se não encontrou padrão, assumir crônico
+        return 'crônico', 12
+    
+    def _apply_cid_decision_matrix(self, patient_data: PatientDataStrict, transcription: str, severity_score: int) -> dict:
+        """
+        Matriz de Decisão CID baseada em evidências
+        """
+        chronicity, duration_months = self._analyze_chronicity(transcription)
+        
+        # Classificação de gravidade baseada no score
+        if severity_score <= 3:
+            gravity = 'LEVE'
+        elif severity_score <= 6:
+            gravity = 'MODERADA'
+        elif severity_score <= 8:
+            gravity = 'GRAVE'
+        else:
+            gravity = 'GRAVE'  # 9-10 = crítico, mas usamos GRAVE como máximo
+        
+        # Verificar complicações
+        complications = []
+        if transcription:
+            complication_indicators = {
+                'oftálmicas': ['visão', 'olho', 'enxergar', 'vista'],
+                'renais': ['rim', 'urina', 'renal'],
+                'neurológicas': ['nervo', 'formigamento', 'dormência'],
+                'cardiovasculares': ['coração', 'pressão', 'circulação']
+            }
+            
+            for comp_type, terms in complication_indicators.items():
+                if any(term in transcription.lower() for term in terms):
+                    complications.append(comp_type)
+        
+        has_complications = len(complications) > 0
+        
+        # CID principal baseado em sintomas dominantes
+        primary_cid = self._determine_primary_cid(patient_data, transcription, has_complications)
+        
+        # CIDs secundários baseados em comorbidades
+        secondary_cids = self._determine_secondary_cids(patient_data, transcription, primary_cid)
+        
+        return {
+            'primary_cid': primary_cid,
+            'secondary_cids': secondary_cids,
+            'gravity': gravity,
+            'chronicity': chronicity,
+            'duration_months': duration_months,
+            'has_complications': has_complications,
+            'complications': complications,
+            'severity_score': severity_score
+        }
+    
+    def _determine_primary_cid(self, patient_data: PatientDataStrict, transcription: str, has_complications: bool) -> str:
+        """
+        Determina CID principal baseado em sintomas dominantes - PRIORIDADE CORRIGIDA
+        """
+        text = transcription.lower()
+        
+        # PRIORIDADE 1: Diabetes (sempre tem precedência quando presente)
+        diabetes_indicators = ['diabetes', 'diabético', 'diabética', 'açúcar alto', 'glicose alta', 'glicemia']
+        insulin_indicators = ['insulina', 'insulino dependente', 'tipo 1', 'dm1', 'tipo i']
+        
+        if any(term in text for term in diabetes_indicators):
+            # Determinar tipo com mais precisão
+            if any(term in text for term in insulin_indicators):
+                return 'E10.3' if has_complications else 'E10.9'  # Tipo 1
+            else:
+                return 'E11.3' if has_complications else 'E11.9'  # Tipo 2
+        
+        # PRIORIDADE 2: Condições cardiovasculares agudas
+        if any(term in text for term in ['infarto', 'ataque cardíaco', 'iam']):
+            # Verificar temporalidade
+            if any(term in text for term in ['há poucos dias', 'semana passada', 'recente', 'ontem', 'hoje']):
+                return 'I21.9'  # Infarto agudo
+            else:
+                return 'I25.2'  # Infarto antigo
+        
+        # PRIORIDADE 3: Condições neurológicas/ortopédicas específicas
+        if any(term in text for term in ['túnel do carpo', 'síndrome túnel', 'formigamento punho', 'dormência mão']):
+            return 'G56.0'
+        
+        if any(term in text for term in ['bursite', 'bursite cotovelo', 'olécrano']):
+            return 'M70.2'
+        
+        if any(term in text for term in ['ombro', 'impacto ombro', 'síndrome impacto']):
+            return 'M75.1'
+        
+        # PRIORIDADE 4: Condições psiquiátricas graves
+        if any(term in text for term in ['depressão', 'depressivo', 'tristeza profunda', 'desânimo']):
+            if any(term in text for term in ['grave', 'severa', 'não consigo sair da cama', 'suicídio']):
+                return 'F32.2'
+            else:
+                return 'F32.1'
+        
+        if any(term in text for term in ['ansiedade', 'pânico', 'síndrome pânico']):
+            if 'pânico' in text or 'síndrome pânico' in text:
+                return 'F41.0'
+            else:
+                return 'F41.1'
+        
+        # PRIORIDADE 5: Hipertensão (só se não houver condições mais específicas)
+        hypertension_indicators = ['pressão alta', 'hipertensão', 'pressão arterial alta']
+        pressure_numbers = ['18 por', '19 por', '20 por', '16 por 10', '17 por 11']
+        
+        if (any(term in text for term in hypertension_indicators) or 
+            any(term in text for term in pressure_numbers)):
+            return 'I10'
+        
+        # FALLBACK: Se só tem medicamentos cardiovasculares
+        cardio_meds = ['losartana', 'captopril', 'enalapril', 'amlodipina']
+        if any(med in text for med in cardio_meds):
+            return 'I10'
+        
+        # Fallback final conservador
+        return 'I10'  # Hipertensão como padrão
+    
+    def _determine_secondary_cids(self, patient_data: PatientDataStrict, transcription: str, primary_cid: str = None) -> list:
+        """
+        REFATORADO EQUILIBRADO: CIDs secundários via FAISS + fallback controlado
+        Evita alucinações mas não perde condições óbvias mencionadas
+        """
+        print(f"🔍 BUSCA BALANCEADA: CIDs secundários para CID principal: {primary_cid}")
+        
+        all_secondary_cids = []
+        
+        # ===================================================================
+        # PRIORIDADE 1: BASE FAISS (com critérios mais flexíveis)
+        # ===================================================================
+        
+        if self.rag_available and self.rag_service:
+            specific_queries = self._build_symptom_specific_queries(patient_data, transcription, primary_cid)
+            
+            for query_info in specific_queries:
+                print(f"🔍 Query FAISS: {query_info['description']}")
+                
+                try:
+                    rag_results = self.rag_service.search_similar_cases(query_info['query'], top_k=3)
+                    found_cids = self._extract_clinically_relevant_cids_flexible(rag_results, query_info, primary_cid)
+                    
+                    if found_cids:
+                        all_secondary_cids.extend(found_cids)
+                        print(f"✅ FAISS encontrou: {found_cids}")
+                        
+                except Exception as e:
+                    print(f"❌ Erro na query FAISS: {e}")
+                    continue
+        
+        # ===================================================================
+        # PRIORIDADE 2: FALLBACK CONTROLADO para condições EXPLÍCITAS
+        # ===================================================================
+        
+        explicit_conditions = self._detect_explicit_conditions(transcription, patient_data, primary_cid)
+        
+        if explicit_conditions:
+            print(f"🎯 Condições explícitas detectadas: {list(explicit_conditions.keys())}")
+            
+            for condition, cid in explicit_conditions.items():
+                if cid not in all_secondary_cids:
+                    all_secondary_cids.append(cid)
+                    print(f"✅ Adicionado CID explícito: {cid} ({condition})")
+        
+        # ===================================================================
+        # VALIDAÇÃO FINAL
+        # ===================================================================
+        
+        # Remover duplicatas e CID principal
+        seen = set()
+        clean_secondary = []
+        for cid in all_secondary_cids:
+            if cid not in seen and cid != primary_cid:
+                seen.add(cid)
+                clean_secondary.append(cid)
+        
+        # Limitar a no máximo 3 CIDs
+        final_secondary = clean_secondary[:3]
+        
+        if final_secondary:
+            print(f"✅ CIDs secundários FINAIS: {final_secondary}")
+        else:
+            print("✅ Nenhum CID secundário encontrado")
+        
+        return final_secondary
+    
+    def _extract_clinically_relevant_cids_flexible(self, rag_results: list, query_info: dict, primary_cid: str) -> list:
+        """
+        Versão mais flexível da extração de CIDs do FAISS
+        """
+        relevant_cids = []
+        
+        if not rag_results:
+            return relevant_cids
+        
+        import re
+        cid_pattern = r'\b[A-Z]\d{2}(?:\.\d)?\b'
+        
+        for result in rag_results:
+            content = result.get('content', '')
+            confidence = result.get('score', 0)
+            
+            # Critério mais flexível: aceitar confidence >= 0.5
+            if confidence < 0.5:
+                continue
+            
+            found_cids = re.findall(cid_pattern, content)
+            
+            for cid in found_cids:
+                if cid == primary_cid:
+                    continue
+                
+                # Verificar se está nos prefixos esperados
+                if query_info.get('expected_prefixes'):
+                    is_expected = any(cid.startswith(prefix) for prefix in query_info['expected_prefixes'])
+                    if not is_expected:
+                        continue
+                
+                # Verificação de contexto mais flexível
+                content_lower = content.lower()
+                query_terms = query_info['query'].lower().split()
+                context_relevance = sum(1 for term in query_terms if term in content_lower)
+                
+                # Aceitar se pelo menos 1 termo da query aparece (mais flexível)
+                if context_relevance >= 1 and cid not in relevant_cids:
+                    relevant_cids.append(cid)
+        
+        return relevant_cids
+    
+    def _detect_explicit_conditions(self, transcription: str, patient_data: PatientDataStrict, primary_cid: str) -> dict:
+        """
+        Detecta condições médicas EXPLICITAMENTE mencionadas no texto
+        Retorna apenas condições óbvias e inequívocas
+        """
+        if not transcription:
+            return {}
+        
+        text = transcription.lower()
+        explicit_conditions = {}
+        
+        # ===================================================================
+        # CONDIÇÕES EXPLÍCITAS POR PALAVRA-CHAVE + CONFIRMAÇÃO
+        # ===================================================================
+        
+        # HIPERTENSÃO - múltiplos indicadores
+        hypertension_indicators = [
+            ('pressão alta', 'I10'),
+            ('hipertensão', 'I10'),
+            ('pressão arterial alta', 'I10')
+        ]
+        
+        hypertension_confirmations = [
+            'losartana', 'captopril', 'atenolol', 'amlodipina', 'enalapril',
+            '18 por', '19 por', '16 por 10', '17 por 11'
+        ]
+        
+        for indicator, cid in hypertension_indicators:
+            if indicator in text and cid != primary_cid:
+                # Verificar se há confirmação via medicamento ou valores
+                if any(conf in text for conf in hypertension_confirmations):
+                    explicit_conditions['Hipertensão arterial'] = cid
+                    break
+        
+        # DIABETES - múltiplos indicadores
+        diabetes_indicators = [
+            ('diabetes', 'E11.9'),
+            ('diabético', 'E11.9'),
+            ('diabética', 'E11.9'),
+            ('açúcar alto', 'E11.9'),
+            ('glicose alta', 'E11.9')
+        ]
+        
+        diabetes_confirmations = [
+            'metformina', 'insulina', 'glibenclamida', 'gliclazida',
+            'visão embaçada', 'sede excessiva', 'urinar muito'
+        ]
+        
+        for indicator, base_cid in diabetes_indicators:
+            if indicator in text and not primary_cid.startswith('E1'):
+                # Determinar tipo e complicações
+                if any(conf in text for conf in diabetes_confirmations):
+                    if 'insulina' in text or 'tipo 1' in text:
+                        cid = 'E10.9'
+                        if 'visão' in text or 'olho' in text:
+                            cid = 'E10.3'
+                    else:
+                        cid = 'E11.9'
+                        if 'visão' in text or 'olho' in text:
+                            cid = 'E11.3'
+                    
+                    explicit_conditions['Diabetes mellitus'] = cid
+                    break
+        
+        # DEPRESSÃO/ANSIEDADE - com medicamentos
+        psychiatric_indicators = [
+            ('depressão', 'F32.1'),
+            ('ansiedade', 'F41.1'),
+            ('transtorno depressivo', 'F32.1'),
+            ('transtorno ansiedade', 'F41.1')
+        ]
+        
+        psychiatric_confirmations = [
+            'antidepressivo', 'sertralina', 'fluoxetina', 'paroxetina',
+            'ansiolítico', 'clonazepam', 'alprazolam', 'escitalopram'
+        ]
+        
+        for indicator, cid in psychiatric_indicators:
+            if indicator in text and not primary_cid.startswith('F'):
+                if any(conf in text for conf in psychiatric_confirmations):
+                    condition_name = 'Transtorno depressivo' if 'depres' in indicator else 'Transtorno de ansiedade'
+                    explicit_conditions[condition_name] = cid
+        
+        # CONDIÇÕES ARTICULARES - com anti-inflamatórios
+        articular_indicators = [
+            ('dor articular', 'M25.5'),
+            ('dor nas articulações', 'M25.5'),
+            ('artrite', 'M13.9'),
+            ('artrose', 'M19.9')
+        ]
+        
+        articular_confirmations = [
+            'anti-inflamatório', 'ibuprofeno', 'diclofenaco', 'nimesulida',
+            'naproxeno', 'meloxicam'
+        ]
+        
+        for indicator, cid in articular_indicators:
+            if indicator in text and not primary_cid.startswith('M'):
+                if any(conf in text for conf in articular_confirmations):
+                    explicit_conditions['Transtorno articular'] = cid
+                    break
+        
+        # ===================================================================
+        # VALIDAÇÃO EXTRA: Verificar coerência com medicamentos do paciente
+        # ===================================================================
+        
+        if patient_data.medicamentos:
+            meds_text = ' '.join(patient_data.medicamentos).lower()
+            
+            # Validar condições encontradas com medicamentos extraídos
+            validated_conditions = {}
+            
+            for condition, cid in explicit_conditions.items():
+                is_consistent = False
+                
+                if cid.startswith('I'):  # Cardiovascular
+                    is_consistent = any(med in meds_text for med in ['losartana', 'captopril', 'atenolol'])
+                elif cid.startswith('E1'):  # Diabetes
+                    is_consistent = any(med in meds_text for med in ['metformina', 'insulina', 'glibenclamida'])
+                elif cid.startswith('F'):  # Psiquiátrico
+                    is_consistent = any(med in meds_text for med in ['antidepressivo', 'sertralina', 'ansiolítico'])
+                elif cid.startswith('M'):  # Articular
+                    is_consistent = any(med in meds_text for med in ['anti-inflamatório', 'ibuprofeno', 'diclofenaco'])
+                else:
+                    is_consistent = True  # Outras condições
+                
+                if is_consistent:
+                    validated_conditions[condition] = cid
+                else:
+                    print(f"⚠️ Condição {condition} descartada - inconsistente com medicamentos")
+            
+            return validated_conditions
+        
+        return explicit_conditions
+    
+    def _build_symptom_specific_queries(self, patient_data: PatientDataStrict, transcription: str, primary_cid: str) -> list:
+        """
+        Constrói queries específicas baseadas em sintomas e condições realmente mencionados
+        """
+        queries = []
+        text = transcription.lower() if transcription else ""
+        
+        # Mapa de sintomas para condições médicas específicas
+        symptom_conditions = {
+            'pressão alta': {
+                'query': 'hipertensão arterial pressão alta medicamentos anti-hipertensivos',
+                'expected_cids': ['I10', 'I15'],
+                'description': 'Hipertensão arterial'
+            },
+            'diabetes': {
+                'query': 'diabetes mellitus glicose insulina metformina complicações',
+                'expected_cids': ['E10', 'E11'],
+                'description': 'Diabetes mellitus'
+            },
+            'depressão': {
+                'query': 'transtorno depressivo episódio depressivo antidepressivos',
+                'expected_cids': ['F32', 'F33'],
+                'description': 'Transtornos depressivos'
+            },
+            'ansiedade': {
+                'query': 'transtorno ansiedade generalizada pânico ansiolíticos',
+                'expected_cids': ['F41', 'F40'],
+                'description': 'Transtornos de ansiedade'
+            },
+            'dor articular': {
+                'query': 'artralgia dor articular artrose anti-inflamatórios',
+                'expected_cids': ['M25', 'M19'],
+                'description': 'Transtornos articulares'
+            },
+            'dor nas costas': {
+                'query': 'dorsalgia lombalgia dor nas costas coluna vertebral',
+                'expected_cids': ['M54'],
+                'description': 'Dorsalgia'
+            }
+        }
+        
+        # Buscar sintomas mencionados no texto
+        for symptom, config in symptom_conditions.items():
+            if symptom in text:
+                # Verificar se não é o CID principal
+                if primary_cid and not any(primary_cid.startswith(expected) for expected in config['expected_cids']):
+                    queries.append({
+                        'query': config['query'],
+                        'expected_prefixes': config['expected_cids'],
+                        'symptom': symptom,
+                        'description': config['description']
+                    })
+        
+        # Queries baseadas em medicamentos específicos
+        medication_conditions = {
+            'losartana': {
+                'query': 'losartana hipertensão arterial pressão alta',
+                'expected_cids': ['I10'],
+                'description': 'Condições tratadas com losartana'
+            },
+            'captopril': {
+                'query': 'captopril hipertensão arterial insuficiência cardíaca',
+                'expected_cids': ['I10', 'I50'],
+                'description': 'Condições tratadas com captopril'
+            },
+            'metformina': {
+                'query': 'metformina diabetes mellitus tipo 2',
+                'expected_cids': ['E11'],
+                'description': 'Diabetes tipo 2'
+            },
+            'insulina': {
+                'query': 'insulina diabetes mellitus tipo 1',
+                'expected_cids': ['E10'],
+                'description': 'Diabetes tipo 1'
+            }
+        }
+        
+        # Verificar medicamentos mencionados
+        if patient_data.medicamentos:
+            for med in patient_data.medicamentos:
+                med_lower = med.lower()
+                for medication, config in medication_conditions.items():
+                    if medication in med_lower:
+                        # Verificar se não é o CID principal
+                        if primary_cid and not any(primary_cid.startswith(expected) for expected in config['expected_cids']):
+                            queries.append({
+                                'query': config['query'],
+                                'expected_prefixes': config['expected_cids'],
+                                'medication': medication,
+                                'description': config['description']
+                            })
+        
+        return queries
+    
+    def _extract_clinically_relevant_cids(self, rag_results: list, query_info: dict, primary_cid: str) -> list:
+        """
+        Extrai apenas CIDs clinicamente relevantes dos resultados FAISS
+        """
+        relevant_cids = []
+        
+        if not rag_results:
+            return relevant_cids
+        
+        import re
+        cid_pattern = r'\b[A-Z]\d{2}(?:\.\d)?\b'
+        
+        for result in rag_results:
+            content = result.get('content', '')
+            confidence = result.get('score', 0)
+            
+            # Apenas considerar resultados com alta confiança
+            if confidence < 0.7:
+                continue
+            
+            # Extrair CIDs do conteúdo
+            found_cids = re.findall(cid_pattern, content)
+            
+            for cid in found_cids:
+                if cid == primary_cid:
+                    continue
+                
+                # Verificar se o CID está nos prefixos esperados para esta query
+                if query_info.get('expected_prefixes'):
+                    is_expected = any(cid.startswith(prefix) for prefix in query_info['expected_prefixes'])
+                    if not is_expected:
+                        continue
+                
+                # Verificar se há contexto médico válido
+                content_lower = content.lower()
+                
+                # O CID deve aparecer em contexto médico válido
+                medical_context_indicators = [
+                    'diagnóstico', 'cid', 'classificação', 'transtorno', 'doença',
+                    'síndrome', 'condição', 'patologia', 'comorbidade'
+                ]
+                
+                has_medical_context = any(indicator in content_lower for indicator in medical_context_indicators)
+                
+                if has_medical_context:
+                    # Verificar relevância específica do sintoma/medicamento
+                    query_terms = query_info['query'].lower().split()
+                    context_relevance = sum(1 for term in query_terms if term in content_lower)
+                    
+                    if context_relevance >= 2:  # Pelo menos 2 termos da query devem aparecer
+                        if cid not in relevant_cids:
+                            relevant_cids.append(cid)
+        
+        return relevant_cids
+    
+    def _validate_clinical_coherence(self, cids: list, primary_cid: str, patient_data: PatientDataStrict, transcription: str) -> list:
+        """
+        Valida a coerência clínica dos CIDs secundários encontrados
+        """
+        validated = []
+        text = transcription.lower() if transcription else ""
+        
+        for cid in cids:
+            is_clinically_coherent = False
+            
+            # Validações específicas por categoria de CID
+            if cid.startswith('I'):  # Cardiovascular
+                cardiovascular_indicators = [
+                    'pressão', 'hipertensão', 'coração', 'cardíaco', 'circulação',
+                    'losartana', 'captopril', 'atenolol', 'amlodipina'
+                ]
+                is_clinically_coherent = any(indicator in text for indicator in cardiovascular_indicators)
+                
+            elif cid.startswith('E1'):  # Diabetes
+                diabetes_indicators = [
+                    'diabetes', 'diabético', 'açúcar', 'glicose', 'insulina',
+                    'metformina', 'glibenclamida', 'visão embaçada'
+                ]
+                is_clinically_coherent = any(indicator in text for indicator in diabetes_indicators)
+                
+            elif cid.startswith('F'):  # Psiquiátrico
+                psychiatric_indicators = [
+                    'depressão', 'ansiedade', 'tristeza', 'nervoso', 'estresse',
+                    'antidepressivo', 'ansiolítico', 'sertralina', 'fluoxetina'
+                ]
+                is_clinically_coherent = any(indicator in text for indicator in psychiatric_indicators)
+                
+            elif cid.startswith('M'):  # Musculoesquelético
+                musculoskeletal_indicators = [
+                    'dor', 'articulação', 'ombro', 'joelho', 'costas',
+                    'articular', 'músculo', 'anti-inflamatório', 'ibuprofeno'
+                ]
+                is_clinically_coherent = any(indicator in text for indicator in musculoskeletal_indicators)
+                
+            elif cid.startswith('J'):  # Respiratório
+                respiratory_indicators = [
+                    'tosse', 'falta de ar', 'respiração', 'pulmão', 'asma',
+                    'bronquite', 'pneumonia'
+                ]
+                is_clinically_coherent = any(indicator in text for indicator in respiratory_indicators)
+                
+            else:
+                # Para outras categorias, ser mais restritivo
+                # Apenas aceitar se há menção explícita de sintomas relacionados
+                is_clinically_coherent = False
+            
+            if is_clinically_coherent:
+                validated.append(cid)
+            else:
+                print(f"⚠️ CID {cid} descartado - sem coerência clínica")
+        
+        return validated
+    
+    def _calculate_leave_duration(self, cid_matrix: dict, patient_data: PatientDataStrict, transcription: str) -> dict:
+        """
+        Sistema de Temporalidade para Afastamentos
+        """
+        # Fórmula base
+        if cid_matrix['chronicity'] == 'agudo':
+            if cid_matrix['gravity'] == 'LEVE':
+                base_days = 20  # 15-30 dias
+            elif cid_matrix['gravity'] == 'MODERADA':
+                base_days = 30
+            else:
+                base_days = 45
+        else:  # crônico
+            if cid_matrix['gravity'] == 'LEVE':
+                base_days = 45  # 30-60 dias
+            elif cid_matrix['gravity'] == 'MODERADA':
+                base_days = 60
+            else:
+                base_days = 75  # 60-90 dias
+        
+        # Fatores modificadores
+        multiplier = 1.0
+        reasons = []
+        
+        # Múltiplas comorbidades (+50%)
+        if len(cid_matrix['secondary_cids']) >= 2:
+            multiplier += 0.5
+            reasons.append("múltiplas comorbidades")
+        
+        # Idade (+30% se >50 ou <18)
+        if patient_data.idade:
+            if patient_data.idade > 50:
+                multiplier += 0.3
+                reasons.append("idade avançada")
+            elif patient_data.idade < 18:
+                multiplier += 0.3
+                reasons.append("idade pediátrica")
+        
+        # Falha terapêutica prévia (+20%)
+        if transcription and any(term in transcription.lower() for term in [
+            'não melhorou', 'não funcionou', 'continua igual', 'piorou'
+        ]):
+            multiplier += 0.2
+            reasons.append("falha terapêutica prévia")
+        
+        # Risco ocupacional (+40%)
+        high_risk_occupations = [
+            'professor', 'médico', 'enfermeiro', 'policial', 'bombeiro',
+            'vigilante', 'segurança', 'motorista', 'piloto'
+        ]
+        
+        if patient_data.profissao and any(
+            occ in patient_data.profissao.lower() for occ in high_risk_occupations
+        ):
+            multiplier += 0.4
+            reasons.append("profissão de risco")
+        
+        # Primeira ocorrência, paciente jovem (-20%)
+        if (transcription and 'primeira vez' in transcription.lower() and 
+            patient_data.idade and patient_data.idade < 35 and
+            'boa resposta' in transcription.lower()):
+            multiplier -= 0.2
+            reasons.append("primeiro episódio com boa resposta")
+        
+        # Aplicar multiplicador
+        final_days = int(base_days * multiplier)
+        
+        # Limites de segurança
+        final_days = max(15, min(180, final_days))  # Entre 15 dias e 6 meses
+        
+        return {
+            'base_days': base_days,
+            'multiplier': multiplier,
+            'final_days': final_days,
+            'months_equivalent': round(final_days / 30, 1),
+            'modifying_factors': reasons,
+            'recommendation': self._format_duration_recommendation(final_days)
+        }
+    
+    def _format_duration_recommendation(self, days: int) -> str:
+        """
+        Formata recomendação de duração de afastamento
+        """
+        if days <= 30:
+            return f"{days} dias com reavaliação quinzenal"
+        elif days <= 60:
+            return f"{days} dias com reavaliação mensal"
+        elif days <= 90:
+            return f"{days} dias com reavaliação bimestral"
+        else:
+            months = round(days / 30)
+            return f"Aproximadamente {months} meses com reavaliações periódicas"
+    
+    # ========================================================================
     # MÉTODOS AUXILIARES
     # ========================================================================
     
     def _get_cid_description(self, cid_code: str) -> str:
-        """Retorna descrição do CID baseada no código"""
+        """Retorna descrição do CID baseada no código - EXPANDIDO E MELHORADO"""
         descriptions = {
+            # DIABETES (E10-E14)
             'E10.3': 'Diabetes mellitus tipo 1 com complicações oftálmicas',
             'E10.9': 'Diabetes mellitus tipo 1 sem complicações',
             'E10.2': 'Diabetes mellitus tipo 1 com complicações renais',
             'E11.3': 'Diabetes mellitus tipo 2 com complicações oftálmicas',
             'E11.9': 'Diabetes mellitus tipo 2 sem complicações',
             'E11.2': 'Diabetes mellitus tipo 2 com complicações renais',
+            'E11.0': 'Diabetes mellitus tipo 2 com coma',
+            'E11.1': 'Diabetes mellitus tipo 2 com cetoacidose',
+            
+            # CARDIOVASCULAR (I00-I99)
             'I10': 'Hipertensão essencial',
             'I21.9': 'Infarto agudo do miocárdio não especificado',
             'I25.2': 'Infarto do miocárdio antigo',
+            'I25.9': 'Doença isquêmica crônica do coração não especificada',
+            'I48': 'Fibrilação e flutter atrial',
+            'I50.9': 'Insuficiência cardíaca não especificada',
+            
+            # NEUROLÓGICO (G00-G99)
             'G56.0': 'Síndrome do túnel do carpo',
+            'G56.1': 'Outras lesões do nervo mediano',
+            'G57.0': 'Lesão do nervo ciático',
+            'G44.2': 'Cefaleia do tipo tensional',
+            
+            # MUSCULOESQUELÉTICO (M00-M99)
+            'M25.5': 'Dor articular',  # ← CORRIGIDO!
+            'M25.9': 'Transtorno articular não especificado',
             'M70.1': 'Bursite da mão',
             'M70.2': 'Bursite do olécrano',
+            'M70.9': 'Transtorno dos tecidos moles relacionado com o uso, uso excessivo e pressão, não especificado',
             'M75.1': 'Síndrome do impacto do ombro',
+            'M75.3': 'Tendinite calcificante do ombro',
+            'M75.9': 'Lesão do ombro não especificada',
+            'M54.9': 'Dorsalgia não especificada',
+            'M79.3': 'Panniculite não especificada',
+            'M19.9': 'Artrose não especificada',
+            
+            # PSIQUIÁTRICO (F00-F99)
             'F32.1': 'Episódio depressivo moderado',
             'F32.2': 'Episódio depressivo grave sem sintomas psicóticos',
+            'F32.9': 'Episódio depressivo não especificado',
+            'F33.1': 'Transtorno depressivo recorrente, episódio atual moderado',
             'F41.0': 'Transtorno de pânico',
             'F41.1': 'Transtorno de ansiedade generalizada',
+            'F41.9': 'Transtorno de ansiedade não especificado',
+            'F43.0': 'Reação aguda ao estresse',
+            'F43.9': 'Reação ao estresse não especificada',
+            'F51.9': 'Transtorno do sono não orgânico não especificado',
+            
+            # DIGESTIVO (K00-K93)
+            'K30': 'Dispepsia funcional',
+            'K59.0': 'Constipação',
+            'K21.9': 'Doença do refluxo gastroesofágico sem esofagite',
+            
+            # RESPIRATÓRIO (J00-J99)
+            'J44.9': 'Doença pulmonar obstrutiva crônica não especificada',
+            'J45.9': 'Asma não especificada',
+            'J06.9': 'Infecção aguda das vias aéreas superiores não especificada',
+            
+            # ENDÓCRINO (E00-E89)
+            'E03.9': 'Hipotireoidismo não especificado',
+            'E78.5': 'Hiperlipidemia não especificada',
+            
+            # RENAIS/GENITOURINÁRIO (N00-N99)
+            'N18.9': 'Doença renal crônica não especificada',
+            'N39.0': 'Infecção do trato urinário de localização não especificada',
+            
+            # OFTÁLMICO (H00-H59)
+            'H35.9': 'Transtorno da retina não especificado',
+            'H52.4': 'Presbiopia',
+            
+            # DERMATOLÓGICO (L00-L99)
+            'L30.9': 'Dermatite não especificada',
+            
+            # LESÕES/TRAUMATISMOS (S00-T98)
             'S82.101A': 'Fratura não especificada da extremidade proximal da tíbia direita, encontro inicial',
-            'Z96.603': 'Presença de implante ortopédico unilateral do joelho'
+            'S72.9': 'Fratura não especificada do fêmur',
+            
+            # FATORES QUE INFLUENCIAM O ESTADO DE SAÚDE (Z00-Z99)
+            'Z96.603': 'Presença de implante ortopédico unilateral do joelho',
+            'Z51.1': 'Sessão de quimioterapia para neoplasia',
+            
+            # OUTROS COMUNS
+            'R50.9': 'Febre não especificada',
+            'R06.0': 'Dispneia',
+            'R51': 'Cefaleia'
         }
-        return descriptions.get(cid_code, f'Condição médica {cid_code}')
+        
+        # Se encontrou no dicionário, retornar
+        if cid_code in descriptions:
+            return descriptions[cid_code]
+        
+        # FALLBACK MELHORADO: Buscar na base FAISS
+        faiss_description = self._search_cid_description_in_faiss(cid_code)
+        if faiss_description:
+            return faiss_description
+        
+        # FALLBACK INTELIGENTE: Baseado no prefixo do CID
+        fallback_by_category = {
+            'E1': 'Diabetes mellitus',
+            'E0': 'Transtorno endócrino',
+            'I': 'Transtorno cardiovascular',
+            'G': 'Transtorno neurológico',
+            'M': 'Transtorno musculoesquelético',
+            'F': 'Transtorno mental e comportamental',
+            'K': 'Transtorno do sistema digestivo',
+            'J': 'Transtorno do sistema respiratório',
+            'N': 'Transtorno do sistema genitourinário',
+            'H': 'Transtorno dos olhos e anexos',
+            'L': 'Transtorno da pele',
+            'S': 'Lesão traumática',
+            'T': 'Intoxicação ou lesão',
+            'Z': 'Fator que influencia o estado de saúde',
+            'R': 'Sintoma ou sinal clínico'
+        }
+        
+        # Tentar mapear por categoria
+        for prefix, description in fallback_by_category.items():
+            if cid_code.startswith(prefix):
+                return f"{description} ({cid_code})"
+        
+        # Último fallback: mais genérico mas sem "alucinação"
+        return f"CID {cid_code} - Consultar classificação médica oficial"
+    
+    def _search_cid_description_in_faiss(self, cid_code: str) -> str:
+        """
+        NOVO: Busca descrição do CID na base FAISS
+        """
+        if not self.rag_available or not self.rag_service:
+            return None
+            
+        try:
+            # Query específica para buscar descrição do CID
+            query = f"CID {cid_code} descrição diagnóstico significado"
+            
+            results = self.rag_service.search_similar_cases(query, top_k=3)
+            
+            for result in results:
+                content = result.get('content', '')
+                
+                # Buscar por padrões que contenham o CID e sua descrição
+                import re
+                patterns = [
+                    rf'{cid_code}[:\-\s]+([^.\n]+)',  # CID: descrição
+                    rf'{cid_code}.*?[-–]\s*([^.\n]+)',  # CID - descrição  
+                    rf'CID\s+{cid_code}[:\-\s]+([^.\n]+)'  # CID X: descrição
+                ]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, content, re.IGNORECASE)
+                    if match:
+                        description = match.group(1).strip()
+                        # Limpar e validar a descrição
+                        if len(description) > 10 and len(description) < 150:
+                            # Remover caracteres estranhos
+                            description = re.sub(r'[^\w\s\-áàâãéèêíìîóòôõúùûçÁÀÂÃÉÈÊÍÌÎÓÒÔÕÚÙÛÇ]', '', description)
+                            if description.strip():
+                                return description.strip()
+            
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Erro ao buscar CID {cid_code} no FAISS: {e}")
+            return None
     
     def _generate_anamnese(self, state: MedicalAnalysisState) -> str:
         """Gera anamnese estruturada seguindo modelo ideal para telemedicina"""
@@ -814,14 +2042,20 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
                 else:
                     limitacao_ordem = 'mental'
             
-            # Determinar tempo de afastamento
-            tempo_afastamento = {
-                BenefitTypeEnum.AUXILIO_DOENCA: '3 a 6 meses com reavaliações periódicas',
-                BenefitTypeEnum.AUXILIO_ACIDENTE: 'Redução permanente da capacidade (sem prazo determinado)',
-                BenefitTypeEnum.BPC_LOAS: 'Condição permanente (revisões conforme legislação)',
-                BenefitTypeEnum.APOSENTADORIA_INVALIDEZ: 'Incapacidade definitiva',
-                BenefitTypeEnum.ISENCAO_IR: 'Conforme evolução da doença'
-            }.get(classification.tipo_beneficio, 'Conforme evolução clínica')
+                    # Determinar tempo de afastamento usando análise universal se disponível
+        tempo_afastamento = {
+            BenefitTypeEnum.AUXILIO_DOENCA: '3 a 6 meses com reavaliações periódicas',
+            BenefitTypeEnum.AUXILIO_ACIDENTE: 'Redução permanente da capacidade (sem prazo determinado)',
+            BenefitTypeEnum.BPC_LOAS: 'Condição permanente (revisões conforme legislação)',
+            BenefitTypeEnum.APOSENTADORIA_INVALIDEZ: 'Incapacidade definitiva',
+            BenefitTypeEnum.ISENCAO_IR: 'Conforme evolução da doença'
+        }.get(classification.tipo_beneficio, 'Conforme evolução clínica')
+        
+        # Usar análise universal se disponível
+        if state.get("universal_analysis") and state["universal_analysis"]["duration_analysis"]:
+            duration_data = state["universal_analysis"]["duration_analysis"]
+            if classification.tipo_beneficio in [BenefitTypeEnum.AUXILIO_DOENCA, BenefitTypeEnum.AUXILIO_ACIDENTE]:
+                tempo_afastamento = duration_data["recommendation"]
             
             # Observação sobre telemedicina se aplicável
             obs_telemedicina = ""
@@ -909,7 +2143,8 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
                 medical_report=None,
                 errors=[],
                 current_step="inicio",
-                telemedicine_mode=self.telemedicine_mode
+                telemedicine_mode=self.telemedicine_mode,
+                universal_analysis=None
             )
             
             # Executar pipeline LangGraph
@@ -939,6 +2174,366 @@ Observação: Laudo gerado por sistema de IA médica avançada - Validação mé
         """Versão síncrona para facilitar uso"""
         import asyncio
         return asyncio.run(self.analyze_complete(patient_text, transcription))
+    
+    def _extract_transcription_details(self, transcription: str, patient_data: PatientDataStrict) -> dict:
+        """
+        MELHORAMENTO: Extração detalhada e estruturada da transcrição
+        Aproveita ao máximo os detalhes importantes mencionados
+        """
+        details = {
+            'temporal_info': {},
+            'occupational_context': {},
+            'treatment_history': {},
+            'symptom_progression': {},
+            'functional_impact': {},
+            'environmental_factors': {},
+            'previous_episodes': {},
+            'quality_of_life': {}
+        }
+        
+        if not transcription:
+            return details
+            
+        text = transcription.lower()
+        import re
+        
+        # ===================================================================
+        # 1. INFORMAÇÕES TEMPORAIS DETALHADAS
+        # ===================================================================
+        
+        # Início dos sintomas/condição
+        onset_patterns = [
+            (r'há\s+(\d+)\s*anos?\s+descobri', 'descoberta'),
+            (r'há\s+(\d+)\s*meses?\s+comecei', 'início'),
+            (r'há\s+(\d+)\s*semanas?\s+sinto', 'início'),
+            (r'desde\s+(\d+)\s*anos?', 'duração'),
+            (r'faz\s+(\d+)\s*meses?', 'duração')
+        ]
+        
+        for pattern, tipo in onset_patterns:
+            match = re.search(pattern, text)
+            if match:
+                details['temporal_info'][tipo] = f"{match.group(1)} {match.group(0).split()[-1]}"
+                break
+        
+        # Progressão temporal
+        progression_indicators = [
+            'tem piorado', 'vem piorando', 'está pior', 'agravou',
+            'melhorou', 'estabilizou', 'oscila', 'vai e volta'
+        ]
+        
+        for indicator in progression_indicators:
+            if indicator in text:
+                details['symptom_progression']['trend'] = indicator
+                break
+        
+        # Frequência dos episódios
+        frequency_patterns = [
+            'todos os dias', 'diariamente', 'sempre', 'constantemente',
+            'às vezes', 'de vez em quando', 'raramente', 'episódico'
+        ]
+        
+        for freq in frequency_patterns:
+            if freq in text:
+                details['symptom_progression']['frequency'] = freq
+                break
+        
+        # ===================================================================
+        # 2. CONTEXTO OCUPACIONAL ESPECÍFICO
+        # ===================================================================
+        
+        # Duração na profissão
+        work_duration_match = re.search(r'trabalho\s+(?:de|como|há)\s*([^,\.]+?)(?:\s+há\s+(\d+)\s*anos?)?', text)
+        if work_duration_match:
+            details['occupational_context']['position'] = work_duration_match.group(1).strip()
+            if work_duration_match.group(2):
+                details['occupational_context']['duration'] = f"{work_duration_match.group(2)} anos"
+        
+        # Condições de trabalho específicas
+        work_conditions = {
+            'estresse': ['estresse no trabalho', 'pressão no trabalho', 'sobrecarga'],
+            'físico': ['trabalho pesado', 'esforço físico', 'carregar peso'],
+            'repetitivo': ['movimento repetitivo', 'mesma posição', 'digitação'],
+            'ambiente': ['calor', 'frio', 'barulho', 'produtos químicos'],
+            'horário': ['turno', 'noturno', 'plantão', 'hora extra']
+        }
+        
+        for categoria, termos in work_conditions.items():
+            if any(termo in text for termo in termos):
+                details['occupational_context'][categoria] = True
+        
+        # ===================================================================
+        # 3. HISTÓRICO DE TRATAMENTOS DETALHADO
+        # ===================================================================
+        
+        # Medicamentos com dosagem/frequência
+        med_patterns = [
+            r'tomo\s+([^,\.]+?)\s+(\d+)\s*(?:vez|vezes)',
+            r'uso\s+([^,\.]+?)\s+(?:todo|todos)',
+            r'aplico\s+([^,\.]+?)\s+(\d+)\s*(?:vez|vezes)'
+        ]
+        
+        for pattern in med_patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                details['treatment_history']['medications'] = matches
+        
+        # Resposta ao tratamento
+        treatment_responses = {
+            'boa': ['melhorou', 'ajudou', 'funcionou', 'aliviou'],
+            'parcial': ['melhorou um pouco', 'ajuda às vezes', 'alivia pouco'],
+            'ruim': ['não funcionou', 'não melhorou', 'piorou', 'não adianta'],
+            'efeitos_colaterais': ['efeito colateral', 'reação', 'mal estar do remédio']
+        }
+        
+        for resposta, termos in treatment_responses.items():
+            if any(termo in text for termo in termos):
+                details['treatment_history']['response'] = resposta
+                break
+        
+        # ===================================================================
+        # 4. IMPACTO FUNCIONAL ESPECÍFICO
+        # ===================================================================
+        
+        # Atividades específicas afetadas
+        functional_impacts = {
+            'trabalho': ['não consigo trabalhar', 'dificulta o trabalho', 'falto ao trabalho'],
+            'domésticas': ['não consigo fazer em casa', 'tarefas domésticas', 'cuidar da casa'],
+            'social': ['não saio mais', 'evito sair', 'isolamento'],
+            'sono': ['não durmo', 'acordo com dor', 'insônia'],
+            'locomoção': ['dificuldade para andar', 'usar escada', 'dirigir'],
+            'autocuidado': ['me vestir', 'tomar banho', 'escovar dentes']
+        }
+        
+        for area, termos in functional_impacts.items():
+            if any(termo in text for termo in termos):
+                details['functional_impact'][area] = True
+        
+        # ===================================================================
+        # 5. FATORES AMBIENTAIS E DESENCADEANTES
+        # ===================================================================
+        
+        environmental_triggers = {
+            'clima': ['frio', 'calor', 'umidade', 'tempo seco'],
+            'estresse': ['nervoso', 'ansioso', 'preocupado', 'estressado'],
+            'físico': ['esforço', 'carregar peso', 'ficar muito tempo'],
+            'alimentar': ['depois de comer', 'quando como', 'em jejum']
+        }
+        
+        for trigger_type, termos in environmental_triggers.items():
+            if any(termo in text for termo in termos):
+                details['environmental_factors'][trigger_type] = True
+        
+        # ===================================================================
+        # 6. EPISÓDIOS ANTERIORES
+        # ===================================================================
+        
+        previous_episodes_indicators = [
+            'já tive antes', 'primeira vez', 'volta e meia', 'de tempos em tempos',
+            'episódio anterior', 'última vez', 'outras vezes'
+        ]
+        
+        for indicator in previous_episodes_indicators:
+            if indicator in text:
+                details['previous_episodes']['pattern'] = indicator
+                break
+        
+        # ===================================================================
+        # 7. QUALIDADE DE VIDA
+        # ===================================================================
+        
+        quality_indicators = {
+            'humor': ['triste', 'deprimido', 'irritado', 'ansioso', 'nervoso'],
+            'relacionamentos': ['família preocupada', 'cônjuge', 'filhos', 'sozinho'],
+            'financeiro': ['afastado', 'sem trabalhar', 'auxílio', 'benefício'],
+            'perspectiva': ['melhora', 'piora', 'não vejo saída', 'esperança']
+        }
+        
+        for aspecto, termos in quality_indicators.items():
+            matching_terms = [termo for termo in termos if termo in text]
+            if matching_terms:
+                details['quality_of_life'][aspecto] = matching_terms
+        
+        # ===================================================================
+        # 8. ANÁLISE DE GRAVIDADE CONTEXTUAL
+        # ===================================================================
+        
+        # Indicadores de gravidade específicos
+        severity_markers = []
+        
+        if any(term in text for term in ['emergência', 'pronto socorro', 'internação']):
+            severity_markers.append('necessitou_emergencia')
+        
+        if any(term in text for term in ['não consigo', 'impossível', 'incapaz']):
+            severity_markers.append('incapacidade_total')
+        
+        if any(term in text for term in ['piorou muito', 'muito pior', 'insuportável']):
+            severity_markers.append('deterioracao_significativa')
+        
+        if len(severity_markers) > 0:
+            details['severity_context'] = severity_markers
+        
+        return details
+    
+    def _search_related_cids_from_faiss(self, patient_data: PatientDataStrict, transcription: str, primary_cid: str = None) -> dict:
+        """
+        NOVO: Busca CIDs relacionados diretamente na base FAISS
+        Aproveita a base de conhecimento médico existente
+        """
+        if not self.rag_available or not self.rag_service:
+            return {'primary_suggestions': [], 'secondary_suggestions': [], 'confidence': 0.0}
+        
+        try:
+            # Construir query para busca de CIDs relacionados
+            symptoms = ', '.join(patient_data.sintomas) if patient_data.sintomas else ''
+            medications = ', '.join(patient_data.medicamentos) if patient_data.medicamentos else ''
+            
+            # Query específica para CIDs
+            cid_query = f"""
+            Paciente: {patient_data.nome}, {patient_data.idade} anos, {patient_data.profissao}
+            Sintomas: {symptoms}
+            Medicamentos: {medications}
+            Transcrição: {transcription[:300]}
+            
+            Buscar CIDs médicos relacionados, comorbidades e diagnósticos secundários
+            """
+            
+            # Buscar na base FAISS
+            rag_results = self.rag_service.search_similar_cases(cid_query, top_k=5)
+            
+            # Extrair CIDs dos resultados
+            found_cids = {
+                'primary_suggestions': [],
+                'secondary_suggestions': [],
+                'confidence': 0.0,
+                'source_contexts': []
+            }
+            
+            import re
+            cid_pattern = r'\b[A-Z]\d{2}(?:\.\d)?\b'  # Padrão para CIDs (ex: E11.3, I10)
+            
+            total_confidence = 0
+            for result in rag_results:
+                content = result.get('content', '')
+                confidence = result.get('score', 0)
+                
+                # Extrair todos os CIDs do conteúdo
+                cids_found = re.findall(cid_pattern, content)
+                
+                # Analisar contexto para determinar se é principal ou secundário
+                for cid in cids_found:
+                    if cid == primary_cid:
+                        continue  # Não incluir o CID principal
+                    
+                    # Verificar se é um CID válido (formato correto)
+                    if re.match(r'^[A-Z]\d{2}(\.\d)?$', cid):
+                        
+                        # FILTROS DE RELEVÂNCIA MÉDICA
+                        # Excluir CIDs não apropriados para adultos/casos gerais
+                        excluded_cids = [
+                            'F84.0',  # Autismo (não relevante para diabetes adulto)
+                            'S68.1',  # Amputação (não relacionado ao caso)
+                            'T93.6',  # Sequela de fratura (não relacionado)
+                            'P00',    # Códigos perinatais (P00-P96)
+                            'Q00',    # Malformações congênitas (Q00-Q99)
+                            'V01',    # Causas externas (V01-Y98)
+                            'W00',    # Acidentes (W00-X59)
+                            'X00',    # Lesões auto-infligidas (X60-X84)
+                            'Y00',    # Agressões (Y85-Y09)
+                            'Z00'     # Fatores que influenciam o estado de saúde (alguns Z00-Z99)
+                        ]
+                        
+                        # Verificar se CID está na lista de exclusão
+                        should_exclude = False
+                        for excluded in excluded_cids:
+                            if cid.startswith(excluded[:3]):  # Verifica prefixo
+                                should_exclude = True
+                                break
+                        
+                        if should_exclude:
+                            continue
+                        
+                        # FILTROS DE RELEVÂNCIA POR CATEGORIA DO CID PRINCIPAL
+                        if primary_cid and primary_cid.startswith('E1'):  # Diabetes
+                            # Para diabetes, priorizar: cardiovasculares (I), renais (N), oftálmicos (H)
+                            relevant_prefixes = ['I', 'N', 'H', 'F32', 'F41']  # Cardio, renal, olhos, depressão/ansiedade
+                            if not any(cid.startswith(prefix) for prefix in relevant_prefixes):
+                                # Verificar se tem relação textual com diabetes
+                                diabetes_related_terms = [
+                                    'diabetes', 'diabético', 'complicação', 'hipertensão', 
+                                    'pressão', 'cardiovascular', 'renal', 'oftálmica'
+                                ]
+                                if not any(term in content.lower() for term in diabetes_related_terms):
+                                    continue
+                        
+                        # Determinar se é principal ou secundário baseado no contexto
+                        content_lower = content.lower()
+                        
+                        # Indicadores de CID principal
+                        primary_indicators = [
+                            'diagnóstico principal', 'cid principal', 'diagnóstico primário',
+                            'condição principal', 'doença principal'
+                        ]
+                        
+                        # Indicadores de CID secundário  
+                        secondary_indicators = [
+                            'comorbidade', 'diagnóstico secundário', 'associado',
+                            'concomitante', 'cid secundário', 'também apresenta',
+                            'complicação', 'associada', 'relacionada'
+                        ]
+                        
+                        is_primary_context = any(indicator in content_lower for indicator in primary_indicators)
+                        is_secondary_context = any(indicator in content_lower for indicator in secondary_indicators)
+                        
+                        # Calcular pontuação de relevância
+                        relevance_score = confidence
+                        
+                        # Bonificar se tem termos relacionados ao caso
+                        case_terms = []
+                        if patient_data.sintomas:
+                            case_terms.extend([s.lower() for s in patient_data.sintomas])
+                        if patient_data.medicamentos:
+                            case_terms.extend([m.lower() for m in patient_data.medicamentos])
+                        
+                        term_matches = sum(1 for term in case_terms if term in content_lower)
+                        relevance_score += term_matches * 0.1
+                        
+                        if is_primary_context and not found_cids['primary_suggestions']:
+                            found_cids['primary_suggestions'].append({
+                                'cid': cid,
+                                'confidence': relevance_score,
+                                'context': content[:200] + '...'
+                            })
+                        elif is_secondary_context or not is_primary_context:
+                            # Evitar duplicatas
+                            if not any(item['cid'] == cid for item in found_cids['secondary_suggestions']):
+                                found_cids['secondary_suggestions'].append({
+                                    'cid': cid,
+                                    'confidence': relevance_score,
+                                    'context': content[:200] + '...'
+                                })
+                
+                total_confidence += confidence
+            
+            # Calcular confiança média
+            if rag_results:
+                found_cids['confidence'] = total_confidence / len(rag_results)
+            
+            # Ordenar por confiança
+            found_cids['primary_suggestions'].sort(key=lambda x: x['confidence'], reverse=True)
+            found_cids['secondary_suggestions'].sort(key=lambda x: x['confidence'], reverse=True)
+            
+            # Limitar resultados
+            found_cids['primary_suggestions'] = found_cids['primary_suggestions'][:2]
+            found_cids['secondary_suggestions'] = found_cids['secondary_suggestions'][:4]
+            
+            print(f"📊 FAISS encontrou: {len(found_cids['secondary_suggestions'])} CIDs secundários")
+            
+            return found_cids
+            
+        except Exception as e:
+            print(f"❌ Erro na busca FAISS de CIDs: {e}")
+            return {'primary_suggestions': [], 'secondary_suggestions': [], 'confidence': 0.0}
 
 
 # ============================================================================
