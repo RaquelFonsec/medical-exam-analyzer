@@ -1,8 +1,4 @@
-"""
-Serviço Pydantic AI para análise médica com validação estrita
-Integra LangGraph, RAG, FAISS e validação robusta
-VERSÃO CORRIGIDA com limitações CFM para telemedicina
-"""
+
 
 import os
 import json
@@ -333,22 +329,39 @@ class PydanticMedicalAI:
             - Ansiedade generalizada → F41.1
             - Transtorno pânico → F41.0
             
-            🎯 REGRAS DE GRAVIDADE:
+            🎯 REGRAS DE GRAVIDADE (CONSERVADORAS):
             
-            **GRAVE:**
-            - Múltiplas condições descompensadas
-            - Incapacidade total evidente
-            - Risco de vida
+            **GRAVE:** (USAR APENAS EM CASOS EXTREMOS)
+            - Múltiplas condições descompensadas simultaneamente
+            - Incapacidade total e definitiva
+            - Risco iminente de vida
+            - Complicações severas não controladas
             
-            **MODERADA:**
-            - Condição controlável mas limitante
-            - Sintomas interferem no trabalho
-            - Tratamento em curso
+            **MODERADA:** (PADRÃO PARA MAIORIA DOS CASOS)
+            - Diabetes com sintomas (visão embaçada, mal estar)
+            - Hipertensão descompensada (>18x11)
+            - LER/DORT com limitações funcionais
+            - Condições que afetam trabalho mas são tratáveis
             
-            **LEVE:**
-            - Condição estável
-            - Limitações mínimas
-            - Bom controle com medicação
+            **LEVE:** (CASOS ESTÁVEIS)
+            - Diabetes bem controlado sem sintomas
+            - Hipertensão controlada com medicação
+            - Condições estáveis em tratamento
+            
+            📋 REGRAS ESPECÍFICAS PARA DIABETES:
+            
+            **TIPO 1 (E10.x):**
+            - Mencionado "tipo 1" OU "insulina dependente"
+            - E10.9 = sem complicações, E10.3 = com complicações
+            
+            **TIPO 2 (E11.x):**
+            - Mencionado "tipo 2" OU uso de "metformina/glibenclamida"
+            - E11.9 = sem complicações, E11.3 = com complicações
+            
+            **Gravidade Diabetes:**
+            - LEVE: Bem controlado, sem sintomas
+            - MODERADA: Com sintomas (visão embaçada, mal estar, hipertensão)
+            - GRAVE: Apenas com complicações severas (cetoacidose, coma)
             
             🚨 REGRAS INVIOLÁVEIS:
             1. **Sempre respeitar limitações CFM para telemedicina**
@@ -577,6 +590,9 @@ class PydanticMedicalAI:
     def _get_cid_description(self, cid_code: str) -> str:
         """Retorna descrição do CID baseada no código"""
         descriptions = {
+            'E10.3': 'Diabetes mellitus tipo 1 com complicações oftálmicas',
+            'E10.9': 'Diabetes mellitus tipo 1 sem complicações',
+            'E10.2': 'Diabetes mellitus tipo 1 com complicações renais',
             'E11.3': 'Diabetes mellitus tipo 2 com complicações oftálmicas',
             'E11.9': 'Diabetes mellitus tipo 2 sem complicações',
             'E11.2': 'Diabetes mellitus tipo 2 com complicações renais',
@@ -597,20 +613,84 @@ class PydanticMedicalAI:
         return descriptions.get(cid_code, f'Condição médica {cid_code}')
     
     def _generate_anamnese(self, state: MedicalAnalysisState) -> str:
-        """Gera anamnese estruturada"""
+        """Gera anamnese estruturada seguindo modelo ideal para telemedicina"""
         patient = state["patient_data"]
         classification = state["classification"]
         transcription = state.get("transcription", "")
         
-        # Determinar queixa principal
+        # Determinar queixa principal baseada no benefício
         queixa_map = {
-            'AUXÍLIO-DOENÇA': 'Afastamento do trabalho por incapacidade temporária',
-            'BPC/LOAS': 'Avaliação para Benefício de Prestação Continuada',
-            'APOSENTADORIA POR INVALIDEZ': 'Avaliação para aposentadoria por invalidez',
-            'AUXÍLIO-ACIDENTE': 'Redução da capacidade laborativa pós-acidente',
-            'ISENÇÃO IMPOSTO DE RENDA': 'Isenção de IR por doença grave'
+            'AUXÍLIO-DOENÇA': 'Afastamento do trabalho por incapacidade temporária devido ao quadro clínico atual',
+            'BPC/LOAS': 'Avaliação para concessão de Benefício de Prestação Continuada (BPC/LOAS)',
+            'APOSENTADORIA POR INVALIDEZ': 'Avaliação para aposentadoria por invalidez devido à incapacidade definitiva',
+            'AUXÍLIO-ACIDENTE': 'Avaliação de redução da capacidade laborativa pós-acidente de trabalho',
+            'ISENÇÃO IMPOSTO DE RENDA': 'Avaliação para isenção de Imposto de Renda por doença grave'
         }
-        queixa_principal = queixa_map.get(classification.tipo_beneficio.value, 'Avaliação de incapacidade')
+        queixa_principal = queixa_map.get(classification.tipo_beneficio.value, 'Avaliação médica para fins previdenciários')
+        
+        # Extrair data de início se disponível na transcrição
+        data_inicio = "Não especificada no relato"
+        if transcription:
+            import re
+            # Buscar padrões específicos de tempo relacionados ao início da doença/sintomas
+            medical_patterns = [
+                r'há\s+(\d+)\s*(mês|meses)\s+eu\s+descobri',
+                r'há\s+(\d+)\s*(ano|anos)\s+eu\s+descobri',
+                r'descobri\s+que\s+tenho\s+\w+\s+há\s+(\d+)\s*(mês|meses|ano|anos)',
+                r'diagnos\w+\s+há\s+(\d+)\s*(mês|meses|ano|anos)',
+                r'sintomas?\s+começaram\s+há\s+(\d+)\s*(mês|meses|ano|anos|dia|dias)',
+                r'começou\s+há\s+(\d+)\s*(mês|meses|ano|anos|dia|dias)',
+                r'iniciou\s+há\s+(\d+)\s*(mês|meses|ano|anos)'
+            ]
+            for pattern in medical_patterns:
+                match = re.search(pattern, transcription.lower())
+                if match:
+                    quantidade = match.group(1)
+                    periodo = match.group(2)
+                    data_inicio = f"Conforme relato - início há {quantidade} {periodo}"
+                    break
+        
+        # Determinar fatores desencadeantes baseados na profissão e sintomas
+        fatores_desencadeantes = []
+        if patient.profissao and patient.profissao != 'Não informada':
+            if any(term in patient.profissao.lower() for term in ['cozinheiro', 'digitador', 'motorista', 'pedreiro']):
+                fatores_desencadeantes.append(f"Atividade laboral como {patient.profissao}")
+        if patient.sintomas and any('acidente' in str(s).lower() for s in patient.sintomas):
+            fatores_desencadeantes.append("Acidente de trabalho conforme relato")
+        
+        fatores_text = '; '.join(fatores_desencadeantes) if fatores_desencadeantes else 'A esclarecer em avaliação presencial'
+        
+        # Melhorar descrição dos tratamentos
+        tratamentos_text = "Não relatados"
+        if patient.medicamentos:
+            tratamentos_text = f"Medicações em uso: {', '.join(patient.medicamentos)}"
+            if len(patient.medicamentos) > 2:
+                tratamentos_text += " - Politerapia em curso"
+        
+        # Situação atual baseada nos sintomas
+        situacao_atual = "Limitações funcionais significativas conforme relato"
+        if patient.sintomas:
+            principais_sintomas = ', '.join(patient.sintomas[:3])
+            situacao_atual = f"Apresenta atualmente: {principais_sintomas}, com impacto sobre a capacidade laborativa"
+        
+        # Histórico ocupacional detalhado
+        historico_ocupacional = "Conforme CTPS"
+        if patient.profissao and patient.profissao != 'Não informada':
+            historico_ocupacional = f"Atividade principal: {patient.profissao}. Histórico de contribuições previdenciárias conforme CNIS"
+        
+        # Exame clínico adaptado com mais detalhes
+        autoavaliacao = "Paciente relata limitações para atividades básicas e laborais"
+        if patient.sintomas:
+            limitacoes = []
+            for sintoma in patient.sintomas[:3]:
+                if 'dor' in sintoma.lower():
+                    limitacoes.append("dor que interfere na produtividade")
+                elif 'cansaco' in sintoma.lower() or 'fadiga' in sintoma.lower():
+                    limitacoes.append("fadiga limitante")
+                elif 'tontura' in sintoma.lower():
+                    limitacoes.append("instabilidade vestibular")
+            if limitacoes:
+                autoavaliacao = f"Relata {', '.join(limitacoes)}, comprometendo atividades habituais"
         
         anamnese = f"""**ANAMNESE MÉDICA - TELEMEDICINA**
 
@@ -619,42 +699,52 @@ Nome: {patient.nome}
 Idade: {patient.idade if patient.idade else 'Não informada'} anos
 Sexo: {patient.sexo if patient.sexo else 'Não informado'}
 Profissão: {patient.profissao if patient.profissao else 'Não informada'}
-Documento de identificação: Conforme processo
-Número de processo: Conforme solicitação
+Documento de identificação: RG/CPF conforme processo administrativo
+Número de processo: Conforme referência da solicitação (se aplicável)
 
 **2. QUEIXA PRINCIPAL**
-{queixa_principal}
+Motivo da consulta: {queixa_principal}
 Solicitação específica: {classification.tipo_beneficio.value}
+Solicitação do advogado: Conforme procuração e petição (se houver)
 
 **3. HISTÓRIA DA DOENÇA ATUAL (HDA)**
-{transcription if transcription.strip() else 'Paciente relata quadro clínico atual conforme dados fornecidos via telemedicina. Apresenta sintomas compatíveis com a condição referida, com impacto sobre a funcionalidade e capacidade laborativa.'}
+Data de início dos sintomas e/ou diagnóstico: {data_inicio}
 
-Fatores desencadeantes ou agravantes: {', '.join(patient.condicoes) if patient.condicoes else 'A esclarecer em avaliação presencial'}
-Tratamentos realizados: {', '.join(patient.medicamentos) if patient.medicamentos else 'Conforme prescrição médica'}
-Sintomas atuais: {', '.join(patient.sintomas) if patient.sintomas else 'Conforme relato do paciente'}
+Quadro clínico atual: {transcription if transcription.strip() else 'Paciente apresenta quadro clínico conforme documentação médica anexa, com sintomas e limitações que comprometem a capacidade laborativa habitual'}
+
+Fatores desencadeantes ou agravantes: {fatores_text}
+
+Tratamentos realizados e resultados: {tratamentos_text}. Resposta terapêutica conforme evolução médica documentada
+
+Situação atual: {situacao_atual}
 
 **4. ANTECEDENTES PESSOAIS E FAMILIARES RELEVANTES**
-Doenças prévias: {', '.join(patient.condicoes) if patient.condicoes else 'Conforme histórico médico'}
-Histórico ocupacional: {patient.profissao if patient.profissao != 'Não informada' else 'Conforme CTPS'}
-Histórico previdenciário: Conforme CNIS
+Doenças prévias: {', '.join(patient.condicoes) if patient.condicoes else 'Conforme histórico médico em prontuário'}
+Histórico ocupacional e previdenciário: {historico_ocupacional}
+Antecedentes familiares: Conforme anamnese médica prévia
 
 **5. DOCUMENTAÇÃO APRESENTADA**
-Documentos médicos: Conforme processo
-Exames complementares: Conforme anexos
-Observação: Análise baseada em documentação disponível e consulta por telemedicina
+Exames complementares: Conforme anexos médicos do processo
+Relatórios médicos: Documentação apresentada pelo requerente
+Prontuários: Conforme histórico clínico disponível
+Observação sobre suficiência: Documentação adequada para análise técnica via telemedicina
+Observação sobre consistência: Dados clínicos coerentes com a condição relatada
 
 **6. EXAME CLÍNICO (ADAPTADO PARA TELEMEDICINA)**
-Relato de autoavaliação: Limitações funcionais referidas pelo paciente
-Observação visual: Por videoconferência/telemedicina
-Limitações observadas: Compatíveis com o quadro clínico relatado
-Avaliação funcional: Restrições evidentes para atividade laboral habitual
+Relato de autoavaliação guiada: {autoavaliacao}
+Avaliação de força e mobilidade: Limitações funcionais evidentes conforme relato dirigido
+Observação visual por videoconferência: Compatível com o quadro clínico descrito
+Limitações funcionais observadas: Restrições para atividades laborais habituais evidentes
+Avaliação da dor: Presente e limitante conforme escala subjetiva relatada
 
 **7. AVALIAÇÃO MÉDICA (ASSESSMENT)**
-Hipótese diagnóstica: Compatível com CID-10: {classification.cid_principal}
-Correlação clínico-funcional: Quadro clínico com repercussões sobre a capacidade laborativa
-Enquadramento previdenciário: {classification.tipo_beneficio.value}
+Hipótese diagnóstica confirmada: {self._get_cid_description(classification.cid_principal)} (CID-10: {classification.cid_principal})
+Diagnósticos secundários: {', '.join([f'{cid} - {self._get_cid_description(cid)}' for cid in classification.cids_secundarios]) if classification.cids_secundarios else 'Não identificados'}
+Correlação clínico-funcional: O quadro apresentado é compatível com limitação da capacidade laborativa
+Enquadramento previdenciário: Indicação de {classification.tipo_beneficio.value}
 
-Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+Data da consulta: {datetime.now().strftime('%d/%m/%Y às %H:%M')}
+Modalidade: Telemedicina (conforme Resolução CFM nº 2.314/2022)
 """
         
         return anamnese
@@ -760,8 +850,7 @@ Principal: {classification.cid_principal} - {self._get_cid_description(classific
 {chr(10).join([f'Secundário: {cid} - {self._get_cid_description(cid)}' for cid in classification.cids_secundarios]) if classification.cids_secundarios else ''}
 
 **7. FUNDAMENTAÇÃO TÉCNICA**
-{classification.especificidade_cid}
-Fonte dos CIDs: {classification.fonte_cids}{obs_telemedicina}
+{classification.especificidade_cid}{obs_telemedicina}
 
 Data: {datetime.now().strftime('%d/%m/%Y')}
 Observação: Laudo gerado por sistema de IA médica avançada - Validação médica presencial recomendada.

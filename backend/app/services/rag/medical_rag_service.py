@@ -11,8 +11,8 @@ from datetime import datetime
 class MedicalRAGService:
     """Serviço RAG para análise médica baseada em exemplos de laudos"""
     
-    def __init__(self, faiss_index_path: str = "data/medical_knowledge.faiss", 
-                 chunks_path: str = "data/medical_chunks.pkl"):
+    def __init__(self, faiss_index_path: str = "app/index_faiss_openai/index.faiss", 
+                 chunks_path: str = "app/index_faiss_openai/documents.pkl"):
         """Inicializar serviço RAG"""
         self.faiss_index_path = faiss_index_path
         self.chunks_path = chunks_path
@@ -34,10 +34,32 @@ class MedicalRAGService:
     def _initialize_rag_system(self):
         """Inicializar sistema RAG"""
         try:
-            print("🔄 Carregando modelo de embedding...")
-            self.embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-            self.dimension = self.embedding_model.get_sentence_embedding_dimension()
-            print(f"✅ Modelo carregado - Dimensão: {self.dimension}")
+            # Detectar qual tipo de embedding foi usado no índice
+            if os.path.exists(self.faiss_index_path):
+                index = faiss.read_index(self.faiss_index_path)
+                self.dimension = index.d
+                print(f"🔍 Dimensão detectada do índice: {self.dimension}")
+                
+                # Se dimensão é 1536, usar OpenAI embeddings
+                if self.dimension == 1536:
+                    if self.openai_client:
+                        print("🔄 Usando OpenAI embeddings (text-embedding-ada-002)")
+                        self.embedding_model = "openai"
+                    else:
+                        print("❌ OpenAI necessário para dimensão 1536, mas não configurado")
+                        raise Exception("OpenAI API key necessária")
+                else:
+                    # Usar SentenceTransformers para outras dimensões
+                    print("🔄 Carregando modelo SentenceTransformers...")
+                    self.embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                    self.dimension = self.embedding_model.get_sentence_embedding_dimension()
+                    print(f"✅ Modelo SentenceTransformers carregado - Dimensão: {self.dimension}")
+            else:
+                # Fallback para SentenceTransformers
+                print("🔄 Carregando modelo de embedding padrão...")
+                self.embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                self.dimension = self.embedding_model.get_sentence_embedding_dimension()
+                print(f"✅ Modelo carregado - Dimensão: {self.dimension}")
             
             if os.path.exists(self.faiss_index_path) and os.path.exists(self.chunks_path):
                 self._load_knowledge_base()
@@ -167,32 +189,63 @@ class MedicalRAGService:
                 print("⚠️ Base de conhecimento vazia")
                 return []
             
-            query_embedding = self.embedding_model.encode([query])
+            # Gerar embedding baseado no tipo de modelo
+            if self.embedding_model == "openai":
+                response = self.openai_client.embeddings.create(
+                    input=query,
+                    model="text-embedding-ada-002"
+                )
+                query_embedding = np.array([response.data[0].embedding])
+            else:
+                query_embedding = self.embedding_model.encode([query])
+            
             distances, indices = self.faiss_index.search(
                 query_embedding.astype('float32'), 
                 min(top_k, self.faiss_index.ntotal)
             )
             
             results = []
+            # Como o índice FAISS tem mapeamento complexo, vamos criar uma busca adaptada
+            # Usar todos os documentos e calcular similaridade própria se FAISS não mapear corretamente
+            
             for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
-                if idx < len(self.chunks):
-                    chunk = self.chunks[idx]
-                    similarity_score = 1 / (1 + distance)
+                # Se índice é válido, usar documento completo baseado em aproximação
+                if idx >= 0 and distance < 2.0:  # Limiar de similaridade
+                    # Aproximar documento baseado no índice
+                    estimated_doc_idx = min(idx // (2124 // 38), len(self.chunks) - 1)
                     
-                    results.append({
-                        'text': chunk['text'],
-                        'type': chunk['type'],
-                        'similarity_score': float(similarity_score),
-                        'distance': float(distance),
-                        'rank': i + 1,
-                        'document_id': chunk.get('document_id', 'unknown'),
-                        'chunk_id': chunk.get('chunk_id', 'unknown')
-                    })
+                    if estimated_doc_idx < len(self.chunks):
+                        chunk = self.chunks[estimated_doc_idx]
+                        similarity_score = 1 / (1 + distance)
+                        
+                        # Adaptação para strings simples ou dicionários
+                        if isinstance(chunk, str):
+                            chunk_text = chunk
+                            chunk_type = self._classify_chunk_type(chunk)
+                            doc_id = f"doc_{estimated_doc_idx}"
+                        else:
+                            chunk_text = chunk.get('text', str(chunk))
+                            chunk_type = chunk.get('type', 'documento')
+                            doc_id = chunk.get('document_id', f"doc_{estimated_doc_idx}")
+                        
+                        # Evitar duplicatas
+                        if not any(r['document_id'] == doc_id for r in results):
+                            results.append({
+                                'content': chunk_text,
+                                'type': chunk_type,
+                                'score': float(similarity_score),
+                                'distance': float(distance),
+                                'rank': i + 1,
+                                'document_id': doc_id,
+                                'chunk_id': f"chunk_{idx}"
+                            })
             
             return results
             
         except Exception as e:
             print(f"❌ Erro na busca: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def generate_rag_response(self, patient_info: str, transcription: str, 

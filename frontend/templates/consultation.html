@@ -445,7 +445,19 @@
                const prognostico = safeAccess(bc, 'prognostico', 'A avaliar'); // ✅ SEM ACENTO
                const justificativa = safeAccess(bc, 'justificativa', '');
                
-               const benefitClass = tipoBeneficio === 'AUXILIO_DOENCA' ? 'badge-warning' : 'badge-info';
+               // Mapear tipo de benefício para classe CSS apropriada
+               let benefitClass = 'badge-info'; // Padrão
+               if (tipoBeneficio.includes('AUXILIO-DOENCA') || tipoBeneficio.includes('AUXÍLIO-DOENÇA')) {
+                   benefitClass = 'badge-warning';
+               } else if (tipoBeneficio.includes('AUXILIO-ACIDENTE') || tipoBeneficio.includes('AUXÍLIO-ACIDENTE')) {
+                   benefitClass = 'badge-danger';
+               } else if (tipoBeneficio.includes('BPC') || tipoBeneficio.includes('LOAS')) {
+                   benefitClass = 'badge-primary';
+               } else if (tipoBeneficio.includes('APOSENTADORIA')) {
+                   benefitClass = 'badge-success';
+               } else if (tipoBeneficio.includes('ISENCAO') || tipoBeneficio.includes('ISENÇÃO')) {
+                   benefitClass = 'badge-danger';
+               }
                const gravityClass = gravidade === 'GRAVE' ? 'text-danger' : gravidade === 'MODERADA' ? 'text-warning' : 'text-success';
                
                classificationHtml = `
