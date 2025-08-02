@@ -76,7 +76,7 @@
                        </p>
                    </div>
 
-                   <!-- SEÇÃO CORRIGIDA: UPLOAD DE DOCUMENTOS -->
+                   <!-- SEÇÃO DE UPLOAD DE DOCUMENTOS -->
                    <div class="document-upload-section mb-4" style="border: 2px dashed #6c757d; border-radius: 12px; padding: 1.5rem; background: #f8f9fa;">
                        <h5 class="text-secondary mb-3">
                            <i class="fas fa-file-medical me-2"></i>📄 Upload de Documentos/Exames
@@ -105,7 +105,7 @@
                    <div class="processing" id="processing">
                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
                        <h5>🧠 Análise Híbrida em Andamento</h5>
-                       <p class="text-muted">Classificando especialidade → Identificando benefício → Verificando CFM → Gerando laudo especializado...</p>
+                       <p class="text-muted">Classificando especialidade → Identificando benefício → Verificando CFM → Gerando resultado...</p>
                    </div>
                </div>
            </div>
@@ -121,10 +121,10 @@
            </div>
 
            <div class="row">
-               <div class="col-lg-4">
+               <div class="col-lg-6">
                    <div class="card p-4">
                        <h5 class="text-info mb-3">
-                           <i class="fas fa-microphone me-2"></i>1. Transcrição Original
+                           <i class="fas fa-microphone me-2"></i>1. Transcrição da Consulta
                        </h5>
                        <div class="bg-light p-3 rounded editable-content" style="max-height: 400px; overflow-y: auto;" contenteditable="false">
                            <div id="transcriptionText">Processando áudio...</div>
@@ -132,48 +132,25 @@
                    </div>
                </div>
 
-               <div class="col-lg-4">
+               <div class="col-lg-6">
                    <div class="card p-4">
                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                           <h5 class="text-success mb-0">2. Anamnese (Prontuário)</h5>
+                           <h5 class="text-primary mb-0">2. Resultado de Exames</h5>
                            <div style="display: flex; gap: 0.5rem;">
-                               <button class="edit-btn" id="editAnamneseBtn" onclick="toggleEditAnamnese()">Editar</button>
-                               <button class="copy-btn" id="copyAnamneseBtn" onclick="copyAnamnese()" title="Copiar conteúdo">
+                               <button class="edit-btn" id="editResultadoBtn" onclick="toggleEditResultado()">Editar</button>
+                               <button class="copy-btn" id="copyResultadoBtn" onclick="copyResultado()" title="Copiar conteúdo">
                                    <i class="fas fa-copy"></i> Copiar
                                </button>
                            </div>
                        </div>
                        
-                       <div class="bg-light p-3 rounded editable-content" style="max-height: 400px; overflow-y: auto;" contenteditable="false">
-                           <div id="anamneseText">Gerando anamnese especializada...</div>
+                       <div id="resultadoText" class="editable-content" contenteditable="false" style="line-height: 1.7; max-height: 400px; overflow-y: auto;">
+                           Gerando resultado de exames...
                        </div>
                        
-                       <div class="edit-controls" id="anamneseControls" style="display: none;">
-                           <button class="save-btn" onclick="saveAnamnese()">Salvar</button>
-                           <button class="cancel-btn" onclick="cancelEditAnamnese()">Cancelar</button>
-                       </div>
-                   </div>
-               </div>
-
-               <div class="col-lg-4">
-                   <div class="card p-4">
-                       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                           <h5 class="text-primary mb-0">3. Laudo Especializado</h5>
-                           <div style="display: flex; gap: 0.5rem;">
-                               <button class="edit-btn" id="editLaudoBtn" onclick="toggleEditLaudo()">Editar</button>
-                               <button class="copy-btn" id="copyLaudoBtn" onclick="copyLaudo()" title="Copiar conteúdo">
-                                   <i class="fas fa-copy"></i> Copiar
-                               </button>
-                           </div>
-                       </div>
-                       
-                       <div id="laudoText" class="editable-content" contenteditable="false" style="line-height: 1.7; max-height: 400px; overflow-y: auto;">
-                           Gerando laudo híbrido especializado...
-                       </div>
-                       
-                       <div class="edit-controls" id="laudoControls" style="display: none;">
-                           <button class="save-btn" onclick="saveLaudo()">Salvar</button>
-                           <button class="cancel-btn" onclick="cancelEditLaudo()">Cancelar</button>
+                       <div class="edit-controls" id="resultadoControls" style="display: none;">
+                           <button class="save-btn" onclick="saveResultado()">Salvar</button>
+                           <button class="cancel-btn" onclick="cancelEditResultado()">Cancelar</button>
                        </div>
                    </div>
                </div>
@@ -188,10 +165,8 @@
        let recordingTimer;
        let recordingSeconds = 0;
 
-       let originalAnamneseContent = "";
-       let originalLaudoContent = "";
-       let editingAnamnese = false;
-       let editingLaudo = false;
+       let originalResultadoContent = "";
+       let editingResultado = false;
 
        const recordBtn = document.getElementById('recordBtn');
        const recordingStatus = document.getElementById('recordingStatus');
@@ -363,7 +338,6 @@
            const formData = new FormData();
            formData.append('patient_info', patientInfo);
 
-           // CORRIGIDO: Usar o input correto
            if (audioChunks.length > 0) {
                const firstChunk = audioChunks[0];
                const detectedType = firstChunk.type || 'audio/webm';
@@ -382,10 +356,8 @@
                console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes", "tipo:", detectedType, "arquivo:", fileName);
            }
 
-           // CORRIGIDO: Usar o input correto para documentos
            const documentsInput = document.getElementById('documentInput');
            if (documentsInput && documentsInput.files.length > 0) {
-               // Adicionar todos os arquivos selecionados
                for (let i = 0; i < documentsInput.files.length; i++) {
                    formData.append('image', documentsInput.files[i]);
                    console.log("📄 Documento adicionado:", documentsInput.files[i].name);
@@ -426,27 +398,24 @@
        }
 
        // ============================================================================
-       // FUNÇÃO CORRIGIDA PARA EXIBIR RESULTADOS - SEM ERROS DE UNDEFINED
+       // FUNÇÃO CORRIGIDA PARA EXIBIR RESULTADOS - SEM ANAMNESE
        // ============================================================================
        function displayHybridResults(result) {
            console.log("📊 Exibindo resultados híbridos inteligentes");
            console.log("🔍 DEBUG - Resultado recebido:", result);
 
            let classificationHtml = "";
-           // ✅ CORREÇÃO: usar 'classification' em vez de 'benefit_classification'
            if (result.classification) {
                const bc = result.classification;
                
-               // ✅ CORREÇÃO: Usar safeAccess para evitar undefined
                const tipoBeneficio = safeAccess(bc, 'tipo_beneficio', 'A definir');
                const gravidade = safeAccess(bc, 'gravidade', 'MODERADA');
                const cidPrincipal = safeAccess(bc, 'cid_principal', '');
                const cidDescricao = safeAccess(bc, 'cid_descricao', '');
-               const prognostico = safeAccess(bc, 'prognostico', 'A avaliar'); // ✅ SEM ACENTO
+               const prognostico = safeAccess(bc, 'prognostico', 'A avaliar');
                const justificativa = safeAccess(bc, 'justificativa', '');
                
-               // Mapear tipo de benefício para classe CSS apropriada
-               let benefitClass = 'badge-info'; // Padrão
+               let benefitClass = 'badge-info';
                if (tipoBeneficio.includes('AUXILIO-DOENCA') || tipoBeneficio.includes('AUXÍLIO-DOENÇA')) {
                    benefitClass = 'badge-warning';
                } else if (tipoBeneficio.includes('AUXILIO-ACIDENTE') || tipoBeneficio.includes('AUXÍLIO-ACIDENTE')) {
@@ -551,24 +520,19 @@
 
            document.getElementById('contextInfo').innerHTML = classificationHtml + contextHtml;
 
-           // ✅ CORREÇÃO: Usar safeAccess e adicionar logs de debug
            const transcription = safeAccess(result, 'transcription', 'Nenhuma transcrição de áudio disponível');
            console.log("📝 Transcrição:", transcription ? transcription.length : 0, "chars");
            document.getElementById('transcriptionText').innerHTML = transcription;
 
-           const anamnese = safeAccess(result, 'anamnese', 'Gerando anamnese especializada...');
-           console.log("📋 Anamnese:", anamnese ? anamnese.length : 0, "chars");
-           document.getElementById('anamneseText').innerHTML = formatMedicalContent(anamnese);
-
-           const laudo = safeAccess(result, 'laudo_medico', 'Gerando laudo especializado...');
-           console.log("🏥 Laudo:", laudo ? laudo.length : 0, "chars");
-           document.getElementById('laudoText').innerHTML = formatMedicalContent(laudo);
+           // Usar resultado de exames em vez de anamnese
+           const resultadoExames = safeAccess(result, 'laudo_medico', 'Gerando resultado de exames...');
+           console.log("🧪 Resultado de Exames:", resultadoExames ? resultadoExames.length : 0, "chars");
+           document.getElementById('resultadoText').innerHTML = formatMedicalContent(resultadoExames);
 
            document.getElementById('results').style.display = 'block';
            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
            console.log("✅ Resultados híbridos exibidos com sucesso!");
-           console.log("🎉 Transcrição, Anamnese e Laudo devem estar visíveis na tela!");
        }
 
        function getContextClass(context) {
@@ -587,7 +551,6 @@
        }
 
        function formatMedicalContent(content) {
-           // ✅ CORREÇÃO: Verificar se content não é undefined antes de usar .replace()
            const safeContent = safeString(content);
            
            return safeContent
@@ -595,6 +558,7 @@
                .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
                .replace(/### (.*)/g, '<h6 class="text-success mt-2 mb-1">$1</h6>')
                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+               .replace(/RESULTADO DE EXAMES/g, '<strong>RESULTADO DE EXAMES</strong>')
                .replace(/LAUDO MÉDICO/g, '<strong>LAUDO MÉDICO</strong>')
                .replace(/IDENTIFICAÇÃO/g, '<strong>IDENTIFICAÇÃO</strong>')
                .replace(/CID-10:/g, '<strong>CID-10:</strong>')
@@ -603,23 +567,23 @@
                .replace(/📋|🎤|📄|⚕️|🔬|💊|🔮|⚖️|🚫|📖|🏥|⚠️|###|##/g, '');
        }
 
-       function copyAnamnese() {
-           const anamneseElement = document.getElementById('anamneseText');
-           const anamneseContent = anamneseElement ? anamneseElement.innerText : '';
+       function copyResultado() {
+           const resultadoElement = document.getElementById('resultadoText');
+           const resultadoContent = resultadoElement ? resultadoElement.innerText : '';
            
            if (navigator.clipboard && window.isSecureContext) {
-               navigator.clipboard.writeText(anamneseContent).then(() => {
-                   showCopySuccessAnamnese();
+               navigator.clipboard.writeText(resultadoContent).then(() => {
+                   showCopySuccessResultado();
                }).catch(err => {
                    console.error('Erro ao copiar:', err);
-                   fallbackCopyAnamnese(anamneseContent);
+                   fallbackCopyResultado(resultadoContent);
                });
            } else {
-               fallbackCopyAnamnese(anamneseContent);
+               fallbackCopyResultado(resultadoContent);
            }
        }
 
-       function fallbackCopyAnamnese(text) {
+       function fallbackCopyResultado(text) {
            const textArea = document.createElement('textarea');
            textArea.value = text;
            textArea.style.position = 'fixed';
@@ -631,7 +595,7 @@
            
            try {
                document.execCommand('copy');
-               showCopySuccessAnamnese();
+               showCopySuccessResultado();
            } catch (err) {
                console.error('Erro ao copiar:', err);
                alert('Erro ao copiar o conteúdo. Tente selecionar manualmente.');
@@ -640,8 +604,8 @@
            document.body.removeChild(textArea);
        }
 
-       function showCopySuccessAnamnese() {
-           const btn = document.getElementById('copyAnamneseBtn');
+       function showCopySuccessResultado() {
+           const btn = document.getElementById('copyResultadoBtn');
            if (!btn) return;
            
            const originalText = btn.innerHTML;
@@ -656,75 +620,15 @@
            }, 2000);
        }
 
-       function toggleEditAnamnese() {
-           const content = document.getElementById("anamneseText");
+       function toggleEditResultado() {
+           const content = document.getElementById("resultadoText");
            if (!content) return;
            
-           const parentElement = content.parentElement;
-           const controls = document.getElementById("anamneseControls");
-           const btn = document.getElementById("editAnamneseBtn");
+           const controls = document.getElementById("resultadoControls");
+           const btn = document.getElementById("editResultadoBtn");
            
-           if (!editingAnamnese) {
-               originalAnamneseContent = content.innerHTML;
-               parentElement.classList.add("edit-mode");
-               parentElement.contentEditable = true;
-               parentElement.focus();
-               if (controls) controls.style.display = "block";
-               if (btn) {
-                   btn.textContent = "Editando...";
-                   btn.disabled = true;
-               }
-               editingAnamnese = true;
-           }
-       }
-
-       function saveAnamnese() {
-           const content = document.getElementById("anamneseText");
-           if (!content) return;
-           
-           const parentElement = content.parentElement;
-           const controls = document.getElementById("anamneseControls");
-           const btn = document.getElementById("editAnamneseBtn");
-           
-           parentElement.classList.remove("edit-mode");
-           parentElement.contentEditable = false;
-           if (controls) controls.style.display = "none";
-           if (btn) {
-               btn.textContent = "Editar";
-               btn.disabled = false;
-           }
-           editingAnamnese = false;
-           alert("Anamnese salva!");
-       }
-
-       function cancelEditAnamnese() {
-           const content = document.getElementById("anamneseText");
-           if (!content) return;
-           
-           const parentElement = content.parentElement;
-           const controls = document.getElementById("anamneseControls");
-           const btn = document.getElementById("editAnamneseBtn");
-           
-           content.innerHTML = originalAnamneseContent;
-           parentElement.classList.remove("edit-mode");
-           parentElement.contentEditable = false;
-           if (controls) controls.style.display = "none";
-           if (btn) {
-               btn.textContent = "Editar";
-               btn.disabled = false;
-           }
-           editingAnamnese = false;
-       }
-
-       function toggleEditLaudo() {
-           const content = document.getElementById("laudoText");
-           if (!content) return;
-           
-           const controls = document.getElementById("laudoControls");
-           const btn = document.getElementById("editLaudoBtn");
-           
-           if (!editingLaudo) {
-               originalLaudoContent = content.innerHTML;
+           if (!editingResultado) {
+               originalResultadoContent = content.innerHTML;
                content.classList.add("edit-mode");
                content.contentEditable = true;
                content.focus();
@@ -733,16 +637,16 @@
                    btn.textContent = "Editando...";
                    btn.disabled = true;
                }
-               editingLaudo = true;
+               editingResultado = true;
            }
        }
 
-       function saveLaudo() {
-           const content = document.getElementById("laudoText");
+       function saveResultado() {
+           const content = document.getElementById("resultadoText");
            if (!content) return;
            
-           const controls = document.getElementById("laudoControls");
-           const btn = document.getElementById("editLaudoBtn");
+           const controls = document.getElementById("resultadoControls");
+           const btn = document.getElementById("editResultadoBtn");
            
            content.classList.remove("edit-mode");
            content.contentEditable = false;
@@ -751,18 +655,18 @@
                btn.textContent = "Editar";
                btn.disabled = false;
            }
-           editingLaudo = false;
-           alert("Laudo salvo!");
+           editingResultado = false;
+           alert("Resultado salvo!");
        }
 
-       function cancelEditLaudo() {
-           const content = document.getElementById("laudoText");
+       function cancelEditResultado() {
+           const content = document.getElementById("resultadoText");
            if (!content) return;
            
-           const controls = document.getElementById("laudoControls");
-           const btn = document.getElementById("editLaudoBtn");
+           const controls = document.getElementById("resultadoControls");
+           const btn = document.getElementById("editResultadoBtn");
            
-           content.innerHTML = originalLaudoContent;
+           content.innerHTML = originalResultadoContent;
            content.classList.remove("edit-mode");
            content.contentEditable = false;
            if (controls) controls.style.display = "none";
@@ -770,70 +674,16 @@
                btn.textContent = "Editar";
                btn.disabled = false;
            }
-           editingLaudo = false;
-       }
-
-       function copyLaudo() {
-           const laudoElement = document.getElementById('laudoText');
-           const laudoContent = laudoElement ? laudoElement.innerText : '';
-           
-           if (navigator.clipboard && window.isSecureContext) {
-               navigator.clipboard.writeText(laudoContent).then(() => {
-                   showCopySuccess();
-               }).catch(err => {
-                   console.error('Erro ao copiar:', err);
-                   fallbackCopy(laudoContent);
-               });
-           } else {
-               fallbackCopy(laudoContent);
-           }
-       }
-
-       function fallbackCopy(text) {
-           const textArea = document.createElement('textarea');
-           textArea.value = text;
-           textArea.style.position = 'fixed';
-           textArea.style.left = '-999999px';
-           textArea.style.top = '-999999px';
-           document.body.appendChild(textArea);
-           textArea.focus();
-           textArea.select();
-           
-           try {
-               document.execCommand('copy');
-               showCopySuccess();
-           } catch (err) {
-               console.error('Erro ao copiar:', err);
-               alert('Erro ao copiar o conteúdo. Tente selecionar manualmente.');
-           }
-           
-           document.body.removeChild(textArea);
-       }
-
-       function showCopySuccess() {
-           const btn = document.getElementById('copyLaudoBtn');
-           if (!btn) return;
-           
-           const originalText = btn.innerHTML;
-           btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
-           btn.style.backgroundColor = '#28a745';
-           btn.style.color = 'white';
-           
-           setTimeout(() => {
-               btn.innerHTML = originalText;
-               btn.style.backgroundColor = '';
-               btn.style.color = '';
-           }, 2000);
+           editingResultado = false;
        }
 
        // ============================================================================
-       // EVENTOS DE UPLOAD DE ARQUIVO CORRIGIDOS
+       // EVENTOS DE UPLOAD DE ARQUIVO
        // ============================================================================
 
        const documentInput = document.getElementById('documentInput');
        const uploadZone = document.getElementById('uploadZone');
 
-       // Event listener para mudança de arquivo
        if (documentInput) {
            documentInput.addEventListener('change', function(event) {
                const files = event.target.files;
@@ -841,7 +691,6 @@
            });
        }
 
-       // Drag and drop functionality
        if (uploadZone) {
            uploadZone.addEventListener('dragover', (e) => {
                e.preventDefault();
@@ -862,7 +711,6 @@
                
                const files = e.dataTransfer.files;
                
-               // Atualizar o input com os arquivos arrastados
                if (documentInput) {
                    documentInput.files = files;
                    handleFileSelection(files);
@@ -899,10 +747,9 @@
        document.addEventListener('DOMContentLoaded', function() {
            console.log('✅ DOM carregado - Sistema PREVIDAS Híbrido pronto');
            
-           // Verificar se todos os elementos essenciais existem
            const essentialElements = [
                'recordBtn', 'generateBtn', 'processing', 'results',
-               'transcriptionText', 'anamneseText', 'laudoText'
+               'transcriptionText', 'resultadoText'
            ];
            
            const missingElements = essentialElements.filter(id => !document.getElementById(id));
