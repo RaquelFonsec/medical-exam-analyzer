@@ -54,3 +54,5 @@ node_modules/
 # Arquivos temporários e de teste
 test_*.txt
 *.tmp
+.env
+*.env
