@@ -45,7 +45,7 @@
                <i class="fas fa-brain me-3"></i>
                PREVIDAS - Sistema Médico Híbrido
            </h1>
-           <p class="lead">IA Híbrida: Especialidade + Benefício + CFM Compliance</p>
+           
            <small class="d-block text-white-50">Psiquiatria • Cardiologia • Ortopedia • Neurologia + BPC • Incapacidade • Auxílio-Acidente</small>
        </div>
 
@@ -99,13 +99,13 @@
                        <button type="button" class="btn btn-success btn-lg px-5" id="generateBtn">
                            <i class="fas fa-brain me-2"></i>Análise Híbrida Inteligente
                        </button><br>
-                       <small class="text-muted mt-2 d-block">Sistema detecta: Especialidade + Tipo de Benefício + CFM Compliance</small>
+                       
                    </div>
 
                    <div class="processing" id="processing">
                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
                        <h5>🧠 Análise Híbrida em Andamento</h5>
-                       <p class="text-muted">Classificando especialidade → Identificando benefício → Verificando CFM → Gerando resultado...</p>
+                       <p class="text-muted">Gerando Transcrição ...</p>
                    </div>
                </div>
            </div>
@@ -500,16 +500,7 @@
            const timestamp = safeAccess(result, 'timestamp', new Date().toISOString());
 
            contextHtml += `
-               <div class="row mt-3">
-                   <div class="col-md-6">
-                       <strong>Confiança:</strong> ${confidence} pontos<br>
-                       <strong>Especialidade:</strong> ${specialtyNames[specialty] || specialty}
-                   </div>
-                   <div class="col-md-6">
-                       <strong>Benefício:</strong> ${benefit}<br>
-                       <strong>CFM Compliant:</strong> ${cfmCompliant ? '✅ Sim' : '⚠️ Limitações'}
-                   </div>
-               </div>
+
                <div class="row mt-2">
                    <div class="col-12">
                        <small><strong>Modelo:</strong> ${model}</small><br>
