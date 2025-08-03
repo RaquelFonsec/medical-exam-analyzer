@@ -3,214 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PREVIDAS - Login Médico</title>
+    <title>PREVIDAS - Sistema Médico</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: 
+                linear-gradient(135deg, rgba(66, 133, 244, 0.7) 0%, rgba(30, 64, 175, 0.7) 100%),
+                url('https://res.cloudinary.com/dbtr2yaho/image/upload/v1754242120/images_ej8vtz.jpg');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             align-items: center;
             font-family: 'Inter', sans-serif;
         }
         
-        .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
+        .access-card {
+            background: rgba(255, 255, 255, 0.99);
+            backdrop-filter: blur(15px);
             border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            box-shadow: 
+                0 15px 50px rgba(0,0,0,0.2),
+                0 0 0 1px rgba(255,255,255,0.2);
             padding: 3rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            max-width: 500px;
+            margin: 0 auto;
         }
         
-        .logo {
-            text-align: center;
-            margin-bottom: 2rem;
+        .access-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.01);
+            pointer-events: none;
+            z-index: 0;
         }
         
         .logo h1 {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #4285f4 0%, #1e40af 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-weight: 700;
             font-size: 2.5rem;
-        }
-        
-        .form-control {
-            border-radius: 12px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            padding: 1rem;
             margin-bottom: 1rem;
         }
         
-        .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-        }
-        
-        .btn-login {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .btn-access {
+            background: linear-gradient(135deg, #4285f4 0%, #1e40af 100%);
             border: none;
             border-radius: 12px;
-            padding: 1rem 2rem;
+            padding: 1.5rem 3rem;
             font-weight: 600;
             color: white;
-            width: 100%;
+            font-size: 1.2rem;
             transition: all 0.3s ease;
+            margin: 1rem;
+            box-shadow: 0 4px 20px rgba(66, 133, 244, 0.3);
         }
         
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        .btn-access:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(66, 133, 244, 0.5);
             color: white;
         }
         
-        .security-badge {
-            background: rgba(102, 126, 234, 0.1);
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-            margin-top: 1.5rem;
+        .test-info {
+            background: rgba(40, 167, 69, 0.1);
+            border: 1px solid rgba(40, 167, 69, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
         }
         
-        .demo-credentials {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-top: 1rem;
+        .version-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
+    <div class="version-badge">
+        <i class="fas fa-flask me-2"></i>Versão Teste
+    </div>
+
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4">
-                <div class="login-card">
-                    <div class="logo">
-                        <i class="fas fa-stethoscope fa-3x text-primary mb-3"></i>
-                        <h1>PREVIDAS</h1>
-                        <p class="text-muted">Sistema Médico Inteligente</p>
+            <div class="col-md-8 col-lg-6">
+                <div class="access-card">
+                    <div class="logo" style="position: relative; z-index: 2;">
+                        <i class="fas fa-user-md fa-4x mb-3" style="color: #4285f4; text-shadow: 0 2px 10px rgba(66,133,244,0.3);"></i>
+                        <h1 style="text-shadow: none;">PREVIDAS</h1>
+                        <p class="text-muted fs-5">Sistema Médico Inteligente</p>
                     </div>
                     
-                    <form id="loginForm">
-                        <div class="mb-3">
-                            <label class="form-label">
-                                <i class="fas fa-id-card me-2"></i>
-                                CRM do Médico
-                            </label>
-                            <input type="text" class="form-control" id="crm" name="crm" 
-                                   placeholder="Digite seu CRM" required maxlength="10">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">
-                                <i class="fas fa-lock me-2"></i>
-                                Senha
-                            </label>
-                            <input type="password" class="form-control" id="password" name="password" 
-                                   placeholder="Digite sua senha" required>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-login" id="loginBtn">
-                            <i class="fas fa-sign-in-alt me-2"></i>
+                    <div class="my-4" style="position: relative; z-index: 2;">
+                        <h3 class="text-dark mb-3" style="font-weight: 600;">Sistema Médico Inteligente</h3>
+                        <p class="text-muted" style="font-weight: 500;">
+                            Plataforma completa com IA médica especializada.<br>
+                            Transcrição, anamnese, análise de exames e laudos com CID.
+                        </p>
+                    </div>
+                    
+                    <div class="d-grid gap-3" style="position: relative; z-index: 2;">
+                        <button onclick="enterSystem()" class="btn btn-access">
+                            <i class="fas fa-arrow-right me-2"></i>
                             Acessar Sistema
                         </button>
-                    </form>
-                    
-                    <!-- Credenciais de demonstração -->
-                    <div class="demo-credentials">
-                        <h6><i class="fas fa-info-circle me-2"></i>Demonstração</h6>
-                        <p class="mb-1"><strong>CRM:</strong> 12345</p>
-                        <p class="mb-0"><strong>Senha:</strong> senha123</p>
+                        
+                        <button onclick="showDemo()" class="btn btn-outline-secondary">
+                            <i class="fas fa-play me-2"></i>
+                            Ver Demonstração
+                        </button>
                     </div>
                     
-                    <!-- Badge de segurança -->
-                    <div class="security-badge">
-                        <small>
-                            <i class="fas fa-shield-alt me-2"></i>
-                            <strong>Sistema Protegido LGPD</strong><br>
-                            Autenticação segura • Dados criptografados • Auditoria completa
-                        </small>
+                    <div class="test-info" style="position: relative; z-index: 2;">
+                        <h6><i class="fas fa-stethoscope me-2"></i>Recursos do Sistema</h6>
+                        <ul class="list-unstyled mb-0 text-start">
+                            <li><i class="fas fa-microphone text-success me-2"></i>Transcrição automática de consultas</li>
+                            <li><i class="fas fa-brain text-success me-2"></i>IA especializada em medicina para anamnese</li>
+                            <li><i class="fas fa-file-medical-alt text-success me-2"></i>Análise inteligente de exames médicos</li>
+                            <li><i class="fas fa-clipboard-list text-success me-2"></i>Geração de laudos detalhados com CID</li>
+                            <li><i class="fas fa-balance-scale text-warning me-2"></i>Determinação correta de benefícios</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Loading overlay -->
-    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" 
-         id="loadingOverlay" style="background: rgba(0,0,0,0.8); z-index: 9999; display: none!important;">
-        <div class="text-center text-white">
-            <div class="spinner-border mb-3" style="width: 3rem; height: 3rem;"></div>
-            <h5>Verificando credenciais...</h5>
-            <p>Autenticando médico no sistema</p>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        function enterSystem() {
+            // Simular dados do médico para teste
+            const testDoctor = {
+                id: 1,
+                name: "Dr. Teste",
+                crm: "TEST-001",
+                email: "teste@previdas.com"
+            };
             
-            const crm = document.getElementById('crm').value;
-            const password = document.getElementById('password').value;
-            const loginBtn = document.getElementById('loginBtn');
-            const loadingOverlay = document.getElementById('loadingOverlay');
+            // Salvar dados fictícios no localStorage
+            localStorage.setItem('auth_token', 'test_token_' + Date.now());
+            localStorage.setItem('doctor_info', JSON.stringify(testDoctor));
             
-            // Mostrar loading
-            loadingOverlay.style.display = 'flex';
-            loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
+            // Mostrar loading rápido
+            const btn = event.target;
+            const originalText = btn.innerHTML;
             
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ crm, password })
-                });
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Acessando...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                // Redirecionar para o sistema principal
+                window.location.href = '/consultation';
                 
-                const result = await response.json();
+                // Se não tiver rota de consultation, vai para uma página de teste
+                // window.location.href = '/dashboard';
+                // window.location.href = '/system';
                 
-                if (result.success) {
-                    // Salvar token
-                    localStorage.setItem('auth_token', result.token);
-                    localStorage.setItem('doctor_info', JSON.stringify(result.doctor));
-                    
-                    // Mostrar sucesso
-                    loginBtn.innerHTML = '<i class="fas fa-check me-2"></i>Login realizado!';
-                    loginBtn.className = 'btn btn-success';
-                    
-                    // Redirecionar após 1 segundo
-                    setTimeout(() => {
-                        window.location.href = '/consultation';
-                    }, 1000);
-                    
-                } else {
-                    throw new Error(result.error || 'Credenciais inválidas');
-                }
-                
-            } catch (error) {
-                // Mostrar erro
-                alert('Erro no login: ' + error.message);
-                console.error('Erro:', error);
-                
-                // Resetar botão
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Acessar Sistema';
-                loginBtn.className = 'btn btn-login';
-                
-                // Esconder loading
-                loadingOverlay.style.display = 'none';
-            }
+                // Para teste local, pode usar:
+                // window.location.href = 'sistema.html';
+            }, 1000);
+        }
+        
+        function showDemo() {
+            alert('🎥 PREVIDAS - Recursos Principais:\n\n' +
+                  '🎤 Transcrição Automática:\n' +
+                  '• Converte consultas faladas em texto\n' +
+                  '• Reconhecimento de voz médica especializada\n\n' +
+                  
+                  '🧠 IA Médica Especializada:\n' +
+                  '• Gera anamnese estruturada automaticamente\n' +
+                  '• Analisa sintomas e histórico do paciente\n\n' +
+                  
+                  '📋 Análise de Exames:\n' +
+                  '• Lê e interpreta exames laboratoriais\n' +
+                  '• Identifica alterações e padrões\n\n' +
+                  
+                  '📄 Laudos Detalhados:\n' +
+                  '• Gera laudos médicos completos\n' +
+                  '• Inclui CID correto e recomendações\n' +
+                  '• Determina benefícios adequados\n\n' +
+                  
+                  'Clique em "Acessar Sistema" para testar!');
+        }
+        
+        // Auto-scroll suave
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.style.opacity = '0';
+            document.body.style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                document.body.style.transition = 'all 0.5s ease';
+                document.body.style.opacity = '1';
+                document.body.style.transform = 'translateY(0)';
+            }, 100);
         });
         
-        // Auto-focus no campo CRM
-        document.getElementById('crm').focus();
+        // Console info para desenvolvedores
+        console.log('🏥 PREVIDAS - Sistema Médico');
+        console.log('📋 Versão: Teste/Desenvolvimento');
+        console.log('🔧 Status: Autenticação desabilitada para testes');
+        console.log('📝 Para produção: Implementar sistema de login completo');
     </script>
 </body>
 </html>
