@@ -56,3 +56,44 @@ test_*.txt
 *.tmp
 .env
 *.env
+
+# Arquivos de ambiente adicionais
+.env.*
+!.env.example
+
+# Arquivos de auditoria LGPD
+lgpd_audit.log
+audit_*.log
+
+# Arquivos de backup de segurança
+*.backup
+*.bak
+
+# Arquivos de certificados SSL
+*.crt
+*.p12
+*.pfx
+
+# Arquivos de configuração específicos do projeto
+auth_config.json
+database_credentials.json
+
+# Arquivos temporários do sistema médico
+temp_audio_*
+temp_exam_*
+processed_files/
+
+# Arquivos de desenvolvimento
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Arquivos do Docker (se usar)
+docker-compose.override.yml
+
+# Arquivos de monitoramento
+monitoring_*.log
+performance_*.json
