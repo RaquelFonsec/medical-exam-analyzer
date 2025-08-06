@@ -36,6 +36,15 @@
        .edit-mode { border: 2px solid #007bff !important; background: #f8f9fa !important; }
        .cfm-warning { background: #fef3c7; color: #d97706; padding: 10px; border-radius: 6px; margin: 10px 0; font-weight: bold; }
        .specialty-badge { background: #e5e7eb; color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 8px; }
+       
+       /* NOVOS ESTILOS PARA ANÁLISE LLM */
+       .llm-analysis { background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border-left: 4px solid #2196F3; padding: 20px; border-radius: 8px; margin: 15px 0; }
+       .llm-badge { background: linear-gradient(45deg, #6366f1, #8b5cf6); color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: inline-block; }
+       .risk-assessment { background: #fff8e1; border-left: 4px solid #ff9800; padding: 15px; border-radius: 8px; margin: 15px 0; }
+       .risk-title { font-weight: 600; color: #d97706; margin-bottom: 0.5rem; }
+       .recommendations-list { list-style: none; padding: 0; }
+       .recommendations-list li { background: #e8f5e8; margin: 8px 0; padding: 12px; border-left: 4px solid #4caf50; border-radius: 5px; }
+       .alterations-highlight { background: #ffebee; border-left: 4px solid #f44336; padding: 10px; margin: 10px 0; border-radius: 5px; }
    </style>
 </head>
 <body>
@@ -79,7 +88,7 @@
                    <!-- SEÇÃO DE UPLOAD DE DOCUMENTOS -->
                    <div class="document-upload-section mb-4" style="border: 2px dashed #6c757d; border-radius: 12px; padding: 1.5rem; background: #f8f9fa;">
                        <h5 class="text-secondary mb-3">
-                           <i class="fas fa-file-medical me-2"></i>📄 Upload de Documentos/Exames
+                           <i class="fas fa-file-medical me-2"></i>Upload de Documentos/Exames
                        </h5>
                        
                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('documentInput').click()" style="cursor: pointer; padding: 1rem; border: 2px dashed #dee2e6; border-radius: 8px; background: white; text-align: center;">
@@ -90,7 +99,7 @@
                        </div>
                        
                        <div id="selectedFiles" style="margin-top: 1rem; display: none;">
-                           <h6 class="text-primary">📋 Arquivos Selecionados:</h6>
+                           <h6 class="text-primary">Arquivos Selecionados:</h6>
                            <div id="fileList" style="max-height: 100px; overflow-y: auto;"></div>
                        </div>
                    </div>
@@ -104,8 +113,8 @@
 
                    <div class="processing" id="processing">
                        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
-                       <h5>🧠 Análise Híbrida em Andamento</h5>
-                       <p class="text-muted">Gerando Transcrição ...</p>
+                       <h5>Análise Híbrida em Andamento</h5>
+                       <p class="text-muted">Processando com Inteligência Artificial...</p>
                    </div>
                </div>
            </div>
@@ -135,7 +144,7 @@
                <div class="col-lg-6">
                    <div class="card p-4">
                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                           <h5 class="text-primary mb-0">2. Resultado de Exames</h5>
+                           <h5 class="text-primary mb-0">2. Análise Inteligente de Exames</h5>
                            <div style="display: flex; gap: 0.5rem;">
                                <button class="edit-btn" id="editResultadoBtn" onclick="toggleEditResultado()">Editar</button>
                                <button class="copy-btn" id="copyResultadoBtn" onclick="copyResultado()" title="Copiar conteúdo">
@@ -145,7 +154,7 @@
                        </div>
                        
                        <div id="resultadoText" class="editable-content" contenteditable="false" style="line-height: 1.7; max-height: 400px; overflow-y: auto;">
-                           Gerando resultado de exames...
+                           Carregue um exame para análise inteligente...
                        </div>
                        
                        <div class="edit-controls" id="resultadoControls" style="display: none;">
@@ -324,8 +333,11 @@
 
        generateBtn.addEventListener('click', analisarHibridaInteligente);
 
+       // ============================================================================
+       // FUNÇÃO PRINCIPAL ATUALIZADA PARA USAR LLM
+       // ============================================================================
        async function analisarHibridaInteligente() {
-           console.log("🧠 Iniciando análise híbrida inteligente");
+           console.log("🧠 Iniciando análise híbrida inteligente com LLM");
            
            const patientInfo = document.querySelector('textarea[name="patient_info"]').value;
            console.log("📝 Dados do paciente:", patientInfo);
@@ -335,51 +347,123 @@
                return;
            }
 
+           const documentsInput = document.getElementById('documentInput');
+           let hasDocuments = documentsInput && documentsInput.files.length > 0;
+
+           // Se tem documentos, usar endpoint com LLM
+           if (hasDocuments) {
+               await processWithLLM(patientInfo, documentsInput.files);
+           } else {
+               await processTraditional(patientInfo);
+           }
+       }
+
+       // ============================================================================
+       // PROCESSAMENTO COM LLM (NOVO)
+       // ============================================================================
+       async function processWithLLM(patientInfo, files) {
+           console.log("🤖 Processando com análise LLM...");
+           
+           try {
+               generateBtn.disabled = true;
+               generateBtn.innerHTML = '🤖 Análise com IA...';
+               document.getElementById('processing').style.display = 'block';
+               
+               // Processar cada arquivo individualmente com LLM
+               const llmResults = [];
+               
+               for (let i = 0; i < files.length; i++) {
+                   const file = files[i];
+                   console.log(`🔬 Analisando arquivo ${i + 1}/${files.length}: ${file.name}`);
+                   
+                   const formData = new FormData();
+                   formData.append('file', file);
+                   
+                   // Extrair idade e gênero do patientInfo se possível
+                   const ageMatch = patientInfo.match(/(\d+)\s*anos?/i);
+                   const genderMatch = patientInfo.match(/(masculino|feminino|homem|mulher|m|f)/i);
+                   
+                   if (ageMatch) {
+                       formData.append('patient_age', ageMatch[1]);
+                   }
+                   if (genderMatch) {
+                       let gender = genderMatch[1].toLowerCase();
+                       if (gender.startsWith('m') || gender === 'homem') gender = 'masculino';
+                       if (gender.startsWith('f') || gender === 'mulher') gender = 'feminino';
+                       formData.append('patient_gender', gender);
+                   }
+                   
+                   formData.append('additional_info', patientInfo);
+
+                   // Chamar endpoint LLM
+                   const response = await fetch('http://localhost:8000/api/analyze-exam-with-llm', {
+                       method: 'POST',
+                       body: formData
+                   });
+
+                   const result = await response.json();
+                   console.log(`📋 Resultado LLM para ${file.name}:`, result);
+                   
+                   if (result.success) {
+                       llmResults.push({
+                           filename: file.name,
+                           ...result
+                       });
+                   } else {
+                       console.error(`❌ Erro na análise LLM de ${file.name}:`, result.error);
+                   }
+               }
+
+               // Processar áudio se existir
+               const audioResult = await processAudioIfExists(patientInfo);
+               
+               // Combinar resultados
+               const combinedResult = {
+                   success: true,
+                   transcription: audioResult?.transcription || 'Nenhuma transcrição de áudio disponível',
+                   llm_exam_analysis: llmResults,
+                   patient_info: patientInfo,
+                   timestamp: new Date().toISOString()
+               };
+
+               displayLLMResults(combinedResult);
+
+           } catch (error) {
+               console.error("💥 Erro na análise LLM:", error);
+               alert('Erro na análise com IA: ' + error.message);
+           } finally {
+               generateBtn.disabled = false;
+               generateBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Análise Híbrida Inteligente';
+               document.getElementById('processing').style.display = 'none';
+           }
+       }
+
+       // ============================================================================
+       // PROCESSAMENTO TRADICIONAL (MANTIDO)
+       // ============================================================================
+       async function processTraditional(patientInfo) {
+           console.log("📋 Processamento tradicional...");
+           
            const formData = new FormData();
            formData.append('patient_info', patientInfo);
 
            if (audioChunks.length > 0) {
-               const firstChunk = audioChunks[0];
-               const detectedType = firstChunk.type || 'audio/webm';
-               
-               console.log("🔍 Tipo de áudio detectado:", detectedType);
-               
-               const audioBlob = new Blob(audioChunks, { type: detectedType });
-               
-               let fileExtension = 'webm';
-               if (detectedType.includes('mp4')) fileExtension = 'mp4';
-               else if (detectedType.includes('ogg')) fileExtension = 'ogg';
-               else if (detectedType.includes('wav')) fileExtension = 'wav';
-               
-               const fileName = `consulta_${Date.now()}.${fileExtension}`;
-               formData.append('audio', audioBlob, fileName);
-               console.log("🎤 Áudio adicionado:", audioBlob.size, "bytes", "tipo:", detectedType, "arquivo:", fileName);
-           }
-
-           const documentsInput = document.getElementById('documentInput');
-           if (documentsInput && documentsInput.files.length > 0) {
-               for (let i = 0; i < documentsInput.files.length; i++) {
-                   formData.append('image', documentsInput.files[i]);
-                   console.log("📄 Documento adicionado:", documentsInput.files[i].name);
-               }
+               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+               formData.append('audio', audioBlob, `consulta_${Date.now()}.webm`);
            }
 
            try {
                generateBtn.disabled = true;
-               generateBtn.innerHTML = '🧠 Análise Híbrida...';
+               generateBtn.innerHTML = '🧠 Análise...';
                document.getElementById('processing').style.display = 'block';
-
-               console.log("📤 Enviando para Frontend Flask → Backend");
 
                const response = await fetch('/api/intelligent-medical-analysis', {
                    method: 'POST',
                    body: formData
                });
 
-               console.log("📨 Status resposta:", response.status);
-
                const result = await response.json();
-               console.log("📋 Resultado híbrido completo:", result);
+               console.log("📋 Resultado tradicional:", result);
 
                if (result.success) {
                    displayHybridResults(result);
@@ -388,7 +472,7 @@
                }
 
            } catch (error) {
-               console.error("💥 Erro na requisição:", error);
+               console.error("💥 Erro:", error);
                alert('Erro de comunicação: ' + error.message);
            } finally {
                generateBtn.disabled = false;
@@ -398,10 +482,147 @@
        }
 
        // ============================================================================
-       // FUNÇÃO CORRIGIDA PARA EXIBIR RESULTADOS - SEM ANAMNESE
+       // PROCESSAR ÁUDIO SE EXISTIR
+       // ============================================================================
+       async function processAudioIfExists(patientInfo) {
+           if (audioChunks.length === 0) return null;
+
+           try {
+               const formData = new FormData();
+               formData.append('patient_info', patientInfo);
+               
+               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+               formData.append('audio', audioBlob, `consulta_${Date.now()}.webm`);
+
+               const response = await fetch('/api/intelligent-medical-analysis', {
+                   method: 'POST',
+                   body: formData
+               });
+
+               const result = await response.json();
+               return result.success ? result : null;
+
+           } catch (error) {
+               console.error("❌ Erro no processamento de áudio:", error);
+               return null;
+           }
+       }
+
+       // ============================================================================
+       // EXIBIR RESULTADOS COM LLM (NOVO)
+       // ============================================================================
+       function displayLLMResults(result) {
+           console.log("🤖 Exibindo resultados com análise LLM");
+           console.log("🔍 DEBUG - Resultado LLM:", result);
+
+           // Contexto
+           const contextHtml = `
+               <div class="context-badge context-clinica">
+                   🤖 Análise Médica com Inteligência Artificial
+               </div>
+               <div class="row mt-2">
+                   <div class="col-12">
+                       <small><strong>Modelo:</strong> OpenAI GPT + AWS Textract</small><br>
+                       <small><strong>Timestamp:</strong> ${new Date(result.timestamp).toLocaleString()}</small>
+                   </div>
+               </div>
+           `;
+           document.getElementById('contextInfo').innerHTML = contextHtml;
+
+           // Transcrição
+           const transcription = safeString(result.transcription, 'Nenhuma transcrição de áudio disponível');
+           document.getElementById('transcriptionText').innerHTML = transcription;
+
+           // Análise LLM dos exames
+           let examAnalysisHtml = '';
+           
+           if (result.llm_exam_analysis && result.llm_exam_analysis.length > 0) {
+               examAnalysisHtml = '<div class="llm-badge">🤖 Análise com Inteligência Artificial</div>';
+               
+               result.llm_exam_analysis.forEach((exam, index) => {
+                   const analysis = exam.llm_analysis || {};
+                   
+                   examAnalysisHtml += `
+                       <div class="mb-4">
+                           <h6 class="text-primary"><strong>📄 ${exam.filename}</strong></h6>
+                           
+                           <div class="llm-analysis">
+                               <h6 class="text-primary">🔬 Análise Clínica</h6>
+                               <p>${safeString(analysis.clinical_analysis, 'Análise não disponível')}</p>
+                           </div>
+                           
+                           <div class="risk-assessment">
+                               <div class="risk-title">⚠️ Avaliação de Risco</div>
+                               <p>${safeString(analysis.risk_assessment, 'Avaliação não disponível')}</p>
+                           </div>
+                   `;
+                   
+                   // Principais alterações
+                   if (analysis.key_findings && analysis.key_findings.length > 0) {
+                       examAnalysisHtml += `
+                           <div class="alterations-highlight">
+                               <h6>🔍 Principais Achados:</h6>
+                               <ul class="mb-0">
+                       `;
+                       analysis.key_findings.slice(0, 5).forEach(finding => {
+                           examAnalysisHtml += `<li>${safeString(finding)}</li>`;
+                       });
+                       examAnalysisHtml += `</ul></div>`;
+                   }
+                   
+                   // Recomendações
+                   if (analysis.recommendations && analysis.recommendations.length > 0) {
+                       examAnalysisHtml += `
+                           <div class="mt-3">
+                               <h6>💡 Recomendações Personalizadas:</h6>
+                               <ul class="recommendations-list">
+                       `;
+                       analysis.recommendations.forEach(rec => {
+                           examAnalysisHtml += `<li>${safeString(rec)}</li>`;
+                       });
+                       examAnalysisHtml += `</ul></div>`;
+                   }
+                   
+                   // Resumo claro
+                   if (analysis.clear_summary) {
+                       examAnalysisHtml += `
+                           <div class="mt-3 p-3 bg-light rounded">
+                               <h6>📝 Resumo em Linguagem Clara:</h6>
+                               <p class="mb-0">${safeString(analysis.clear_summary)}</p>
+                           </div>
+                       `;
+                   }
+                   
+                   examAnalysisHtml += `</div>`;
+                   
+                   // Separador se houver mais exames
+                   if (index < result.llm_exam_analysis.length - 1) {
+                       examAnalysisHtml += `<hr class="my-4">`;
+                   }
+               });
+           } else {
+               examAnalysisHtml = `
+                   <div class="text-center p-4">
+                       <i class="fas fa-file-upload fa-3x text-muted mb-3"></i>
+                       <p class="text-muted">Carregue um exame (PDF, JPG, PNG) para análise inteligente com IA</p>
+                   </div>
+               `;
+           }
+
+           document.getElementById('resultadoText').innerHTML = examAnalysisHtml;
+           
+           // Mostrar resultados
+           document.getElementById('results').style.display = 'block';
+           document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
+           console.log("✅ Resultados LLM exibidos com sucesso!");
+       }
+
+       // ============================================================================
+       // FUNÇÃO ORIGINAL MANTIDA PARA COMPATIBILIDADE
        // ============================================================================
        function displayHybridResults(result) {
-           console.log("📊 Exibindo resultados híbridos inteligentes");
+           console.log("📊 Exibindo resultados híbridos tradicionais");
            console.log("🔍 DEBUG - Resultado recebido:", result);
 
            let classificationHtml = "";
@@ -500,7 +721,6 @@
            const timestamp = safeAccess(result, 'timestamp', new Date().toISOString());
 
            contextHtml += `
-
                <div class="row mt-2">
                    <div class="col-12">
                        <small><strong>Modelo:</strong> ${model}</small><br>
@@ -554,8 +774,7 @@
                .replace(/IDENTIFICAÇÃO/g, '<strong>IDENTIFICAÇÃO</strong>')
                .replace(/CID-10:/g, '<strong>CID-10:</strong>')
                .replace(/PARECER:/g, '<strong>PARECER:</strong>')
-               .replace(/ATENÇÃO CFM:/g, '<span class="text-warning"><strong>⚠️ ATENÇÃO CFM:</strong></span>')
-               .replace(/📋|🎤|📄|⚕️|🔬|💊|🔮|⚖️|🚫|📖|🏥|⚠️|###|##/g, '');
+               .replace(/ATENÇÃO CFM:/g, '<span class="text-warning"><strong>⚠️ ATENÇÃO CFM:</strong></span>');
        }
 
        function copyResultado() {
@@ -736,11 +955,11 @@
        // INICIALIZAÇÃO COM VERIFICAÇÕES DE SEGURANÇA
        // ============================================================================
        document.addEventListener('DOMContentLoaded', function() {
-           console.log('✅ DOM carregado - Sistema PREVIDAS Híbrido pronto');
+           console.log('✅ DOM carregado - Sistema PREVIDAS Híbrido com LLM pronto');
            
            const essentialElements = [
                'recordBtn', 'generateBtn', 'processing', 'results',
-               'transcriptionText', 'resultadoText'
+               'transcriptionText', 'resultadoText', 'documentInput'
            ];
            
            const missingElements = essentialElements.filter(id => !document.getElementById(id));

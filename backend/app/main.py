@@ -1,6 +1,6 @@
 # ============================================================================
-# SISTEMA MÉDICO INTEGRADO - VERSÃO CORRIGIDA
-# OpenAI Whisper + AWS Textract
+# SISTEMA MÉDICO INTEGRADO - VERSÃO CORRIGIDA + LLM
+# OpenAI Whisper + AWS Textract + LLM Medical Analysis
 # ============================================================================
 
 import os
@@ -8,8 +8,11 @@ import sys
 import tempfile
 import logging
 import io
+import re
+import json
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, Tuple
+from dataclasses import dataclass, asdict
 
 # Core imports
 import boto3
@@ -27,7 +30,7 @@ except ImportError:
 # Web framework
 from fastapi import FastAPI, Form, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 import uvicorn
 
 # Environment
@@ -52,7 +55,37 @@ class Settings:
 settings = Settings()
 
 # ============================================================================
-# TRANSCRIPTION SERVICE CORRIGIDO
+# MODELOS DE DADOS PARA LLM
+# ============================================================================
+
+@dataclass
+class ExamFinding:
+    """Representa um achado em exame"""
+    parameter: str
+    value: str
+    reference_range: str
+    status: str  # normal, alto, baixo, alterado
+    severity: str  # leve, moderado, grave
+    clinical_significance: str
+    recommendation: str
+
+@dataclass
+class ExamSummary:
+    """Resumo completo do exame"""
+    exam_type: str
+    patient_info: Dict
+    exam_date: str
+    findings: List[ExamFinding]
+    overall_status: str
+    key_alterations: List[str]
+    clinical_summary: str
+    recommendations: List[str]
+    follow_up_needed: bool
+    llm_analysis: str  # Análise gerada por LLM
+    risk_assessment: str  # Avaliação de risco por LLM
+
+# ============================================================================
+# TRANSCRIPTION SERVICE (MANTIDO IGUAL)
 # ============================================================================
 
 class TranscriptionService:
@@ -61,7 +94,6 @@ class TranscriptionService:
     def __init__(self):
         """Inicializar serviço de transcrição"""
         try:
-            # Verificar se a chave API está disponível
             if not settings.OPENAI_API_KEY:
                 raise ValueError("OPENAI_API_KEY não encontrada nas variáveis de ambiente")
             
@@ -74,16 +106,7 @@ class TranscriptionService:
             self.client = None
     
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str = "audio.wav") -> Dict[str, Any]:
-        """
-        Transcrição de áudio a partir de bytes usando OpenAI Whisper API
-        
-        Args:
-            audio_bytes: Dados binários do áudio
-            filename: Nome do arquivo (para contexto)
-        
-        Returns:
-            Dict com resultado da transcrição
-        """
+        """Transcrição de áudio a partir de bytes usando OpenAI Whisper API"""
         if not self.client:
             logger.error("❌ Cliente OpenAI não disponível para transcrição")
             return {
@@ -97,7 +120,6 @@ class TranscriptionService:
         try:
             logger.info(f"🎤 Processando áudio: {len(audio_bytes)} bytes")
             
-            # Validações básicas
             if len(audio_bytes) < 100:
                 logger.warning("⚠️ Arquivo de áudio muito pequeno")
                 return {
@@ -106,14 +128,12 @@ class TranscriptionService:
                     "error": "Arquivo muito pequeno"
                 }
             
-            # Criar arquivo temporário
             with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
                 tmp_file.write(audio_bytes)
                 temp_file_path = tmp_file.name
             
             logger.info(f"📁 Áudio salvo temporariamente: {temp_file_path}")
             
-            # Verificar tamanho do arquivo
             file_size = os.path.getsize(temp_file_path)
             logger.info(f"📊 Tamanho do arquivo: {file_size} bytes")
             
@@ -125,20 +145,18 @@ class TranscriptionService:
                     "error": "Arquivo vazio"
                 }
             
-            # Realizar transcrição com Whisper API
             logger.info("🤖 Iniciando transcrição com Whisper API...")
             
             with open(temp_file_path, "rb") as audio_file:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
-                    language="pt",  # Português
+                    language="pt",
                     response_format="text",
-                    temperature=0.1,  # Mais conservador para melhor precisão
+                    temperature=0.1,
                     prompt="Esta é uma consulta médica em português. O paciente está relatando sintomas e histórico médico."
                 )
             
-            # Extrair texto da resposta
             transcription_text = transcript if isinstance(transcript, str) else str(transcript)
             transcription_text = transcription_text.strip()
             
@@ -205,7 +223,6 @@ class TranscriptionService:
             }
             
         finally:
-            # Limpar arquivo temporário
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
@@ -214,15 +231,7 @@ class TranscriptionService:
                     logger.warning(f"⚠️ Erro ao remover arquivo temporário: {e}")
     
     async def transcribe_audio(self, audio_file_path: str) -> Dict[str, Any]:
-        """
-        Transcrição de áudio a partir de caminho do arquivo
-        
-        Args:
-            audio_file_path: Caminho para o arquivo de áudio
-        
-        Returns:
-            Dict com resultado da transcrição
-        """
+        """Transcrição de áudio a partir de caminho do arquivo"""
         try:
             if not os.path.exists(audio_file_path):
                 logger.error(f"❌ Arquivo não encontrado: {audio_file_path}")
@@ -232,7 +241,6 @@ class TranscriptionService:
                     "error": "Arquivo não encontrado"
                 }
             
-            # Ler arquivo e usar o método de bytes
             with open(audio_file_path, "rb") as f:
                 audio_bytes = f.read()
             
@@ -248,7 +256,7 @@ class TranscriptionService:
             }
 
 # ============================================================================
-# AWS TEXTRACT SERVICE (MANTIDO ORIGINAL)
+# AWS TEXTRACT SERVICE (MANTIDO IGUAL)
 # ============================================================================
 
 class TextractExamService:
@@ -300,25 +308,18 @@ class TextractExamService:
     def _preprocess_image_for_ocr(self, image_bytes: bytes) -> bytes:
         """Pré-processa imagem para melhor OCR"""
         try:
-            # Carregar imagem
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
             if img is None:
                 return image_bytes
             
-            # Converter para escala de cinza
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            
-            # Aplicar denoising
             denoised = cv2.fastNlMeansDenoising(gray)
-            
-            # Aplicar threshold adaptativo para melhor contraste
             thresh = cv2.adaptiveThreshold(
                 denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
             )
             
-            # Converter de volta para bytes
             _, buffer = cv2.imencode('.png', thresh)
             return buffer.tobytes()
             
@@ -367,7 +368,6 @@ class TextractExamService:
             pages_processed = 0
             
             if is_pdf:
-                # Processar PDF página por página
                 image_bytes_list = self._convert_pdf_to_images(file_bytes)
                 
                 if not image_bytes_list:
@@ -380,13 +380,9 @@ class TextractExamService:
                 for i, img_bytes in enumerate(image_bytes_list):
                     logger.info(f"🔄 Processando página {i+1}/{len(image_bytes_list)}")
                     
-                    # Pré-processar imagem
                     processed_img = self._preprocess_image_for_ocr(img_bytes)
-                    
-                    # Chamar Textract
                     response = self.client.detect_document_text(Document={'Bytes': processed_img})
                     
-                    # Extrair texto da página
                     page_text = ""
                     page_confidences = []
                     
@@ -403,9 +399,7 @@ class TextractExamService:
                     pages_processed += 1
             
             else:
-                # Processar imagem única
                 processed_img = self._preprocess_image_for_ocr(file_bytes)
-                
                 response = self.client.detect_document_text(Document={'Bytes': processed_img})
                 
                 for block in response.get('Blocks', []):
@@ -418,10 +412,7 @@ class TextractExamService:
                 
                 pages_processed = 1
             
-            # Calcular métricas
             avg_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0
-            
-            # Detectar conteúdo médico
             medical_analysis = self._detect_medical_content(all_text)
             
             result = {
@@ -455,13 +446,390 @@ class TextractExamService:
             }
 
 # ============================================================================
-# FASTAPI APPLICATION
+# NOVO: AGENTE LLM PARA ANÁLISE DE EXAMES
+# ============================================================================
+
+class LLMExamAnalyzer:
+    """Agente LLM para análise inteligente de exames médicos"""
+    
+    def __init__(self):
+        self.openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else None
+        self.reference_values = self._load_reference_values()
+        
+    def _load_reference_values(self) -> Dict:
+        """Valores de referência básicos"""
+        return {
+            'hemácias_homem': (4.5, 5.9, 'milhões/mm³'),
+            'hemácias_mulher': (4.0, 5.2, 'milhões/mm³'),
+            'hemoglobina_homem': (13.5, 17.5, 'g/dL'),
+            'hemoglobina_mulher': (12.0, 16.0, 'g/dL'),
+            'leucócitos': (4000, 11000, '/mm³'),
+            'plaquetas': (150000, 450000, '/mm³'),
+            'glicose_jejum': (70, 99, 'mg/dL'),
+            'colesterol_total': (0, 200, 'mg/dL'),
+            'creatinina_homem': (0.7, 1.3, 'mg/dL'),
+            'creatinina_mulher': (0.6, 1.1, 'mg/dL'),
+            'tsh': (0.4, 4.0, 'mUI/L'),
+        }
+    
+    async def analyze_exam_with_llm(self, extracted_text: str, patient_info: Dict = None) -> Dict[str, Any]:
+        """Análise completa do exame usando LLM"""
+        
+        if not self.openai_client:
+            return {
+                'success': False,
+                'error': 'OpenAI API não configurada',
+                'fallback_analysis': self._basic_analysis(extracted_text)
+            }
+        
+        try:
+            logger.info("🤖 Iniciando análise LLM do exame...")
+            
+            # 1. Preparar contexto
+            context = self._prepare_context(extracted_text, patient_info)
+            
+            # 2. Análise clínica principal
+            clinical_analysis = await self._generate_clinical_analysis(context)
+            
+            # 3. Avaliação de risco
+            risk_assessment = await self._generate_risk_assessment(context)
+            
+            # 4. Recomendações personalizadas
+            recommendations = await self._generate_recommendations(context, patient_info)
+            
+            # 5. Resumo em linguagem clara
+            clear_summary = await self._generate_clear_summary(context)
+            
+            # 6. Identificar alterações principais
+            key_findings = self._extract_key_findings(extracted_text)
+            
+            result = {
+                'success': True,
+                'llm_analysis': {
+                    'clinical_analysis': clinical_analysis,
+                    'risk_assessment': risk_assessment,
+                    'recommendations': recommendations,
+                    'clear_summary': clear_summary,
+                    'key_findings': key_findings,
+                    'exam_type': self._identify_exam_type(extracted_text),
+                    'overall_status': self._determine_status(clinical_analysis, risk_assessment),
+                    'follow_up_needed': 'urgente' in risk_assessment.lower() or 'crítico' in risk_assessment.lower()
+                },
+                'processing_timestamp': datetime.now().isoformat(),
+                'model_used': 'gpt-3.5-turbo'
+            }
+            
+            logger.info("✅ Análise LLM concluída com sucesso")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Erro na análise LLM: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'fallback_analysis': self._basic_analysis(extracted_text)
+            }
+    
+    def _prepare_context(self, text: str, patient_info: Dict = None) -> str:
+        """Prepara contexto estruturado para LLM"""
+        context = f"""
+TEXTO DO EXAME MÉDICO:
+{text[:2000]}
+
+INFORMAÇÕES DO PACIENTE:
+"""
+        if patient_info:
+            context += f"- Idade: {patient_info.get('age', 'Não informado')}\n"
+            context += f"- Sexo: {patient_info.get('gender', 'Não informado')}\n"
+            context += f"- Informações adicionais: {patient_info.get('additional_info', 'Nenhuma')}\n"
+        else:
+            context += "- Não informadas\n"
+        
+        return context
+    
+    async def _generate_clinical_analysis(self, context: str) -> str:
+        """Gera análise clínica detalhada"""
+        try:
+            prompt = f"""
+Como médico especialista, analise este exame e forneça uma interpretação clínica:
+
+{context}
+
+Forneça:
+1. Principais achados clínicos
+2. Correlação entre resultados alterados
+3. Possíveis diagnósticos a considerar
+4. Significado clínico das alterações
+
+Resposta em até 200 palavras, linguagem técnica mas acessível.
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Você é um médico especialista em medicina laboratorial."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=300,
+                temperature=0.3
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"❌ Erro na análise clínica: {e}")
+            return "Análise clínica automática não disponível."
+    
+    async def _generate_risk_assessment(self, context: str) -> str:
+        """Gera avaliação de risco"""
+        try:
+            prompt = f"""
+Avalie o RISCO CLÍNICO deste exame:
+
+{context}
+
+Classifique como:
+- BAIXO: Alterações mínimas, sem urgência
+- MODERADO: Requer acompanhamento médico
+- ALTO: Necessita atenção médica prioritária
+- CRÍTICO: Requer intervenção imediata
+
+Resposta: Classificação + justificativa em 2-3 frases.
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Você é um médico especialista em avaliação de risco."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                temperature=0.2
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"❌ Erro na avaliação de risco: {e}")
+            return "MODERADO: Consulte um médico para avaliação completa."
+    
+    async def _generate_recommendations(self, context: str, patient_info: Dict = None) -> List[str]:
+        """Gera recomendações personalizadas"""
+        try:
+            age_info = f"Paciente de {patient_info.get('age', 'idade não informada')} anos" if patient_info else ""
+            
+            prompt = f"""
+Com base neste exame {age_info}, forneça 3-5 recomendações práticas:
+
+{context}
+
+Inclua:
+- Quando repetir exames
+- Mudanças de estilo de vida
+- Quando procurar médico
+- Cuidados específicos
+
+Formato: Lista numerada, cada item em uma linha.
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Você é um médico focado em medicina preventiva."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=250,
+                temperature=0.3
+            )
+            
+            recommendations_text = response.choices[0].message.content.strip()
+            
+            # Converter em lista
+            recommendations = []
+            for line in recommendations_text.split('\n'):
+                if line.strip() and (line.strip().startswith('-') or line.strip()[0].isdigit()):
+                    clean_line = re.sub(r'^[\d\-\.\)]\s*', '', line.strip())
+                    if clean_line:
+                        recommendations.append(clean_line)
+            
+            return recommendations[:5]
+            
+        except Exception as e:
+            logger.error(f"❌ Erro nas recomendações: {e}")
+            return ["Consulte um médico para orientações específicas."]
+    
+    async def _generate_clear_summary(self, context: str) -> str:
+        """Gera resumo em linguagem clara"""
+        try:
+            prompt = f"""
+Explique este exame em linguagem simples para o paciente:
+
+{context}
+
+Explique:
+- O que foi avaliado
+- Quais resultados estão normais/alterados
+- O que isso significa para a saúde
+- Próximos passos
+
+Linguagem clara, sem jargões médicos. Máximo 150 palavras.
+"""
+
+            response = self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Você explica exames médicos de forma simples para pacientes."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=200,
+                temperature=0.4
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"❌ Erro no resumo claro: {e}")
+            return "Resumo automático não disponível."
+    
+    def _extract_key_findings(self, text: str) -> List[str]:
+        """Extrai achados principais usando regex básico"""
+        findings = []
+        
+        # Padrões para detectar valores alterados
+        patterns = [
+            r'([A-ZÀ-Ÿ][a-zà-ÿ\s\-\/]+)[:\s]+([0-9,\.]+)\s*([a-zA-Z\/³%μ]*)',
+            r'(alto|baixo|elevado|diminuído|aumentado)[:\s]*([A-ZÀ-Ÿ][a-zà-ÿ\s\-\/]+)'
+        ]
+        
+        for pattern in patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                finding = match.group(0).strip()
+                if len(finding) > 5 and finding not in findings:
+                    findings.append(finding)
+        
+        return findings[:5]
+    
+    def _identify_exam_type(self, text: str) -> str:
+        """Identifica tipo de exame"""
+        text_lower = text.lower()
+        
+        exam_types = {
+            'hemograma': ['hemograma', 'hemácias', 'leucócitos', 'plaquetas'],
+            'bioquimica': ['glicose', 'colesterol', 'creatinina', 'ureia'],
+            'hormonal': ['tsh', 't4', 't3', 'cortisol'],
+            'urina': ['urina', 'eas', 'sedimento']
+        }
+        
+        for exam_type, keywords in exam_types.items():
+            if any(keyword in text_lower for keyword in keywords):
+                return exam_type
+        
+        return 'geral'
+    
+    def _determine_status(self, clinical_analysis: str, risk_assessment: str) -> str:
+        """Determina status geral baseado nas análises"""
+        risk_lower = risk_assessment.lower()
+        
+        if 'crítico' in risk_lower:
+            return 'CRÍTICO - Requer atenção médica imediata'
+        elif 'alto' in risk_lower:
+            return 'ALTO RISCO - Consultar médico urgentemente'
+        elif 'moderado' in risk_lower:
+            return 'MODERADO - Acompanhamento médico necessário'
+        elif 'baixo' in risk_lower:
+            return 'BAIXO RISCO - Monitoramento recomendado'
+        else:
+            return 'AVALIAR - Consultar médico para interpretação'
+    
+    def _basic_analysis(self, text: str) -> Dict[str, Any]:
+        """Análise básica sem LLM (fallback)"""
+        return {
+            'exam_type': self._identify_exam_type(text),
+            'key_findings': self._extract_key_findings(text),
+            'basic_summary': 'Análise básica realizada. Consulte um médico para interpretação completa.',
+            'recommendations': ['Consultar médico especialista', 'Levar exame original para consulta'],
+            'status': 'REQUER INTERPRETAÇÃO MÉDICA'
+        }
+
+# ============================================================================
+# SERVIÇO INTEGRADO: TEXTRACT + LLM
+# ============================================================================
+
+class EnhancedTextractService(TextractExamService):
+    """Serviço Textract com análise LLM integrada"""
+    
+    def __init__(self):
+        super().__init__()
+        self.llm_analyzer = LLMExamAnalyzer()
+    
+    async def extract_and_analyze_exam(self, file_bytes: bytes, filename: str, patient_info: Dict = None) -> Dict[str, Any]:
+        """Extrai texto do exame E faz análise LLM completa"""
+        try:
+            logger.info(f"🏥 Processando exame com análise LLM: {filename}")
+            
+            # 1. Extrair texto com Textract (método original mantido)
+            extraction_result = await self.extract_exam_text(file_bytes, filename)
+            
+            if not extraction_result.get('success'):
+                return extraction_result
+            
+            extracted_text = extraction_result.get('extracted_text', '')
+            
+            if not extracted_text.strip():
+                return {
+                    'success': False,
+                    'error': 'Nenhum texto foi extraído do documento',
+                    'filename': filename
+                }
+            
+            # 2. Análise com LLM
+            logger.info("🤖 Iniciando análise LLM...")
+            llm_analysis = await self.llm_analyzer.analyze_exam_with_llm(extracted_text, patient_info)
+            
+            # 3. Resultado completo combinado
+            result = {
+                'success': True,
+                'filename': filename,
+                'extracted_text': extracted_text,
+                'textract_details': {
+                    'text_length': extraction_result.get('text_length', 0),
+                    'avg_confidence': extraction_result.get('avg_confidence', 0),
+                    'pages_processed': extraction_result.get('pages_processed', 0),
+                    'medical_content_detected': extraction_result.get('medical_analysis', {}).get('is_medical_exam', False)
+                },
+                'llm_analysis': llm_analysis.get('llm_analysis', {}) if llm_analysis.get('success') else llm_analysis.get('fallback_analysis', {}),
+                'llm_success': llm_analysis.get('success', False),
+                'processing_time': datetime.now().isoformat(),
+                'summary': {
+                    'exam_type': llm_analysis.get('llm_analysis', {}).get('exam_type', 'Não identificado'),
+                    'overall_status': llm_analysis.get('llm_analysis', {}).get('overall_status', 'Requer avaliação'),
+                    'risk_level': llm_analysis.get('llm_analysis', {}).get('risk_assessment', 'Não avaliado')[:20] + '...',
+                    'recommendations_count': len(llm_analysis.get('llm_analysis', {}).get('recommendations', [])),
+                    'follow_up_needed': llm_analysis.get('llm_analysis', {}).get('follow_up_needed', True)
+                }
+            }
+            
+            logger.info(f"✅ Análise completa concluída - Tipo: {result['summary']['exam_type']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Erro no processamento com LLM: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'filename': filename,
+                'processing_time': datetime.now().isoformat()
+            }
+
+# ============================================================================
+# FASTAPI APPLICATION (MANTENDO ESTRUTURA ORIGINAL)
 # ============================================================================
 
 app = FastAPI(
-    title="Medical System - Transcrição + Exames",
-    version="1.1",
-    description="Sistema integrado com OpenAI Whisper e AWS Textract (CORRIGIDO)"
+    title="Medical System - Transcrição + Exames + LLM",
+    version="2.0",
+    description="Sistema integrado com OpenAI Whisper, AWS Textract e Análise LLM"
 )
 
 app.add_middleware(
@@ -475,9 +843,10 @@ app.add_middleware(
 # Inicializar serviços
 transcription_service = TranscriptionService()
 textract_service = TextractExamService()
+enhanced_textract_service = EnhancedTextractService()
 
 # ============================================================================
-# ENDPOINTS
+# ENDPOINTS ORIGINAIS (MANTIDOS IGUAIS)
 # ============================================================================
 
 @app.post("/api/intelligent-medical-analysis")
@@ -486,7 +855,7 @@ async def intelligent_medical_analysis(
     audio: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None)
 ):
-    """🏥 ENDPOINT PRINCIPAL - ANÁLISE MÉDICA COMPLETA (CORRIGIDO)"""
+    """🏥 ENDPOINT PRINCIPAL - ANÁLISE MÉDICA COMPLETA (MANTIDO ORIGINAL)"""
     
     start_time = datetime.now()
     
@@ -496,7 +865,6 @@ async def intelligent_medical_analysis(
         logger.info(f"🎤 Audio: {audio.filename if audio else 'None'}")
         logger.info(f"📄 Image: {image.filename if image else 'None'}")
         
-        # Resultado base
         result = {
             'success': True,
             'timestamp': start_time.isoformat(),
@@ -513,13 +881,12 @@ async def intelligent_medical_analysis(
             }
         }
         
-        # PROCESSAR ÁUDIO (TRANSCRIÇÃO) - CORRIGIDO
+        # PROCESSAR ÁUDIO (MANTIDO IGUAL)
         if audio and audio.filename:
             try:
                 logger.info(f"🎤 Processando áudio: {audio.filename}")
                 audio_data = await audio.read()
                 
-                # Usar o método corrigido do TranscriptionService
                 transcription_result = await transcription_service.transcribe_audio_bytes(
                     audio_data, audio.filename
                 )
@@ -546,13 +913,12 @@ async def intelligent_medical_analysis(
                 result['transcription'] = f"Erro na transcrição: {str(e)}"
                 result['processing_details']['transcription_details'] = {'error': str(e)}
         
-        # PROCESSAR DOCUMENTO/EXAME (TEXTRACT) - MANTIDO
+        # PROCESSAR DOCUMENTO/EXAME (MANTIDO IGUAL)
         if image and image.filename:
             try:
                 logger.info(f"📄 Processando exame: {image.filename}")
                 image_data = await image.read()
                 
-                # Usar AWS Textract
                 extraction_result = await textract_service.extract_exam_text(image_data, image.filename)
                 
                 if extraction_result.get('success'):
@@ -584,11 +950,9 @@ async def intelligent_medical_analysis(
                 result['laudo_medico'] = f"Erro no processamento: {str(e)}"
                 result['processing_details']['extraction_details'] = {'error': str(e)}
         
-        # FINALIZAR
         processing_time = (datetime.now() - start_time).total_seconds()
         result['processing_time_seconds'] = round(processing_time, 2)
         
-        # Verificar se pelo menos um processamento foi bem-sucedido
         if not result['processing_details']['audio_processed'] and not result['processing_details']['exam_processed']:
             if not audio and not image:
                 result['transcription'] = "Nenhum arquivo de áudio fornecido"
@@ -611,6 +975,256 @@ async def intelligent_medical_analysis(
             }
         )
 
+# ============================================================================
+# NOVOS ENDPOINTS COM LLM
+# ============================================================================
+
+@app.post("/api/analyze-exam-with-llm")
+async def analyze_exam_with_llm(
+    file: UploadFile = File(...),
+    patient_age: Optional[int] = Form(None),
+    patient_gender: Optional[str] = Form(None),
+    additional_info: Optional[str] = Form("")
+):
+    """🤖 NOVO: Análise de exame com LLM integrado"""
+    
+    try:
+        # Verificar formato do arquivo
+        supported_formats = ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp']
+        if not any(file.filename.lower().endswith(ext) for ext in supported_formats):
+            return {
+                'success': False,
+                'error': f'Formato não suportado. Use: {", ".join(supported_formats)}'
+            }
+        
+        # Verificar se OpenAI está configurado
+        if not settings.OPENAI_API_KEY:
+            return {
+                'success': False,
+                'error': 'OpenAI API não configurada. Análise LLM não disponível.',
+                'suggestion': 'Configure OPENAI_API_KEY no arquivo .env'
+            }
+        
+        # Ler arquivo
+        file_bytes = await file.read()
+        
+        if len(file_bytes) == 0:
+            return {
+                'success': False,
+                'error': 'Arquivo vazio'
+            }
+        
+        # Preparar informações do paciente
+        patient_info = {}
+        if patient_age:
+            patient_info['age'] = patient_age
+        if patient_gender:
+            patient_info['gender'] = patient_gender
+        if additional_info:
+            patient_info['additional_info'] = additional_info
+        
+        logger.info(f"📁 Processando {file.filename} com LLM ({len(file_bytes)} bytes)")
+        
+        # Processar com serviço aprimorado
+        result = await enhanced_textract_service.extract_and_analyze_exam(
+            file_bytes, file.filename, patient_info
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na análise com LLM: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+
+@app.get("/api/exam-report-html/{exam_id}")
+async def generate_exam_report_html(exam_id: str):
+    """📄 NOVO: Gera relatório HTML detalhado do exame"""
+    
+    # Para demonstração - em produção, buscar do banco de dados
+    sample_data = {
+        'exam_id': exam_id,
+        'patient_name': 'Paciente Exemplo',
+        'exam_date': datetime.now().strftime('%d/%m/%Y'),
+        'exam_type': 'Hemograma Completo',
+        'overall_status': 'MODERADO - Acompanhamento necessário',
+        'clinical_analysis': 'Hemograma revela anemia leve com possível deficiência de ferro. Leucocitose discreta pode indicar processo inflamatório em resolução.',
+        'risk_assessment': 'MODERADO: Alterações requerem acompanhamento médico em 30 dias.',
+        'key_alterations': [
+            'Hemoglobina baixa (11.8 g/dL)',
+            'Leucócitos elevados (12.200/mm³)',
+            'Ferritina reduzida'
+        ],
+        'recommendations': [
+            'Consulta médica em 15 dias',
+            'Dieta rica em ferro',
+            'Suplementação conforme orientação',
+            'Repetir exame em 30 dias'
+        ]
+    }
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Relatório do Exame - {sample_data['exam_id']}</title>
+        <style>
+            body {{
+                font-family: 'Segoe UI', Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                background: #f5f7fa;
+                color: #333;
+            }}
+            .header {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 30px;
+                border-radius: 10px;
+                text-align: center;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }}
+            .ai-badge {{
+                background: rgba(255,255,255,0.2);
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 12px;
+                margin-top: 10px;
+                display: inline-block;
+            }}
+            .section {{
+                background: white;
+                padding: 25px;
+                margin-bottom: 20px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            }}
+            .status-moderate {{
+                background: #fff3cd;
+                color: #856404;
+                padding: 10px 15px;
+                border-radius: 8px;
+                border-left: 4px solid #ffc107;
+                margin: 15px 0;
+                font-weight: bold;
+            }}
+            .llm-analysis {{
+                background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+                border-left: 4px solid #2196F3;
+                padding: 20px;
+                border-radius: 8px;
+                position: relative;
+            }}
+            .llm-analysis::before {{
+                content: "🤖";
+                position: absolute;
+                top: 10px;
+                right: 15px;
+                font-size: 24px;
+            }}
+            .alterations li {{
+                background: #ffebee;
+                margin: 8px 0;
+                padding: 12px;
+                border-left: 4px solid #f44336;
+                border-radius: 5px;
+                list-style: none;
+            }}
+            .recommendations li {{
+                background: #e8f5e8;
+                margin: 8px 0;
+                padding: 12px;
+                border-left: 4px solid #4caf50;
+                border-radius: 5px;
+                list-style: none;
+            }}
+            ul {{ padding: 0; }}
+            .footer {{
+                text-align: center;
+                margin-top: 30px;
+                padding: 20px;
+                background: #37474f;
+                color: white;
+                border-radius: 10px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🏥 Relatório de Exame Médico</h1>
+            <div class="ai-badge">🤖 Análise Inteligente com LLM</div>
+            <p>Sistema de Análise Médica com IA</p>
+        </div>
+        
+        <div class="section">
+            <h3>📋 Informações do Exame</h3>
+            <p><strong>ID:</strong> {sample_data['exam_id']}</p>
+            <p><strong>Paciente:</strong> {sample_data['patient_name']}</p>
+            <p><strong>Data:</strong> {sample_data['exam_date']}</p>
+            <p><strong>Tipo:</strong> {sample_data['exam_type']}</p>
+            <div class="status-moderate">{sample_data['overall_status']}</div>
+        </div>
+        
+        <div class="section">
+            <h3>🤖 Análise Clínica Inteligente</h3>
+            <div class="llm-analysis">
+                <p>{sample_data['clinical_analysis']}</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>⚠️ Avaliação de Risco</h3>
+            <div style="background: #fff8e1; padding: 15px; border-radius: 8px; border-left: 4px solid #ff9800;">
+                <strong>{sample_data['risk_assessment']}</strong>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>🔍 Principais Alterações</h3>
+            <ul class="alterations">
+    """
+    
+    for alteration in sample_data['key_alterations']:
+        html_content += f"<li>{alteration}</li>"
+    
+    html_content += """
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h3>💡 Recomendações</h3>
+            <ul class="recommendations">
+    """
+    
+    for recommendation in sample_data['recommendations']:
+        html_content += f"<li>{recommendation}</li>"
+    
+    html_content += f"""
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p><strong>⚠️ IMPORTANTE:</strong> Este relatório é gerado com auxílio de Inteligência Artificial.</p>
+            <p>Sempre consulte um médico para interpretação completa.</p>
+            <p>Gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_content)
+
+# ============================================================================
+# ENDPOINTS ORIGINAIS MANTIDOS
+# ============================================================================
+
 @app.get("/api/health")
 async def health_check():
     """🔍 Verificação de saúde do sistema"""
@@ -618,7 +1232,7 @@ async def health_check():
     health = {
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'version': '1.1 - Fixed Transcription',
+        'version': '2.0 - With LLM Analysis',
         'services': {}
     }
     
@@ -626,8 +1240,7 @@ async def health_check():
     health['services']['transcription'] = {
         'service': 'OpenAI Whisper API',
         'available': transcription_service.client is not None,
-        'api_key_configured': bool(settings.OPENAI_API_KEY),
-        'api_key_preview': f"{settings.OPENAI_API_KEY[:10]}...{settings.OPENAI_API_KEY[-4:]}" if settings.OPENAI_API_KEY else "Not configured"
+        'api_key_configured': bool(settings.OPENAI_API_KEY)
     }
     
     # Verificar AWS Textract
@@ -638,7 +1251,13 @@ async def health_check():
         'credentials_configured': bool(settings.AWS_ACCESS_KEY_ID)
     }
     
-    # Verificar dependências
+    # Verificar LLM
+    health['services']['llm_analysis'] = {
+        'service': 'OpenAI GPT for Medical Analysis',
+        'available': bool(settings.OPENAI_API_KEY),
+        'features': ['Clinical analysis', 'Risk assessment', 'Personalized recommendations']
+    }
+    
     health['dependencies'] = {
         'pdf2image': PDF2IMAGE_AVAILABLE,
         'opencv': True,
@@ -653,21 +1272,42 @@ async def system_status():
     """📊 Status detalhado do sistema"""
     
     return {
-        'system': 'Medical Analysis System - Fixed',
-        'version': '1.1',
+        'system': 'Enhanced Medical Analysis System with LLM',
+        'version': '2.0',
         'components': {
             'transcription': {
                 'service': 'OpenAI Whisper API',
                 'status': '✅ Ready' if transcription_service.client else '❌ Not configured',
                 'supported_formats': ['mp3', 'mp4', 'wav', 'webm', 'm4a'],
-                'features': ['Portuguese language', 'Medical context prompts', 'High accuracy', 'Bytes processing'],
-                'methods': ['transcribe_audio_bytes', 'transcribe_audio']
+                'features': ['Portuguese language', 'Medical context prompts', 'High accuracy']
             },
             'text_extraction': {
                 'service': 'AWS Textract',
                 'status': '✅ Ready' if textract_service.client else '❌ Not configured',
                 'supported_formats': list(textract_service.supported_formats),
                 'features': ['PDF multi-page', 'Image preprocessing', 'Medical content detection']
+            },
+            'llm_analysis': {
+                'service': 'OpenAI GPT for Medical Analysis',
+                'status': '✅ Ready' if settings.OPENAI_API_KEY else '❌ Not configured',
+                'features': [
+                    '🧠 Clinical interpretation',
+                    '⚠️ Risk assessment',
+                    '💡 Personalized recommendations',
+                    '📝 Clear patient summaries',
+                    '📄 HTML reports'
+                ]
+            }
+        },
+        'endpoints': {
+            'original': {
+                'main_analysis': 'POST /api/intelligent-medical-analysis',
+                'health': 'GET /api/health',
+                'status': 'GET /api/system-status'
+            },
+            'new_llm': {
+                'llm_analysis': 'POST /api/analyze-exam-with-llm',
+                'html_report': 'GET /api/exam-report-html/{exam_id}'
             }
         },
         'configuration': {
@@ -675,12 +1315,13 @@ async def system_status():
             'aws_credentials': '✅ Configured' if settings.AWS_ACCESS_KEY_ID else '❌ Missing',
             'aws_region': settings.AWS_REGION
         },
-        'fixes_applied': [
-            '✅ Corrigida chamada do método de transcrição',
-            '✅ Melhor tratamento de erros na transcrição',
-            '✅ Logs mais detalhados',
-            '✅ Validação de arquivos de áudio',
-            '✅ Retorno estruturado com detalhes'
+        'new_features': [
+            '✅ Análise clínica com LLM',
+            '✅ Avaliação de risco personalizada',
+            '✅ Recomendações adaptadas',
+            '✅ Relatórios HTML profissionais',
+            '✅ Resumos em linguagem clara',
+            '✅ Fallback para análise básica'
         ]
     }
 
@@ -689,33 +1330,29 @@ async def root():
     """🏠 Página inicial"""
     
     return {
-        'message': 'Medical Analysis System - Fixed Transcription',
-        'version': '1.1',
-        'description': 'Sistema integrado com transcrição corrigida',
+        'message': 'Enhanced Medical Analysis System with LLM',
+        'version': '2.0',
+        'description': 'Sistema integrado com transcrição, extração e análise LLM',
         'features': [
-            '🎤 OpenAI Whisper API para transcrição (CORRIGIDO)',
+            '🎤 OpenAI Whisper API para transcrição',
             '📄 AWS Textract para extração de exames',
-            '🏥 Detecção de conteúdo médico',
-            '📊 Métricas de qualidade',
-            '⚡ Processamento otimizado',
-            '🔧 Tratamento de erros melhorado'
+            '🤖 Análise inteligente com LLM',
+            '⚠️ Avaliação de risco automática',
+            '💡 Recomendações personalizadas',
+            '📄 Relatórios HTML profissionais'
         ],
         'endpoints': {
-            'main': 'POST /api/intelligent-medical-analysis',
+            'original_main': 'POST /api/intelligent-medical-analysis',
+            'new_llm_analysis': 'POST /api/analyze-exam-with-llm',
+            'html_report': 'GET /api/exam-report-html/{exam_id}',
             'health': 'GET /api/health',
             'status': 'GET /api/system-status'
         },
         'ready': {
             'transcription': transcription_service.client is not None,
-            'textract': textract_service.client is not None
-        },
-        'changelog': [
-            'Fix: Método transcribe_audio_bytes implementado corretamente',
-            'Fix: Melhor validação de arquivos de áudio',
-            'Fix: Tratamento de erros específicos do OpenAI',
-            'Improvement: Logs mais detalhados',
-            'Improvement: Retorno estruturado com detalhes de processamento'
-        ]
+            'textract': textract_service.client is not None,
+            'llm_analysis': bool(settings.OPENAI_API_KEY)
+        }
     }
 
 # ============================================================================
@@ -723,55 +1360,43 @@ async def root():
 # ============================================================================
 
 if __name__ == "__main__":
-    print("🚀 Starting Fixed Medical System")
+    print("🚀 Starting Enhanced Medical System with LLM")
     print("=" * 60)
     
-    # Verificar configurações
     print("📋 CONFIGURAÇÕES:")
     print(f"🎤 OpenAI Whisper: {'✅ Ready' if transcription_service.client else '❌ Check OPENAI_API_KEY'}")
+    print(f"📄 AWS Textract: {'✅ Ready' if textract_service.client else '❌ Check AWS credentials'}")
+    print(f"🤖 LLM Analysis: {'✅ Ready' if settings.OPENAI_API_KEY else '❌ Check OPENAI_API_KEY'}")
+    
     if settings.OPENAI_API_KEY:
         print(f"   API Key: {settings.OPENAI_API_KEY[:10]}...{settings.OPENAI_API_KEY[-4:]}")
-    else:
-        print("   ❌ OPENAI_API_KEY não configurada")
-    
-    print(f"📄 AWS Textract: {'✅ Ready' if textract_service.client else '❌ Check AWS credentials'}")
-    if settings.AWS_ACCESS_KEY_ID:
-        print(f"   Region: {settings.AWS_REGION}")
-        print(f"   Access Key: {settings.AWS_ACCESS_KEY_ID[:10]}...{settings.AWS_ACCESS_KEY_ID[-4:]}")
-    else:
-        print("   ❌ AWS credentials não configuradas")
     
     print()
-    print("🔧 CORREÇÕES APLICADAS:")
-    print("   ✅ Método transcribe_audio_bytes implementado")
-    print("   ✅ Melhor tratamento de erros OpenAI")
-    print("   ✅ Validação robusta de arquivos de áudio")
-    print("   ✅ Logs detalhados para debugging")
-    print("   ✅ Retorno estruturado com detalhes")
+    print("🆕 NOVOS RECURSOS:")
+    print("   ✅ Análise clínica inteligente com LLM")
+    print("   ✅ Avaliação de risco personalizada")
+    print("   ✅ Recomendações adaptadas ao paciente")
+    print("   ✅ Relatórios HTML profissionais")
+    print("   ✅ Resumos em linguagem clara")
     
     print()
     print("🌐 ENDPOINTS DISPONÍVEIS:")
-    print("   📍 Main API: POST http://localhost:8000/api/intelligent-medical-analysis")
+    print("   📍 Original: POST http://localhost:8000/api/intelligent-medical-analysis")
+    print("   🤖 Novo LLM: POST http://localhost:8000/api/analyze-exam-with-llm")
+    print("   📄 Relatório: GET http://localhost:8000/api/exam-report-html/123")
     print("   📊 Health: GET http://localhost:8000/api/health")
     print("   📋 Status: GET http://localhost:8000/api/system-status")
-    print("   🏠 Root: GET http://localhost:8000/")
     
     print()
-    print("💡 TESTE DA TRANSCRIÇÃO:")
-    print("   1. Envie um arquivo de áudio (mp3, wav, m4a, etc.)")
-    print("   2. Verifique os logs para detalhes do processamento")
-    print("   3. A resposta incluirá detalhes sobre sucesso/falha")
+    print("💡 COMO USAR:")
+    print("   1. Use endpoint original para compatibilidade")
+    print("   2. Use /analyze-exam-with-llm para análise inteligente")
+    print("   3. Inclua idade/sexo do paciente para melhor análise")
+    print("   4. Gere relatórios HTML para apresentação")
     
     if not settings.OPENAI_API_KEY:
         print()
-        print("⚠️  ATENÇÃO: Configure OPENAI_API_KEY no arquivo .env")
-        print("   export OPENAI_API_KEY='sua_chave_aqui'")
-    
-    if not settings.AWS_ACCESS_KEY_ID:
-        print()
-        print("⚠️  ATENÇÃO: Configure AWS credentials no arquivo .env")
-        print("   export AWS_ACCESS_KEY_ID='sua_chave_aqui'")
-        print("   export AWS_SECRET_ACCESS_KEY='sua_chave_secreta_aqui'")
+        print("⚠️  Configure OPENAI_API_KEY para usar análise LLM")
     
     print()
     print("🚀 Iniciando servidor...")
