@@ -1,5 +1,5 @@
 # ============================================================================
-# AWS TEXTRACT SERVICE COM DEBUG MELHORADO
+# AWS TEXTRACT SERVICE 
 # ============================================================================
 
 import os
@@ -21,15 +21,15 @@ class TextractExamService:
         """Inicializa cliente AWS com debug detalhado"""
         try:
             # Debug das variáveis de ambiente
-            logger.info("🔍 Verificando credenciais AWS...")
+            logger.info(" Verificando credenciais AWS...")
             
             aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
             aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
             aws_region = os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION')
             
-            logger.info(f"📋 AWS_ACCESS_KEY_ID: {'✅ Presente' if aws_access_key else '❌ Ausente'}")
-            logger.info(f"📋 AWS_SECRET_ACCESS_KEY: {'✅ Presente' if aws_secret_key else '❌ Ausente'}")
-            logger.info(f"📋 AWS_REGION: {aws_region if aws_region else '❌ Ausente'}")
+            logger.info(f" AWS_ACCESS_KEY_ID: {' Presente' if aws_access_key else '❌ Ausente'}")
+            logger.info(f" AWS_SECRET_ACCESS_KEY: {' Presente' if aws_secret_key else '❌ Ausente'}")
+            logger.info(f" AWS_REGION: {aws_region if aws_region else '❌ Ausente'}")
             
             if aws_access_key:
                 logger.info(f"🔑 Access Key preview: {aws_access_key[:8]}...{aws_access_key[-4:]}")
@@ -39,7 +39,7 @@ class TextractExamService:
             # Método 1: Explicit credentials
             if aws_access_key and aws_secret_key and aws_region:
                 try:
-                    logger.info("🔄 Tentando configuração explícita...")
+                    logger.info("Tentando configuração explícita...")
                     session = boto3.Session(
                         aws_access_key_id=aws_access_key,
                         aws_secret_access_key=aws_secret_key,
@@ -50,9 +50,9 @@ class TextractExamService:
                     
                     # Teste básico
                     caller_identity = session.client('sts').get_caller_identity()
-                    logger.info(f"✅ AWS configurado com sucesso!")
-                    logger.info(f"👤 User ARN: {caller_identity.get('Arn', 'N/A')}")
-                    logger.info(f"🏢 Account: {caller_identity.get('Account', 'N/A')}")
+                    logger.info(f" AWS configurado com sucesso!")
+                    logger.info(f" User ARN: {caller_identity.get('Arn', 'N/A')}")
+                    logger.info(f" Account: {caller_identity.get('Account', 'N/A')}")
                     return
                     
                 except ClientError as e:
@@ -60,20 +60,20 @@ class TextractExamService:
                     logger.error(f"❌ Erro de cliente AWS: {error_code}")
                     
                     if error_code == 'InvalidUserID.NotFound':
-                        logger.error("💡 As credenciais parecem estar incorretas ou o usuário não existe")
+                        logger.error(" As credenciais parecem estar incorretas ou o usuário não existe")
                     elif error_code == 'SignatureDoesNotMatch':
-                        logger.error("💡 A chave secreta está incorreta")
+                        logger.error(" A chave secreta está incorreta")
                     elif error_code == 'InvalidAccessKeyId':
-                        logger.error("💡 O Access Key ID está incorreto")
+                        logger.error(" O Access Key ID está incorreto")
                     elif error_code == 'TokenRefreshRequired':
-                        logger.error("💡 As credenciais expiraram")
+                        logger.error(" As credenciais expiraram")
                     
                 except Exception as e:
                     logger.error(f"❌ Erro inesperado: {e}")
             
             # Método 2: Default credentials (se existir ~/.aws/credentials)
             try:
-                logger.info("🔄 Tentando configuração padrão...")
+                logger.info("Tentando configuração padrão...")
                 session = boto3.Session()
                 
                 # Verificar se tem credenciais padrão
@@ -86,8 +86,8 @@ class TextractExamService:
                 
                 # Teste
                 caller_identity = session.client('sts').get_caller_identity()
-                logger.info(f"✅ AWS configurado via perfil padrão!")
-                logger.info(f"👤 User ARN: {caller_identity.get('Arn', 'N/A')}")
+                logger.info(f" AWS configurado via perfil padrão!")
+                logger.info(f" User ARN: {caller_identity.get('Arn', 'N/A')}")
                 return
                 
             except (NoCredentialsError, PartialCredentialsError):

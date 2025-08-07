@@ -38,13 +38,13 @@
        .specialty-badge { background: #e5e7eb; color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; margin-left: 8px; }
        
        /* NOVOS ESTILOS PARA ANÁLISE LLM */
-       .llm-analysis { background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); border-left: 4px solid #2196F3; padding: 20px; border-radius: 8px; margin: 15px 0; }
+       .llm-analysis { background: white; border-left: 4px solid #2196F3; padding: 20px; border-radius: 8px; margin: 15px 0; }
        .llm-badge { background: linear-gradient(45deg, #6366f1, #8b5cf6); color: white; padding: 5px 12px; border-radius: 15px; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: inline-block; }
        .risk-assessment { background: #fff8e1; border-left: 4px solid #ff9800; padding: 15px; border-radius: 8px; margin: 15px 0; }
        .risk-title { font-weight: 600; color: #d97706; margin-bottom: 0.5rem; }
        .recommendations-list { list-style: none; padding: 0; }
        .recommendations-list li { background: #e8f5e8; margin: 8px 0; padding: 12px; border-left: 4px solid #4caf50; border-radius: 5px; }
-       .alterations-highlight { background: #ffebee; border-left: 4px solid #f44336; padding: 10px; margin: 10px 0; border-radius: 5px; }
+       .alterations-highlight { background: white; border-left: 4px solid #f44336; padding: 10px; margin: 10px 0; border-radius: 5px; }
    </style>
 </head>
 <body>
@@ -67,8 +67,7 @@
 
                    <div class="mb-4">
                        <label class="form-label fw-semibold">Informações do Paciente</label>
-                       <textarea name="patient_info" class="form-control" rows="4" 
-                           placeholder="EXEMPLOS HÍBRIDOS:&#10;• Helena, 45 anos, dentista, artrite reumatoide mãos, depressão, não consigo atender pacientes&#10;• Pedro, 55 anos, motorista ônibus, infarto há 3 meses, não posso dirigir por causa coração&#10;• Maria, 60 anos, depressão grave, não consigo cuidar de mim, preciso BPC vida independente&#10;• João, 42 anos, pedreiro, fratura coluna trabalho, sequela, capacidade reduzida"></textarea>
+                       <textarea name="patient_info" class="form-control" rows="4" style="background: white;"></textarea>
                    </div>
 
                    <div class="recording-area">
@@ -182,7 +181,7 @@
        const recordingTime = document.getElementById('recordingTime');
        const generateBtn = document.getElementById('generateBtn');
 
-       console.log("🧠 Sistema PREVIDAS Híbrido iniciado");
+       console.log("Sistema PREVIDAS Híbrido iniciado");
 
        const contextNames = {
            'bpc': 'BPC (Benefício Prestação Continuada)',
@@ -278,7 +277,7 @@
                for (const option of options) {
                    if (MediaRecorder.isTypeSupported(option.mimeType || '')) {
                        selectedOptions = option;
-                       console.log("🎤 Formato de áudio selecionado:", option.mimeType);
+                       console.log("Formato de áudio selecionado:", option.mimeType);
                        break;
                    }
                }
@@ -288,7 +287,7 @@
                recordingSeconds = 0;
 
                mediaRecorder.ondataavailable = event => {
-                   console.log("📊 Chunk de áudio:", event.data.size, "bytes", "tipo:", event.data.type);
+                   console.log("Chunk de áudio:", event.data.size, "bytes", "tipo:", event.data.type);
                    audioChunks.push(event.data);
                };
 
@@ -306,10 +305,10 @@
                    recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                }, 1000);
 
-               console.log("🎤 Gravação iniciada");
+               console.log("Gravação iniciada");
 
            } catch (error) {
-               console.error("❌ Erro ao acessar microfone:", error);
+               console.error("Erro ao acessar microfone:", error);
                alert('Erro ao acessar microfone: ' + error.message);
            }
        }
@@ -327,7 +326,7 @@
 
                clearInterval(recordingTimer);
                
-               console.log("✅ Gravação finalizada. Chunks:", audioChunks.length);
+               console.log("Gravação finalizada. Chunks:", audioChunks.length);
            }
        }
 
@@ -337,10 +336,10 @@
        // FUNÇÃO PRINCIPAL ATUALIZADA PARA USAR LLM
        // ============================================================================
        async function analisarHibridaInteligente() {
-           console.log("🧠 Iniciando análise híbrida inteligente com LLM");
+           console.log("Iniciando análise híbrida inteligente com LLM");
            
            const patientInfo = document.querySelector('textarea[name="patient_info"]').value;
-           console.log("📝 Dados do paciente:", patientInfo);
+           console.log("Dados do paciente:", patientInfo);
 
            if (!patientInfo.trim()) {
                alert('Preencha as informações do paciente primeiro');
@@ -362,11 +361,11 @@
        // PROCESSAMENTO COM LLM (NOVO)
        // ============================================================================
        async function processWithLLM(patientInfo, files) {
-           console.log("🤖 Processando com análise LLM...");
+           console.log("Processando com análise LLM...");
            
            try {
                generateBtn.disabled = true;
-               generateBtn.innerHTML = '🤖 Análise com IA...';
+               generateBtn.innerHTML = 'Análise com IA...';
                document.getElementById('processing').style.display = 'block';
                
                // Processar cada arquivo individualmente com LLM
@@ -374,7 +373,7 @@
                
                for (let i = 0; i < files.length; i++) {
                    const file = files[i];
-                   console.log(`🔬 Analisando arquivo ${i + 1}/${files.length}: ${file.name}`);
+                   console.log(`Analisando arquivo ${i + 1}/${files.length}: ${file.name}`);
                    
                    const formData = new FormData();
                    formData.append('file', file);
@@ -402,7 +401,7 @@
                    });
 
                    const result = await response.json();
-                   console.log(`📋 Resultado LLM para ${file.name}:`, result);
+                   console.log(`Resultado LLM para ${file.name}:`, result);
                    
                    if (result.success) {
                        llmResults.push({
@@ -410,7 +409,7 @@
                            ...result
                        });
                    } else {
-                       console.error(`❌ Erro na análise LLM de ${file.name}:`, result.error);
+                       console.error(`Erro na análise LLM de ${file.name}:`, result.error);
                    }
                }
 
@@ -429,7 +428,7 @@
                displayLLMResults(combinedResult);
 
            } catch (error) {
-               console.error("💥 Erro na análise LLM:", error);
+               console.error("Erro na análise LLM:", error);
                alert('Erro na análise com IA: ' + error.message);
            } finally {
                generateBtn.disabled = false;
@@ -442,7 +441,7 @@
        // PROCESSAMENTO TRADICIONAL (MANTIDO)
        // ============================================================================
        async function processTraditional(patientInfo) {
-           console.log("📋 Processamento tradicional...");
+           console.log("Processamento tradicional...");
            
            const formData = new FormData();
            formData.append('patient_info', patientInfo);
@@ -454,7 +453,7 @@
 
            try {
                generateBtn.disabled = true;
-               generateBtn.innerHTML = '🧠 Análise...';
+               generateBtn.innerHTML = 'Análise...';
                document.getElementById('processing').style.display = 'block';
 
                const response = await fetch('/api/intelligent-medical-analysis', {
@@ -463,7 +462,7 @@
                });
 
                const result = await response.json();
-               console.log("📋 Resultado tradicional:", result);
+               console.log("Resultado tradicional:", result);
 
                if (result.success) {
                    displayHybridResults(result);
@@ -472,7 +471,7 @@
                }
 
            } catch (error) {
-               console.error("💥 Erro:", error);
+               console.error("Erro:", error);
                alert('Erro de comunicação: ' + error.message);
            } finally {
                generateBtn.disabled = false;
@@ -503,7 +502,7 @@
                return result.success ? result : null;
 
            } catch (error) {
-               console.error("❌ Erro no processamento de áudio:", error);
+               console.error("Erro no processamento de áudio:", error);
                return null;
            }
        }
@@ -512,13 +511,13 @@
        // EXIBIR RESULTADOS COM LLM (NOVO)
        // ============================================================================
        function displayLLMResults(result) {
-           console.log("🤖 Exibindo resultados com análise LLM");
-           console.log("🔍 DEBUG - Resultado LLM:", result);
+           console.log("Exibindo resultados com análise LLM");
+           console.log("DEBUG - Resultado LLM:", result);
 
            // Contexto
            const contextHtml = `
                <div class="context-badge context-clinica">
-                   🤖 Análise Médica com Inteligência Artificial
+                   Análise Médica com Inteligência Artificial
                </div>
                <div class="row mt-2">
                    <div class="col-12">
@@ -537,23 +536,18 @@
            let examAnalysisHtml = '';
            
            if (result.llm_exam_analysis && result.llm_exam_analysis.length > 0) {
-               examAnalysisHtml = '<div class="llm-badge">🤖 Análise com Inteligência Artificial</div>';
+               examAnalysisHtml = '<div class="llm-badge">Análise com Inteligência Artificial</div>';
                
                result.llm_exam_analysis.forEach((exam, index) => {
                    const analysis = exam.llm_analysis || {};
                    
                    examAnalysisHtml += `
                        <div class="mb-4">
-                           <h6 class="text-primary"><strong>📄 ${exam.filename}</strong></h6>
+                           <h6 class="text-primary"><strong>Arquivo: ${exam.filename}</strong></h6>
                            
                            <div class="llm-analysis">
-                               <h6 class="text-primary">🔬 Análise Clínica</h6>
+                               <h6 class="text-primary">Análise Clínica</h6>
                                <p>${safeString(analysis.clinical_analysis, 'Análise não disponível')}</p>
-                           </div>
-                           
-                           <div class="risk-assessment">
-                               <div class="risk-title">⚠️ Avaliação de Risco</div>
-                               <p>${safeString(analysis.risk_assessment, 'Avaliação não disponível')}</p>
                            </div>
                    `;
                    
@@ -561,7 +555,7 @@
                    if (analysis.key_findings && analysis.key_findings.length > 0) {
                        examAnalysisHtml += `
                            <div class="alterations-highlight">
-                               <h6>🔍 Principais Achados:</h6>
+                               <h6>Principais Achados:</h6>
                                <ul class="mb-0">
                        `;
                        analysis.key_findings.slice(0, 5).forEach(finding => {
@@ -570,11 +564,12 @@
                        examAnalysisHtml += `</ul></div>`;
                    }
                    
+                   
                    // Recomendações
                    if (analysis.recommendations && analysis.recommendations.length > 0) {
                        examAnalysisHtml += `
                            <div class="mt-3">
-                               <h6>💡 Recomendações Personalizadas:</h6>
+                               <h6>Recomendações Personalizadas:</h6>
                                <ul class="recommendations-list">
                        `;
                        analysis.recommendations.forEach(rec => {
@@ -587,7 +582,7 @@
                    if (analysis.clear_summary) {
                        examAnalysisHtml += `
                            <div class="mt-3 p-3 bg-light rounded">
-                               <h6>📝 Resumo em Linguagem Clara:</h6>
+                               <h6>Resumo em Linguagem Clara:</h6>
                                <p class="mb-0">${safeString(analysis.clear_summary)}</p>
                            </div>
                        `;
@@ -615,15 +610,15 @@
            document.getElementById('results').style.display = 'block';
            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
-           console.log("✅ Resultados LLM exibidos com sucesso!");
+           console.log("Resultados LLM exibidos com sucesso!");
        }
 
        // ============================================================================
        // FUNÇÃO ORIGINAL MANTIDA PARA COMPATIBILIDADE
        // ============================================================================
        function displayHybridResults(result) {
-           console.log("📊 Exibindo resultados híbridos tradicionais");
-           console.log("🔍 DEBUG - Resultado recebido:", result);
+           console.log("Exibindo resultados híbridos tradicionais");
+           console.log("DEBUG - Resultado recebido:", result);
 
            let classificationHtml = "";
            if (result.classification) {
@@ -700,7 +695,7 @@
            
            let contextHtml = `
                <div class="context-badge ${contextClass}">
-                   🧠 ${contextDisplayName}
+                   ${contextDisplayName}
                </div>
                <span class="specialty-badge">${specialtyNames[specialty] || specialty}</span>
            `;
@@ -732,18 +727,18 @@
            document.getElementById('contextInfo').innerHTML = classificationHtml + contextHtml;
 
            const transcription = safeAccess(result, 'transcription', 'Nenhuma transcrição de áudio disponível');
-           console.log("📝 Transcrição:", transcription ? transcription.length : 0, "chars");
+           console.log("Transcrição:", transcription ? transcription.length : 0, "chars");
            document.getElementById('transcriptionText').innerHTML = transcription;
 
            // Usar resultado de exames em vez de anamnese
            const resultadoExames = safeAccess(result, 'laudo_medico', 'Gerando resultado de exames...');
-           console.log("🧪 Resultado de Exames:", resultadoExames ? resultadoExames.length : 0, "chars");
+           console.log("Resultado de Exames:", resultadoExames ? resultadoExames.length : 0, "chars");
            document.getElementById('resultadoText').innerHTML = formatMedicalContent(resultadoExames);
 
            document.getElementById('results').style.display = 'block';
            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
-           console.log("✅ Resultados híbridos exibidos com sucesso!");
+           console.log("Resultados híbridos exibidos com sucesso!");
        }
 
        function getContextClass(context) {
@@ -774,7 +769,7 @@
                .replace(/IDENTIFICAÇÃO/g, '<strong>IDENTIFICAÇÃO</strong>')
                .replace(/CID-10:/g, '<strong>CID-10:</strong>')
                .replace(/PARECER:/g, '<strong>PARECER:</strong>')
-               .replace(/ATENÇÃO CFM:/g, '<span class="text-warning"><strong>⚠️ ATENÇÃO CFM:</strong></span>');
+               .replace(/ATENÇÃO CFM:/g, '<span class="text-warning"><strong>ATENÇÃO CFM:</strong></span>');
        }
 
        function copyResultado() {
@@ -944,7 +939,7 @@
                    </div>
                `).join('');
                
-               console.log('📁 Arquivos selecionados:', Array.from(files).map(f => f.name));
+               console.log('Arquivos selecionados:', Array.from(files).map(f => f.name));
            } else {
                selectedFilesDiv.style.display = 'none';
                fileListDiv.innerHTML = '';
@@ -955,7 +950,7 @@
        // INICIALIZAÇÃO COM VERIFICAÇÕES DE SEGURANÇA
        // ============================================================================
        document.addEventListener('DOMContentLoaded', function() {
-           console.log('✅ DOM carregado - Sistema PREVIDAS Híbrido com LLM pronto');
+           console.log('DOM carregado - Sistema PREVIDAS Híbrido com LLM pronto');
            
            const essentialElements = [
                'recordBtn', 'generateBtn', 'processing', 'results',
@@ -965,9 +960,9 @@
            const missingElements = essentialElements.filter(id => !document.getElementById(id));
            
            if (missingElements.length > 0) {
-               console.warn('⚠️ Elementos não encontrados:', missingElements);
+               console.warn('Elementos não encontrados:', missingElements);
            } else {
-               console.log('✅ Todos os elementos essenciais encontrados');
+               console.log('Todos os elementos essenciais encontrados');
            }
        });
 

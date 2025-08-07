@@ -753,8 +753,8 @@ def _compare_analyses(traditional: Dict, llm: Dict) -> Dict:
 async def generate_exam_report_html(exam_id: str):
     """📄 Gera relatório HTML detalhado do exame"""
     
-    # Aqui você buscaria os dados do banco de dados usando exam_id
-    # Para demonstração, vou simular dados
+    # Aqui  buscaria os dados do banco de dados usando exam_id
+    # Para demonstração,simular dados
     
     sample_report = {
         'exam_id': exam_id,
@@ -939,13 +939,13 @@ async def generate_exam_report_html(exam_id: str):
     </head>
     <body>
         <div class="header">
-            <h1>🏥 Relatório de Exame Médico</h1>
-            <div class="ai-badge">🤖 Análise Inteligente com IA</div>
+            <h1> Relatório de Exame Médico</h1>
+            <div class="ai-badge"> Análise Inteligente com IA</div>
             <p>Sistema de Análise Médica Automatizada</p>
         </div>
         
         <div class="patient-info">
-            <h2>📋 Informações do Exame</h2>
+            <h2> Informações do Exame</h2>
             <p><strong>ID do Exame:</strong> {sample_report['exam_id']}</p>
             <p><strong>Paciente:</strong> {sample_report['patient_name']}</p>
             <p><strong>Data do Exame:</strong> {sample_report['exam_date']}</p>
@@ -1043,11 +1043,11 @@ async def enhanced_system_status():
                 'status': '✅ Ready' if settings.OPENAI_API_KEY else '❌ Not configured',
                 'models': ['GPT-4 for analysis', 'GPT-3.5-turbo for summaries'],
                 'features': [
-                    '🧠 Contextual clinical analysis',
-                    '⚠️ Personalized risk assessment',
-                    '💡 Adaptive recommendations',
-                    '📝 Clear, accessible summaries',
-                    '🎯 Patient-specific insights'
+                    ' Contextual clinical analysis',
+                    'Personalized risk assessment',
+                    ' Adaptive recommendations',
+                    ' Clear, accessible summaries',
+                    ' Patient-specific insights'
                 ]
             }
         },
