@@ -171,20 +171,14 @@ class TextractService:
     """Extração de texto com AWS Textract - versão melhorada com suporte a PDF"""
     
     def __init__(self):
-        if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-            try:
-                self.client = boto3.client(
-                    'textract',
-                    aws_access_key_id=AWS_ACCESS_KEY_ID,
-                    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-                    region_name=AWS_REGION
-                )
-                logger.info("AWS Textract configurado")
-            except Exception as e:
-                logger.error(f"Erro ao configurar Textract: {e}")
-                self.client = None
-        else:
-            logger.error("AWS credentials não encontradas no arquivo .env")
+        try:
+            self.client = boto3.client(
+                'textract',
+                region_name=AWS_REGION
+            )
+            logger.info("AWS Textract configurado")
+        except Exception as e:
+            logger.error(f"Erro ao configurar Textract: {e}")
             self.client = None
     
     async def extrair_texto(self, file_bytes: bytes, filename: str) -> Dict:
