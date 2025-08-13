@@ -1,11 +1,9 @@
 # ============================================================================
-# MAIN.PY COMPLETA 
+# MAIN.PY COMPLETA - CORRIGIDA
 # ============================================================================
 
-#
 from dotenv import load_dotenv
 import os
-
 
 load_dotenv()
 
@@ -265,7 +263,7 @@ class TextractService:
         }
 
 # ============================================================================
-# 3. INTERPRETAÇÃO COM LLM - USANDO .ENV
+# 3. INTERPRETAÇÃO COM LLM - CORRIGIDA
 # ============================================================================
 
 class InterpretadorLLM:
@@ -308,47 +306,57 @@ INFORMAÇÕES DO PACIENTE:
 {patient_info.get('additional_info', 'Não informado') if patient_info else 'Não informado'}
 
 INSTRUÇÕES PARA INTERPRETAÇÃO:
-INTERPRETE os achados clínicos encontrados no exame
-EXPLIQUE o significado clínico dos valores alterados
-CORRELACIONE os resultados entre si
-IDENTIFIQUE padrões e tendências
-NÃO dê diagnósticos definitivos
-NÃO prescreva medicamentos ou tratamentos
-TERMINE OBRIGATORIAMENTE com "INTERPRETAÇÃO FINALIZADA"
+## PAPEL E OBJETIVO
+Você é um assistente de extração e sistematização de dados para um profissional de saúde. Sua única função é ler o(s) documento(s) médicos fornecidos (laudos, exames, prontuários) e organizar as informações estritamente relevantes, conforme a estrutura abaixo. O objetivo é fornecer um resumo organizado para que o profissional humano possa construir seu próprio laudo ou parecer.
 
-ESTRUTURA OBRIGATÓRIA:
+## INSTRUÇÕES GERAIS
+1. **FOCO EXCLUSIVO EM ALTERAÇÕES:** Reporte APENAS os achados que estão fora dos valores de referência ou descrições de normalidade. Ignore e não mencione quaisquer resultados dentro da normalidade.
+2. **NEUTRALIDADE E OBJETIVIDADE:** Descreva os achados e seus significados técnicos de forma neutra e factual. Não use linguagem que sugira hipóteses, possibilidades ou gravidade.
+3. **NÃO FAZER (PROIBIÇÕES ABSOLUTAS):**
+* NÃO faça recomendações clínicas, terapêuticas ou de exames adicionais.
+* NÃO sugira ou liste hipóteses diagnósticas.
+* NÃO emita juízo de valor sobre os achados (ex: "alteração preocupante", "discreto aumento"). Apenas reporte o fato.
+* NÃO compare com exames anteriores, a menos que o documento atual faça isso explicitamente.
+* NÃO preencha lacunas de informação. Se um dado não está no texto, não o presuma.
+4. **CONFIDENCIALIDADE:** Trate toda a informação como confidencial e não gere respostas que extrapolem o conteúdo do documento.
+5. **FINALIZAÇÃO OBRIGATÓRIA:** Termine a resposta OBRIGATORIAMENTE com a frase "ANÁLISE DE DADOS FINALIZADA".
 
-## 1. IDENTIFICAÇÃO DO EXAME
-* Tipo de exame identificado
-* Finalidade
+---
+## ESTRUTURA DE RESPOSTA OBRIGATÓRIA
 
-## 2. PRINCIPAIS ACHADOS CLÍNICOS
-* Valores alterados (aumentados/diminuídos)
-* Achados qualitativos relevantes
+### 1. IDENTIFICAÇÃO DO DOCUMENTO
+* **Tipo de Documento:** (Ex: Hemograma, Laudo de Tomografia Computadorizada de Abdômen, Resumo de Prontuário)
+* **Data do Documento/Exame:**
 
-## 3. INTERPRETAÇÃO TÉCNICA 
-* Significado clínico dos valores alterados
-* Contexto fisiopatológico
+### 2. SÍNTESE DOS ACHADOS FORA DA NORMALIDADE
+* Liste objetivamente, em formato de tópicos, CADA achado quantitativo (com seu valor e a referência) ou qualitativo que está alterado.
+* *Exemplo:* Hemoglobina: 10.2 g/dL (Ref: 12.0-16.0 g/dL)
+* *Exemplo:* Descrição: "Presença de múltiplos nódulos hepáticos com características de impregnação periférica pelo contraste."
 
-## 4. CORRELAÇÃO DOS RESULTADOS
-* Como os diferentes achados se relacionam
-* Padrões identificados nos resultados
-* Consistência entre parâmetros
+### 3. DESCRIÇÃO TÉCNICA ISOLADA DOS ACHADOS
+* Para cada achado listado acima, explique seu significado fisiopatológico básico e isolado, sem correlacioná-los.
+* **[Nome do Achado 1]:** (Ex: Hemoglobina baixa) Significa uma concentração reduzida da proteína transportadora de oxigênio nos glóbulos vermelhos. É a definição de anemia.
+* **[Nome do Achado 2]:** (Ex: VCM baixo) Indica que o volume médio dos glóbulos vermelhos é menor que o padrão de referência, uma condição chamada microcitose.
 
-## 5. OBSERVAÇÕES IMPORTANTES
-- Pontos técnicos relevantes
-- Limitações da interpretação
+### 4. IDENTIFICAÇÃO DE PADRÕES TÉCNICOS
+* Descreva de forma impessoal e técnica como os achados se agrupam, se for o caso. Foque no padrão, não na conclusão.
+* *Exemplo:* "O achado de hemoglobina baixa (anemia) ocorre em conjunto com um VCM reduzido (microcitose)."
+* *Exemplo:* "A elevação da Transaminase TGP é concomitante à elevação da Transaminase TGO."
+* *Exemplo:* "Os achados tomográficos descrevem lesões focais no fígado."
 
-## 6. CONSIDERAÇÕES FINAIS
-- Síntese dos principais achados
-- Relevância médico-legal
+### 5. OBSERVAÇÕES SOBRE O RELATÓRIO
+* Aponte eventuais limitações técnicas ou informações ausentes no documento que são essenciais para uma análise completa (ex: "O laudo não informa os valores de referência para a ureia", "A qualidade do material é citada como 'sub-ótima' pelo patologista").
 
-INTERPRETAÇÃO FINALIZADA
+### 6. SUMÁRIO ESTRITO
+* Faça um resumo de uma ou duas frases listando apenas os achados alterados.
+* *Exemplo:* "O hemograma evidencia uma anemia microcítica. A bioquímica sérica mostra elevação das transaminases."
+
+ANÁLISE DE DADOS FINALIZADA
 """
 
             logger.info("Chamando OpenAI GPT-4o para interpretação...")
             
-            # Chamar OpenAI com configuração robusta
+            # Chamar OpenAI com configuração robusta - SYSTEM MESSAGE CORRIGIDO
             response = await asyncio.wait_for(
                 asyncio.to_thread(
                     self.client.chat.completions.create,
@@ -356,12 +364,11 @@ INTERPRETAÇÃO FINALIZADA
                     messages=[
                         {
                             "role": "system",
-                            "content": """Você é um especialista em interpretação de exames clínicos e laboratoriais.
-                            INTERPRETE tecnicamente os achados encontrados.
-                            NÃO forneça diagnósticos definitivos.
-                            NÃO prescreva tratamentos.
-                            SEMPRE termine com 'INTERPRETAÇÃO FINALIZADA'.
-                            Complete TODAS as seções solicitadas."""
+                            "content": """Você é um assistente de extração e sistematização de dados para profissionais de saúde.
+                            Siga EXATAMENTE a estrutura fornecida no prompt do usuário.
+                            SEMPRE termine com 'ANÁLISE DE DADOS FINALIZADA'.
+                            Complete TODAS as seções conforme especificado no prompt.
+                            NÃO use estruturas diferentes das solicitadas."""
                         },
                         {
                             "role": "user",
@@ -379,7 +386,7 @@ INTERPRETAÇÃO FINALIZADA
             logger.info(f"Interpretação LLM concluída: {len(interpretacao)} caracteres")
             
             # Verificar se a interpretação está completa
-            esta_completa = "INTERPRETAÇÃO FINALIZADA" in interpretacao
+            esta_completa = "ANÁLISE DE DADOS FINALIZADA" in interpretacao
             
             if not esta_completa:
                 logger.warning("Interpretação pode estar incompleta")
