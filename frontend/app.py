@@ -175,6 +175,76 @@ def upload_audio_consultation():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/audio-diarization-consultation', methods=['POST'])
+def audio_diarization_consultation():
+    """🎯 Upload de áudio com diarização de falantes"""
+    try:
+        patient_info = request.form.get('patient_info', '')
+        
+        print(f"🎯 Diarização de áudio: {patient_info}")
+        
+        # Preparar dados
+        data = {'patient_info': patient_info}
+        files = {}
+        
+        # Arquivo de áudio
+        if 'audio' in request.files:
+            audio_file = request.files['audio']
+            if audio_file.filename:
+                files['audio'] = (audio_file.filename, audio_file, audio_file.content_type)
+                print(f"🎤 Arquivo para diarização: {audio_file.filename}")
+        
+        if not files:
+            return jsonify({
+                'success': False, 
+                'error': 'Arquivo de áudio é obrigatório'
+            }), 400
+        
+        # Chamar backend
+        response = requests.post(
+            f"{BACKEND_URL}/api/audio-diarization",
+            files=files,
+            data=data,
+            timeout=300
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✅ Diarização processada com sucesso")
+            
+            # Extrair dados da conversa médica
+            medical_conv = result.get("medical_conversation", {})
+            
+            return jsonify({
+                "success": True,
+                "transcription": result.get("transcription", ""),
+                "doctor_text": medical_conv.get("doctor_text", ""),
+                "patient_text": medical_conv.get("patient_text", ""),
+                "detailed_conversation": medical_conv.get("detailed_conversation", ""),
+                "total_speakers": medical_conv.get("total_speakers", 0),
+                "method_used": medical_conv.get("method_used", "unknown"),
+                "duration": medical_conv.get("duration_seconds", 0),
+                "processing_time": result.get("processing_time_seconds", 0),
+                "warnings": result.get("warnings", []),
+                "timestamp": result.get("timestamp", ""),
+                "type": "audio_diarization"
+            })
+        else:
+            error_msg = f'Erro no backend: {response.status_code}'
+            try:
+                error_data = response.json()
+                error_msg = error_data.get('error', error_msg)
+            except:
+                pass
+                
+            return jsonify({
+                'success': False, 
+                'error': error_msg
+            }), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/test')
 def test_page():
     """🧪 Página de teste do sistema"""
