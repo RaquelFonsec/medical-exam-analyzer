@@ -261,79 +261,419 @@
            }
        }
 
+       // ============================================================================
+       // MODAL DE INSTRUÇÕES VISUAIS
+       // ============================================================================
+       async function showRecordingInstructions() {
+           return new Promise((resolve) => {
+               const modal = document.createElement('div');
+               modal.id = 'instructionsModal';
+               modal.innerHTML = `
+                   <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+                       <div style="background: white; padding: 30px; border-radius: 12px; max-width: 650px; margin: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+                           <h3 style="color: #dc3545; margin-bottom: 20px; text-align: center;">
+                               🎯 Como Gravar Videochamadas Corretamente
+                           </h3>
+                           
+                           <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #0ea5e9;">
+                               <h4 style="color: #0369a1; margin-bottom: 10px;">✅ CORRETO - Para capturar AMBOS participantes:</h4>
+                               <ol style="margin: 0; padding-left: 20px;">
+                                   <li>Clique no botão de gravar abaixo</li>
+                                   <li><strong>Escolha "Compartilhar áudio da aba"</strong></li>
+                                   <li>Selecione a aba da videochamada (Google Meet, Zoom, Teams, etc.)</li>
+                                   <li>✅ Marque "Compartilhar áudio" se aparecer checkbox</li>
+                               </ol>
+                           </div>
+                           
+                           <div style="background: #fecaca; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ef4444;">
+                               <h4 style="color: #dc2626; margin-bottom: 10px;">❌ INCORRETO - Só captura você:</h4>
+                               <ul style="margin: 0; padding-left: 20px;">
+                                   <li>❌ Escolher apenas "Microfone"</li>
+                                   <li>❌ Não marcar "Compartilhar áudio"</li>
+                                   <li>❌ Selecionar tela sem áudio</li>
+                               </ul>
+                           </div>
+                           
+                           <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                               <h4 style="color: #374151; margin-bottom: 10px;">💡 Dica Importante:</h4>
+                               <p style="margin: 0; color: #6b7280;">
+                                   Se não aparecer a opção "Compartilhar áudio da aba", pode ser que seu navegador ou site da videochamada não suporte. 
+                                   Neste caso, a gravação capturará apenas seu microfone.
+                               </p>
+                           </div>
+                           
+                           <div style="text-align: center; margin-top: 25px;">
+                               <button id="startRecordingBtn" 
+                                       style="background: #0ea5e9; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;">
+                                   🎤 Entendi, vamos gravar!
+                               </button>
+                           </div>
+                       </div>
+                   </div>
+               `;
+               
+               document.body.appendChild(modal);
+               
+               document.getElementById('startRecordingBtn').onclick = () => {
+                   modal.remove();
+                   resolve();
+               };
+               
+               // Fechar com ESC
+               document.addEventListener('keydown', function escHandler(e) {
+                   if (e.key === 'Escape') {
+                       modal.remove();
+                       document.removeEventListener('keydown', escHandler);
+                       resolve();
+                   }
+               });
+           });
+       }
+
+       // ============================================================================
+       // SISTEMA DE GRAVAÇÃO MELHORADO - DETECTA TIPO DE CAPTURA
+       // ============================================================================
        async function startRecording() {
            try {
-               const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+               console.log("🎤 Iniciando gravação para telemedicina...");
                
-               const options = [
-                   { mimeType: 'audio/webm;codecs=opus' },
-                   { mimeType: 'audio/webm' },
-                   { mimeType: 'audio/mp4' },
-                   { mimeType: 'audio/ogg;codecs=opus' },
-                   {}
+               let finalStream;
+               let systemStream = null;
+               let micStream = null;
+               let streamType = 'unknown';
+               let streamMetadata = {};
+               
+               // MODAL DE INSTRUÇÕES PRIMEIRO
+               await showRecordingInstructions();
+               
+               // 1. CAPTURAR ÁUDIO DO SISTEMA (PRIORIDADE - para videochamadas)
+               try {
+                   console.log("🌐 Solicitando áudio do sistema para capturar AMBOS participantes...");
+                   
+                   recordingStatus.innerHTML = `
+                       <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                           <strong>📋 AGUARDANDO SELEÇÃO:</strong><br>
+                           Selecione <strong>"Compartilhar áudio da aba"</strong> para capturar médico + paciente
+                       </div>
+                   `;
+                   
+                   systemStream = await navigator.mediaDevices.getDisplayMedia({
+                       video: false,
+                       audio: {
+                           echoCancellation: false,
+                           noiseSuppression: false,
+                           autoGainControl: false,
+                           sampleRate: 48000,
+                           channelCount: 2,
+                           // Configurações específicas para Chrome
+                           googEchoCancellation: false,
+                           googAutoGainControl: false,
+                           googNoiseSuppression: false,
+                           googTypingNoiseDetection: false
+                       }
+                   });
+                   
+                   // VERIFICAR SE REALMENTE CAPTUROU ÁUDIO DO SISTEMA
+                   const audioTracks = systemStream.getAudioTracks();
+                   if (audioTracks.length > 0) {
+                       const trackSettings = audioTracks[0].getSettings();
+                       const trackCapabilities = audioTracks[0].getCapabilities();
+                       
+                       console.log("🔍 Configurações do track de áudio:", trackSettings);
+                       console.log("🔍 Capacidades do track:", trackCapabilities);
+                       
+                       // Detectar se é áudio de sistema vs microfone
+                       if (trackSettings.displaySurface || trackSettings.logicalSurface || 
+                           trackSettings.groupId !== trackSettings.deviceId) {
+                           streamType = 'system_audio';
+                           streamMetadata = {
+                               streamType: 'system_audio',
+                               displaySurface: trackSettings.displaySurface,
+                               sampleRate: trackSettings.sampleRate,
+                               channelCount: trackSettings.channelCount
+                           };
+                           
+                           recordingStatus.innerHTML = `
+                               <div style="background: #d1ecf1; padding: 12px; border-radius: 8px; border-left: 4px solid #0ea5e9;">
+                                   ✅ <strong>PERFEITO! Capturando áudio da videochamada</strong><br>
+                                   <small>Médico + Paciente serão gravados</small>
+                               </div>
+                           `;
+                       } else {
+                           streamType = 'microphone_fallback';
+                           streamMetadata = {
+                               streamType: 'microphone_fallback',
+                               reason: 'display_media_returned_microphone'
+                           };
+                       }
+                   }
+                   
+               } catch (systemError) {
+                   console.log("❌ Usuário cancelou ou áudio do sistema indisponível:", systemError.message);
+                   
+                   recordingStatus.innerHTML = `
+                       <div style="background: #fef3c7; padding: 12px; border-radius: 8px;">
+                           ⚠️ Tentando captura alternativa via microfone...
+                       </div>
+                   `;
+               }
+               
+               // 2. CAPTURAR MICROFONE COMO BACKUP
+               if (!systemStream) {
+                   try {
+                       console.log("🎤 Capturando microfone como fallback...");
+                       
+                       micStream = await navigator.mediaDevices.getUserMedia({
+                           audio: {
+                               echoCancellation: true,
+                               noiseSuppression: true,
+                               autoGainControl: true,
+                               sampleRate: 48000
+                           }
+                       });
+                       
+                       streamType = 'microphone_only';
+                       streamMetadata = {
+                           streamType: 'microphone_only',
+                           reason: 'system_audio_failed'
+                       };
+                       
+                       console.log("✅ Microfone capturado como fallback!");
+                       
+                   } catch (micError) {
+                       throw new Error(`Erro: Não foi possível capturar nenhuma fonte de áudio. ${micError.message}`);
+                   }
+               }
+               
+               // 3. DECIDIR QUAL STREAM USAR E CONFIGURAR INTERFACE
+               if (systemStream) {
+                   finalStream = systemStream;
+                   console.log("🎯 Usando áudio do sistema (IDEAL para telemedicina)");
+                   
+                   if (streamType === 'system_audio') {
+                       recordingStatus.innerHTML = `
+                           <div style="background: #dbeafe; padding: 12px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                               🎯 <strong>Gravando videochamada completa</strong><br>
+                               <small>Capturando médico + paciente ✓</small>
+                           </div>
+                       `;
+                   } else {
+                       recordingStatus.innerHTML = `
+                           <div style="background: #fef3c7; padding: 12px; border-radius: 8px;">
+                               ⚠️ <strong>Gravação via display (verificar qualidade)</strong><br>
+                               <small>Pode ter capturado apenas microfone</small>
+                           </div>
+                       `;
+                   }
+                   
+               } else if (micStream) {
+                   finalStream = micStream;
+                   console.log("🎤 Usando microfone como fallback");
+                   
+                   recordingStatus.innerHTML = `
+                       <div style="background: #fef3c7; padding: 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                           ⚠️ <strong>Gravando apenas microfone</strong><br>
+                           <small>Só captura 1 participante da conversa</small>
+                       </div>
+                   `;
+                   
+               } else {
+                   throw new Error("Nenhuma fonte de áudio disponível");
+               }
+               
+               // 4. CONFIGURAR GRAVAÇÃO COM DETECÇÃO DE FORMATO
+               const mimeTypes = [
+                   'audio/webm;codecs=opus',
+                   'audio/webm',
+                   'audio/mp4',
+                   'audio/ogg;codecs=opus'
                ];
                
-               let selectedOptions = {};
-               for (const option of options) {
-                   if (MediaRecorder.isTypeSupported(option.mimeType || '')) {
-                       selectedOptions = option;
-                       console.log("Formato de áudio selecionado:", option.mimeType);
+               let selectedMimeType = '';
+               for (const mimeType of mimeTypes) {
+                   if (MediaRecorder.isTypeSupported(mimeType)) {
+                       selectedMimeType = mimeType;
+                       console.log("📹 Formato selecionado:", mimeType);
                        break;
                    }
                }
                
-               mediaRecorder = new MediaRecorder(stream, selectedOptions);
+               // 5. INICIAR GRAVAÇÃO
+               mediaRecorder = new MediaRecorder(finalStream, {
+                   mimeType: selectedMimeType,
+                   audioBitsPerSecond: 128000
+               });
+               
                audioChunks = [];
                recordingSeconds = 0;
+               
+               // SALVAR METADADOS PARA ENVIAR AO BACKEND
+               window.recordingMetadata = {
+                   ...streamMetadata,
+                   mimeType: selectedMimeType,
+                   timestamp: new Date().toISOString(),
+                   browser: navigator.userAgent
+               };
+               
+               console.log("📊 Metadados da gravação:", window.recordingMetadata);
 
                mediaRecorder.ondataavailable = event => {
-                   console.log("Chunk de áudio:", event.data.size, "bytes", "tipo:", event.data.type);
-                   audioChunks.push(event.data);
+                   if (event.data.size > 0) {
+                       console.log("📦 Chunk gravado:", event.data.size, "bytes");
+                       audioChunks.push(event.data);
+                   }
+               };
+               
+               mediaRecorder.onstop = () => {
+                   console.log("🛑 Gravação finalizada. Total chunks:", audioChunks.length);
+                   
+                   // Limpar streams
+                   if (systemStream) {
+                       systemStream.getTracks().forEach(track => track.stop());
+                   }
+                   if (micStream) {
+                       micStream.getTracks().forEach(track => track.stop());
+                   }
                };
 
-               mediaRecorder.start();
+               mediaRecorder.start(1000);
                isRecording = true;
 
+               // 6. ATUALIZAR INTERFACE
                recordBtn.classList.add('recording');
                recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
-               recordingStatus.textContent = 'Gravando... Clique para parar';
-
+               
+               // Timer melhorado
                recordingTimer = setInterval(() => {
                    recordingSeconds++;
                    const minutes = Math.floor(recordingSeconds / 60);
                    const seconds = recordingSeconds % 60;
                    recordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                   
+                   // Feedback visual baseado no tempo
+                   if (recordingSeconds < 10) {
+                       recordingTime.style.color = '#f59e0b'; // Amarelo
+                   } else {
+                       recordingTime.style.color = '#10b981'; // Verde
+                   }
                }, 1000);
 
-               console.log("Gravação iniciada");
+               console.log("✅ Gravação iniciada com sucesso!");
+               
+               // Salvar referências para limpeza
+               window.currentSystemStream = systemStream;
+               window.currentMicStream = micStream;
 
            } catch (error) {
-               console.error("Erro ao acessar microfone:", error);
-               alert('Erro ao acessar microfone: ' + error.message);
+               console.error("❌ Erro na gravação:", error);
+               
+               recordingStatus.innerHTML = `
+                   <div style="background: #fecaca; padding: 12px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                       ❌ <strong>Erro:</strong> ${error.message}
+                   </div>
+               `;
+               
+               recordBtn.classList.remove('recording');
+               recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+               
+               throw error;
            }
        }
 
+       // ============================================================================
+       // FUNÇÃO DE PARADA MELHORADA
+       // ============================================================================
        function stopRecording() {
            if (mediaRecorder && isRecording) {
+               console.log("🛑 Parando gravação...");
+               
                mediaRecorder.stop();
-               mediaRecorder.stream.getTracks().forEach(track => track.stop());
                isRecording = false;
 
+               // Limpar streams
+               if (window.currentSystemStream) {
+                   window.currentSystemStream.getTracks().forEach(track => track.stop());
+                   console.log("🌐 Stream do sistema parado");
+               }
+               
+               if (window.currentMicStream) {
+                   window.currentMicStream.getTracks().forEach(track => track.stop());
+                   console.log("🎤 Stream do microfone parado");
+               }
+
+               // Atualizar interface com feedback do tipo de gravação
                recordBtn.classList.remove('recording');
                recordBtn.innerHTML = '<i class="fas fa-check"></i>';
                recordBtn.style.background = '#22c55e';
-               recordingStatus.textContent = 'Gravação concluída ✓';
+               
+               const metadata = window.recordingMetadata || {};
+               let statusText = 'Gravação concluída ✓';
+               let statusColor = '#059669';
+               let statusBg = '#d1fae5';
+               
+               if (metadata.streamType === 'system_audio') {
+                   statusText = '✅ Gravação completa - Ambos participantes capturados';
+               } else if (metadata.streamType === 'microphone_only') {
+                   statusText = '⚠️ Gravação via microfone - Apenas 1 participante';
+                   statusColor = '#d97706';
+                   statusBg = '#fef3c7';
+               }
+               
+               recordingStatus.innerHTML = `
+                   <div style="background: ${statusBg}; padding: 10px; border-radius: 6px; color: ${statusColor};">
+                       ${statusText}
+                   </div>
+               `;
 
                clearInterval(recordingTimer);
                
-               console.log("Gravação finalizada. Chunks:", audioChunks.length);
+               console.log("✅ Gravação finalizada. Chunks:", audioChunks.length);
+               console.log("📊 Metadados finais:", metadata);
+               
+               // Limpar referências
+               window.currentSystemStream = null;
+               window.currentMicStream = null;
            }
        }
 
        generateBtn.addEventListener('click', analisarHibridaInteligente);
 
        // ============================================================================
-       // FUNÇÃO PRINCIPAL ATUALIZADA PARA USAR LLM
+       // PROCESSAMENTO DE ÁUDIO COM METADADOS
+       // ============================================================================
+       async function processAudioIfExists(patientInfo) {
+           if (audioChunks.length === 0) return null;
+
+           try {
+               const formData = new FormData();
+               formData.append('patient_info', patientInfo);
+               
+               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+               formData.append('audio', audioBlob, `consulta_${Date.now()}.webm`);
+               
+               // INCLUIR METADADOS DA GRAVAÇÃO
+               if (window.recordingMetadata) {
+                   formData.append('recording_metadata', JSON.stringify(window.recordingMetadata));
+               }
+
+               const response = await fetch('http://localhost:8000/api/audio-diarization', {
+                   method: 'POST',
+                   body: formData
+               });
+
+               const result = await response.json();
+               console.log("📊 Resultado da análise de áudio:", result);
+               
+               return result.success ? result : null;
+
+           } catch (error) {
+               console.error("Erro no processamento de áudio:", error);
+               return null;
+           }
+       }
+
+       // ============================================================================
+       // ANÁLISE HÍBRIDA MELHORADA
        // ============================================================================
        async function analisarHibridaInteligente() {
            console.log("Iniciando análise híbrida inteligente com LLM");
@@ -348,88 +688,54 @@
 
            const documentsInput = document.getElementById('documentInput');
            let hasDocuments = documentsInput && documentsInput.files.length > 0;
+           let hasAudio = audioChunks.length > 0;
 
-           // Se tem documentos, usar endpoint com LLM
-           if (hasDocuments) {
-               await processWithLLM(patientInfo, documentsInput.files);
-           } else {
-               await processTraditional(patientInfo);
-           }
-       }
-
-       // ============================================================================
-       // PROCESSAMENTO COM LLM (NOVO)
-       // ============================================================================
-       async function processWithLLM(patientInfo, files) {
-           console.log("Processando com análise LLM...");
-           
            try {
                generateBtn.disabled = true;
-               generateBtn.innerHTML = 'Análise com IA...';
+               generateBtn.innerHTML = 'Análise em andamento...';
                document.getElementById('processing').style.display = 'block';
-               
-               // Processar cada arquivo individualmente com LLM
-               const llmResults = [];
-               
-               for (let i = 0; i < files.length; i++) {
-                   const file = files[i];
-                   console.log(`Analisando arquivo ${i + 1}/${files.length}: ${file.name}`);
-                   
-                   const formData = new FormData();
-                   formData.append('file', file);
-                   
-                   // Extrair idade e gênero do patientInfo se possível
-                   const ageMatch = patientInfo.match(/(\d+)\s*anos?/i);
-                   const genderMatch = patientInfo.match(/(masculino|feminino|homem|mulher|m|f)/i);
-                   
-                   if (ageMatch) {
-                       formData.append('patient_age', ageMatch[1]);
-                   }
-                   if (genderMatch) {
-                       let gender = genderMatch[1].toLowerCase();
-                       if (gender.startsWith('m') || gender === 'homem') gender = 'masculino';
-                       if (gender.startsWith('f') || gender === 'mulher') gender = 'feminino';
-                       formData.append('patient_gender', gender);
-                   }
-                   
-                   formData.append('additional_info', patientInfo);
 
-                   // Chamar endpoint LLM
-                   const response = await fetch('http://localhost:8000/api/analyze-exam-with-llm', {
-                       method: 'POST',
-                       body: formData
-                   });
+               let combinedResult = {
+                   success: true,
+                   transcription: 'Nenhuma transcrição de áudio disponível',
+                   llm_exam_analysis: [],
+                   patient_info: patientInfo,
+                   timestamp: new Date().toISOString(),
+                   audio_analysis: null
+               };
 
-                   const result = await response.json();
-                   console.log(`Resultado LLM para ${file.name}:`, result);
-                   
-                   if (result.success) {
-                       llmResults.push({
-                           filename: file.name,
-                           ...result
-                       });
-                   } else {
-                       console.error(`Erro na análise LLM de ${file.name}:`, result.error);
-                   }
+               // Processar documentos se existirem
+               if (hasDocuments) {
+                   console.log("📄 Processando documentos com LLM...");
+                   const llmResults = await processDocumentsWithLLM(patientInfo, documentsInput.files);
+                   combinedResult.llm_exam_analysis = llmResults;
                }
 
                // Processar áudio se existir
-               const audioResult = await processAudioIfExists(patientInfo);
-               
-               // Combinar resultados
-               const combinedResult = {
-                   success: true,
-                   transcription: audioResult?.transcription || 'Nenhuma transcrição de áudio disponível',
-                   llm_exam_analysis: llmResults,
-                   patient_info: patientInfo,
-                   timestamp: new Date().toISOString()
-               };
+               if (hasAudio) {
+                   console.log("🎤 Processando áudio com diarização...");
+                   const audioResult = await processAudioIfExists(patientInfo);
+                   
+                   if (audioResult && audioResult.success) {
+                       // Usar a transcrição detalhada se disponível
+                       combinedResult.transcription = audioResult.medical_conversation?.detailed_conversation || 
+                                                    audioResult.transcription || 
+                                                    'Erro na transcrição';
+                       combinedResult.audio_analysis = audioResult;
+                   }
+               }
+
+               // Se não tem nem documentos nem áudio
+               if (!hasDocuments && !hasAudio) {
+                   alert('Adicione pelo menos um documento ou grave uma consulta para análise');
+                   return;
+               }
 
                displayLLMResults(combinedResult);
 
            } catch (error) {
-               console.error("Erro na análise LLM:", error);
-               alert('Erro na análise com IA: ' + error.message);
+               console.error("Erro na análise:", error);
+               alert('Erro na análise: ' + error.message);
            } finally {
                generateBtn.disabled = false;
                generateBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Análise Híbrida Inteligente';
@@ -437,82 +743,72 @@
            }
        }
 
-       // ============================================================================
-       // PROCESSAMENTO TRADICIONAL (MANTIDO)
-       // ============================================================================
-       async function processTraditional(patientInfo) {
-           console.log("Processamento tradicional...");
+       async function processDocumentsWithLLM(patientInfo, files) {
+           const llmResults = [];
            
-           const formData = new FormData();
-           formData.append('patient_info', patientInfo);
-
-           if (audioChunks.length > 0) {
-               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-               formData.append('audio', audioBlob, `consulta_${Date.now()}.webm`);
-           }
-
-           try {
-               generateBtn.disabled = true;
-               generateBtn.innerHTML = 'Análise...';
-               document.getElementById('processing').style.display = 'block';
-
-               const response = await fetch('/api/intelligent-medical-analysis', {
-                   method: 'POST',
-                   body: formData
-               });
-
-               const result = await response.json();
-               console.log("Resultado tradicional:", result);
-
-               if (result.success) {
-                   displayHybridResults(result);
-               } else {
-                   alert('Erro: ' + result.error);
-               }
-
-           } catch (error) {
-               console.error("Erro:", error);
-               alert('Erro de comunicação: ' + error.message);
-           } finally {
-               generateBtn.disabled = false;
-               generateBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Análise Híbrida Inteligente';
-               document.getElementById('processing').style.display = 'none';
-           }
-       }
-
-       // ============================================================================
-       // PROCESSAR ÁUDIO SE EXISTIR
-       // ============================================================================
-       async function processAudioIfExists(patientInfo) {
-           if (audioChunks.length === 0) return null;
-
-           try {
-               const formData = new FormData();
-               formData.append('patient_info', patientInfo);
+           for (let i = 0; i < files.length; i++) {
+               const file = files[i];
+               console.log(`Analisando arquivo ${i + 1}/${files.length}: ${file.name}`);
                
-               const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-               formData.append('audio', audioBlob, `consulta_${Date.now()}.webm`);
+               const formData = new FormData();
+               formData.append('file', file);
+               
+               // Extrair informações do paciente
+               const ageMatch = patientInfo.match(/(\d+)\s*anos?/i);
+               const genderMatch = patientInfo.match(/(masculino|feminino|homem|mulher|m|f)/i);
+               
+               if (ageMatch) formData.append('patient_age', ageMatch[1]);
+               if (genderMatch) {
+                   let gender = genderMatch[1].toLowerCase();
+                   if (gender.startsWith('m') || gender === 'homem') gender = 'masculino';
+                   if (gender.startsWith('f') || gender === 'mulher') gender = 'feminino';
+                   formData.append('patient_gender', gender);
+               }
+               
+               formData.append('additional_info', patientInfo);
 
-               const response = await fetch('/api/intelligent-medical-analysis', {
+               const response = await fetch('http://localhost:8000/api/analyze-exam-with-llm', {
                    method: 'POST',
                    body: formData
                });
 
                const result = await response.json();
-               return result.success ? result : null;
-
-           } catch (error) {
-               console.error("Erro no processamento de áudio:", error);
-               return null;
+               
+               if (result.success) {
+                   llmResults.push({
+                       filename: file.name,
+                       ...result
+                   });
+               } else {
+                   console.error(`Erro na análise LLM de ${file.name}:`, result.error);
+               }
            }
+           
+           return llmResults;
        }
 
        // ============================================================================
-       // EXIBIR RESULTADOS COM LLM (NOVO)
+       // EXIBIÇÃO DE RESULTADOS MELHORADA
        // ============================================================================
        function displayLLMResults(result) {
-           console.log("Exibindo resultados com análise LLM");
-           console.log("DEBUG - Resultado LLM:", result);
+           console.log("Exibindo resultados com análise LLM e áudio");
+
+           // Mostrar informações de captura de áudio se disponível
+           let audioQualityHtml = '';
+           if (result.audio_analysis) {
+               const audioData = result.audio_analysis;
+               const conversation = audioData.medical_conversation || {};
+               
+               audioQualityHtml = `
+                   <div class="mt-2 p-2 bg-light rounded">
+                       <small><strong>Qualidade do Áudio:</strong></small><br>
+                       <small>Método: ${conversation.method_used || 'desconhecido'}</small><br>
+                       <small>Falantes detectados: ${conversation.total_speakers || 0}</small><br>
+                       ${audioData.warnings && audioData.warnings.length > 0 ? 
+                         `<small class="text-warning">⚠️ ${audioData.warnings.join(', ')}</small>` : ''}
+                   </div>
+               `;
+           }
 
            // Contexto
            const contextHtml = `
@@ -521,16 +817,36 @@
                </div>
                <div class="row mt-2">
                    <div class="col-12">
-                       <small><strong>Modelo:</strong> OpenAI GPT + AWS Textract</small><br>
+                       <small><strong>Modelo:</strong> OpenAI GPT + AWS Textract + Whisper</small><br>
                        <small><strong>Timestamp:</strong> ${new Date(result.timestamp).toLocaleString()}</small>
+                       ${audioQualityHtml}
                    </div>
                </div>
            `;
            document.getElementById('contextInfo').innerHTML = contextHtml;
 
-           // Transcrição
-           const transcription = safeString(result.transcription, 'Nenhuma transcrição de áudio disponível');
-           document.getElementById('transcriptionText').innerHTML = transcription;
+           // Transcrição melhorada
+           let transcriptionHtml = result.transcription;
+           if (result.audio_analysis?.medical_conversation) {
+               const conv = result.audio_analysis.medical_conversation;
+               if (conv.doctor_text || conv.patient_text) {
+                   transcriptionHtml = `
+                       <div class="mb-3">
+                           <h6 class="text-primary">👨‍⚕️ Médico:</h6>
+                           <div class="bg-light p-2 rounded mb-2">
+                               ${conv.doctor_text || '<em>Não detectado separadamente</em>'}
+                           </div>
+                           
+                           <h6 class="text-success">🧑‍⚕️ Paciente:</h6>
+                           <div class="bg-light p-2 rounded">
+                               ${conv.patient_text || '<em>Não detectado separadamente</em>'}
+                           </div>
+                       </div>
+                   `;
+               }
+           }
+           
+           document.getElementById('transcriptionText').innerHTML = transcriptionHtml;
 
            // Análise LLM dos exames
            let examAnalysisHtml = '';
@@ -551,7 +867,6 @@
                            </div>
                    `;
                    
-                   // Principais alterações
                    if (analysis.key_findings && analysis.key_findings.length > 0) {
                        examAnalysisHtml += `
                            <div class="alterations-highlight">
@@ -564,33 +879,8 @@
                        examAnalysisHtml += `</ul></div>`;
                    }
                    
-                   
-                   // Recomendações
-                   if (analysis.recommendations && analysis.recommendations.length > 0) {
-                       examAnalysisHtml += `
-                           <div class="mt-3">
-                               <h6>Recomendações Personalizadas:</h6>
-                               <ul class="recommendations-list">
-                       `;
-                       analysis.recommendations.forEach(rec => {
-                           examAnalysisHtml += `<li>${safeString(rec)}</li>`;
-                       });
-                       examAnalysisHtml += `</ul></div>`;
-                   }
-                   
-                   // Resumo claro
-                   if (analysis.clear_summary) {
-                       examAnalysisHtml += `
-                           <div class="mt-3 p-3 bg-light rounded">
-                               <h6>Resumo em Linguagem Clara:</h6>
-                               <p class="mb-0">${safeString(analysis.clear_summary)}</p>
-                           </div>
-                       `;
-                   }
-                   
                    examAnalysisHtml += `</div>`;
                    
-                   // Separador se houver mais exames
                    if (index < result.llm_exam_analysis.length - 1) {
                        examAnalysisHtml += `<hr class="my-4">`;
                    }
@@ -611,165 +901,6 @@
            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
            console.log("Resultados LLM exibidos com sucesso!");
-       }
-
-       // ============================================================================
-       // FUNÇÃO ORIGINAL MANTIDA PARA COMPATIBILIDADE
-       // ============================================================================
-       function displayHybridResults(result) {
-           console.log("Exibindo resultados híbridos tradicionais");
-           console.log("DEBUG - Resultado recebido:", result);
-
-           let classificationHtml = "";
-           if (result.classification) {
-               const bc = result.classification;
-               
-               const tipoBeneficio = safeAccess(bc, 'tipo_beneficio', 'A definir');
-               const gravidade = safeAccess(bc, 'gravidade', 'MODERADA');
-               const cidPrincipal = safeAccess(bc, 'cid_principal', '');
-               const cidDescricao = safeAccess(bc, 'cid_descricao', '');
-               const prognostico = safeAccess(bc, 'prognostico', 'A avaliar');
-               const justificativa = safeAccess(bc, 'justificativa', '');
-               
-               let benefitClass = 'badge-info';
-               if (tipoBeneficio.includes('AUXILIO-DOENCA') || tipoBeneficio.includes('AUXÍLIO-DOENÇA')) {
-                   benefitClass = 'badge-warning';
-               } else if (tipoBeneficio.includes('AUXILIO-ACIDENTE') || tipoBeneficio.includes('AUXÍLIO-ACIDENTE')) {
-                   benefitClass = 'badge-danger';
-               } else if (tipoBeneficio.includes('BPC') || tipoBeneficio.includes('LOAS')) {
-                   benefitClass = 'badge-primary';
-               } else if (tipoBeneficio.includes('APOSENTADORIA')) {
-                   benefitClass = 'badge-success';
-               } else if (tipoBeneficio.includes('ISENCAO') || tipoBeneficio.includes('ISENÇÃO')) {
-                   benefitClass = 'badge-danger';
-               }
-               const gravityClass = gravidade === 'GRAVE' ? 'text-danger' : gravidade === 'MODERADA' ? 'text-warning' : 'text-success';
-               
-               classificationHtml = `
-                   <div class="row mb-3">
-                       <div class="col-12">
-                           <div class="card border-primary">
-                               <div class="card-header bg-primary text-white">
-                                   <h6 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Classificação Previdenciária</h6>
-                               </div>
-                               <div class="card-body">
-                                   <div class="row">
-                                       <div class="col-md-6">
-                                           <h6>Tipo de Benefício:</h6>
-                                           <span class="badge ${benefitClass} fs-6">${tipoBeneficio.replace('_', ' ')}</span>
-                                       </div>
-                                       <div class="col-md-6">
-                                           <h6>Gravidade:</h6>
-                                           <span class="${gravityClass} fw-bold">${gravidade}</span>
-                                       </div>
-                                   </div>
-                                   <div class="row mt-3">
-                                       <div class="col-md-6">
-                                           <h6>CID Principal:</h6>
-                                           <code class="fs-6">${cidPrincipal}</code> - ${cidDescricao}
-                                       </div>
-                                       <div class="col-md-6">
-                                           <h6>Prognóstico:</h6>
-                                           <small>${prognostico}</small>
-                                       </div>
-                                   </div>
-                                   <div class="row mt-2">
-                                       <div class="col-12">
-                                           <h6>Justificativa:</h6>
-                                           <small class="text-muted">${justificativa}</small>
-                                       </div>
-                                   </div>
-                               </div>
-                           </div>
-                       </div>
-                   </div>
-               `;
-           }
-
-           const hybridContext = safeAccess(result, 'template_used', '') || safeAccess(result, 'specialized_type', '') || 'clinica';
-           const contextClass = getContextClass(hybridContext);
-           const contextDisplayName = contextNames[hybridContext] || hybridContext.toUpperCase();
-
-           const specialty = safeAccess(result, 'classification.main_specialty', 'clinica_geral');
-           const benefit = safeAccess(result, 'classification.main_benefit', 'clinica');
-           
-           let contextHtml = `
-               <div class="context-badge ${contextClass}">
-                   ${contextDisplayName}
-               </div>
-               <span class="specialty-badge">${specialtyNames[specialty] || specialty}</span>
-           `;
-
-           const cfmCompliant = safeAccess(result, 'cfm_compliant', true);
-           const cfmWarning = safeAccess(result, 'cfm_warning', '');
-           
-           if (!cfmCompliant && cfmWarning) {
-               contextHtml += `
-                   <div class="cfm-warning mt-2">
-                       <i class="fas fa-exclamation-triangle me-2"></i>${cfmWarning}
-                   </div>
-               `;
-           }
-
-           const confidence = safeAccess(result, 'confidence', 0);
-           const model = safeAccess(result, 'model', 'Medical AI v2.0');
-           const timestamp = safeAccess(result, 'timestamp', new Date().toISOString());
-
-           contextHtml += `
-               <div class="row mt-2">
-                   <div class="col-12">
-                       <small><strong>Modelo:</strong> ${model}</small><br>
-                       <small><strong>Timestamp:</strong> ${new Date(timestamp).toLocaleString()}</small>
-                   </div>
-               </div>
-           `;
-
-           document.getElementById('contextInfo').innerHTML = classificationHtml + contextHtml;
-
-           const transcription = safeAccess(result, 'transcription', 'Nenhuma transcrição de áudio disponível');
-           console.log("Transcrição:", transcription ? transcription.length : 0, "chars");
-           document.getElementById('transcriptionText').innerHTML = transcription;
-
-           // Usar resultado de exames em vez de anamnese
-           const resultadoExames = safeAccess(result, 'laudo_medico', 'Gerando resultado de exames...');
-           console.log("Resultado de Exames:", resultadoExames ? resultadoExames.length : 0, "chars");
-           document.getElementById('resultadoText').innerHTML = formatMedicalContent(resultadoExames);
-
-           document.getElementById('results').style.display = 'block';
-           document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
-
-           console.log("Resultados híbridos exibidos com sucesso!");
-       }
-
-       function getContextClass(context) {
-           if (context.includes('bpc')) return 'context-bpc';
-           if (context.includes('incapacidade')) return 'context-incapacidade';
-           if (context.includes('auxilio_acidente')) return 'context-auxilio_acidente';
-           if (context.includes('isencao_ir')) return 'context-isencao_ir';
-           if (context.includes('pericia')) return 'context-pericia';
-           if (context.includes('psiquiatria')) return 'context-psiquiatria';
-           if (context.includes('cardiologia')) return 'context-cardiologia';
-           if (context.includes('neurologia')) return 'context-neurologia';
-           if (context.includes('ortopedia')) return 'context-ortopedia';
-           if (context.includes('reumatologia')) return 'context-reumatologia';
-           if (context.includes('oftalmologia')) return 'context-oftalmologia';
-           return 'context-clinica';
-       }
-
-       function formatMedicalContent(content) {
-           const safeContent = safeString(content);
-           
-           return safeContent
-               .replace(/\n/g, '<br>')
-               .replace(/## (.*)/g, '<h6 class="text-primary mt-3 mb-2">$1</h6>')
-               .replace(/### (.*)/g, '<h6 class="text-success mt-2 mb-1">$1</h6>')
-               .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-               .replace(/RESULTADO DE EXAMES/g, '<strong>RESULTADO DE EXAMES</strong>')
-               .replace(/LAUDO MÉDICO/g, '<strong>LAUDO MÉDICO</strong>')
-               .replace(/IDENTIFICAÇÃO/g, '<strong>IDENTIFICAÇÃO</strong>')
-               .replace(/CID-10:/g, '<strong>CID-10:</strong>')
-               .replace(/PARECER:/g, '<strong>PARECER:</strong>')
-               .replace(/ATENÇÃO CFM:/g, '<span class="text-warning"><strong>ATENÇÃO CFM:</strong></span>');
        }
 
        function copyResultado() {
@@ -885,7 +1016,6 @@
        // ============================================================================
        // EVENTOS DE UPLOAD DE ARQUIVO
        // ============================================================================
-
        const documentInput = document.getElementById('documentInput');
        const uploadZone = document.getElementById('uploadZone');
 

@@ -11,6 +11,7 @@ load_dotenv()
 import logging
 import asyncio
 import tempfile
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -103,7 +104,7 @@ class PDFConverter:
 # ============================================================================
 
 class TranscricaoService:
-    """Transcrição de áudio com Whisper"""
+    """Transcrição de áudio com Whisper + Diarização de Falantes"""
     
     def __init__(self):
         if OPENAI_API_KEY:
@@ -112,6 +113,10 @@ class TranscricaoService:
         else:
             self.client = None
             logger.error("OpenAI API Key não encontrada no .env")
+        
+        # Não precisamos mais do serviço de diarização pyannote
+        # Usamos análise inteligente com GPT
+        logger.info("🧠 Usando análise inteligente Whisper + GPT")
     
     async def transcrever_audio(self, audio_bytes: bytes, filename: str) -> Dict:
         """Transcreve áudio para texto"""
@@ -159,6 +164,120 @@ class TranscricaoService:
                 'sucesso': False,
                 'erro': str(e),
                 'transcricao': ''
+            }
+    
+    async def transcrever_audio_com_diarizacao(self, audio_bytes: bytes, filename: str) -> Dict:
+        """Transcreve áudio com separação de falantes usando Whisper + GPT"""
+        
+        if not self.client:
+            return {
+                'sucesso': False,
+                'erro': 'OpenAI API Key não configurada no arquivo .env',
+                'transcricao': '',
+                'medico': '',
+                'paciente': ''
+            }
+        
+        try:
+            logger.info(f"🎯 Transcrevendo com análise inteligente: {filename}")
+            
+            # 1. Transcrever áudio com Whisper
+            resultado_whisper = await self.transcrever_audio(audio_bytes, filename)
+            
+            if not resultado_whisper['sucesso']:
+                return resultado_whisper
+            
+            transcricao_completa = resultado_whisper['transcricao']
+            
+            # 2. Analisar com GPT para separar falantes
+            logger.info("🧠 Analisando conversação para separar médico e paciente...")
+            
+            prompt = f"""
+Analise esta transcrição de consulta médica e separe as falas do MÉDICO e do PACIENTE.
+
+TRANSCRIÇÃO:
+{transcricao_completa}
+
+INSTRUÇÕES:
+- Identifique quem é médico e quem é paciente baseado no contexto
+- Médico: faz perguntas, examina, prescreve, explica diagnósticos
+- Paciente: relata sintomas, responde perguntas, descreve problemas
+- Se não conseguir separar claramente, coloque tudo como "PACIENTE"
+
+FORMATO DE RESPOSTA (JSON):
+{{
+    "medico": "texto que o médico falou",
+    "paciente": "texto que o paciente falou",
+    "confianca": "alta/media/baixa"
+}}
+"""
+
+            try:
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Você é um especialista em análise de conversas médicas."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,
+                    max_tokens=2000
+                )
+                
+                resposta_gpt = response.choices[0].message.content
+                
+                # Tentar extrair JSON da resposta
+                import json
+                import re
+                
+                # Procurar JSON na resposta
+                json_match = re.search(r'\{.*\}', resposta_gpt, re.DOTALL)
+                if json_match:
+                    resultado_json = json.loads(json_match.group())
+                    
+                    medico_text = resultado_json.get('medico', '').strip()
+                    paciente_text = resultado_json.get('paciente', '').strip()
+                    confianca = resultado_json.get('confianca', 'baixa')
+                    
+                    logger.info(f"✅ Separação concluída - Confiança: {confianca}")
+                    
+                    return {
+                        'sucesso': True,
+                        'transcricao': transcricao_completa,
+                        'medico': medico_text,
+                        'paciente': paciente_text,
+                        'conversa_detalhada': f"MÉDICO: {medico_text}\n\nPACIENTE: {paciente_text}",
+                        'metodo': 'whisper_gpt_analysis',
+                        'total_falantes': 2 if medico_text and paciente_text else 1,
+                        'tamanho': len(transcricao_completa),
+                        'confianca': confianca,
+                        'warning': 'Separação automática via análise de contexto' if confianca == 'baixa' else None
+                    }
+                
+            except Exception as e:
+                logger.warning(f"Erro na análise GPT: {e}")
+            
+            # Fallback: assumir tudo como paciente
+            logger.info("⚠️ Fallback: assumindo transcrição como paciente")
+            return {
+                'sucesso': True,
+                'transcricao': transcricao_completa,
+                'medico': '',
+                'paciente': transcricao_completa,
+                'conversa_detalhada': f"TRANSCRIÇÃO COMPLETA: {transcricao_completa}",
+                'metodo': 'whisper_fallback',
+                'total_falantes': 1,
+                'tamanho': len(transcricao_completa),
+                'warning': 'Não foi possível separar falantes automaticamente'
+            }
+                
+        except Exception as e:
+            logger.error(f"Erro na transcrição com análise: {e}")
+            return {
+                'sucesso': False,
+                'erro': str(e),
+                'transcricao': '',
+                'medico': '',
+                'paciente': ''
             }
 
 # ============================================================================
@@ -631,11 +750,21 @@ async def intelligent_medical_analysis(
             logger.info(f"Processando áudio: {audio.filename}")
             audio_data = await audio.read()
             
-            transcricao_result = await sistema.transcricao.transcrever_audio(audio_data, audio.filename)
+            # Usar diarização por padrão para separar médico e paciente
+            transcricao_result = await sistema.transcricao.transcrever_audio_com_diarizacao(audio_data, audio.filename)
             
             if transcricao_result['sucesso']:
                 result['transcription'] = transcricao_result['transcricao']
                 result['processing_details']['audio_processed'] = True
+                
+                # Adicionar informações de diarização se disponíveis
+                if transcricao_result.get('medico') or transcricao_result.get('paciente'):
+                    result['speaker_separation'] = {
+                        'doctor_text': transcricao_result.get('medico', ''),
+                        'patient_text': transcricao_result.get('paciente', ''),
+                        'method': transcricao_result.get('metodo', 'unknown'),
+                        'total_speakers': transcricao_result.get('total_falantes', 0)
+                    }
             else:
                 result['transcription'] = f"Erro: {transcricao_result['erro']}"
         
@@ -729,6 +858,165 @@ async def root():
             'Reinicie o sistema após configurar'
         ]
     }
+
+@app.post("/api/audio-diarization")
+async def audio_diarization(
+    patient_info: str = Form(default=""),
+    audio: UploadFile = File(...)
+):
+    """
+    🎯 Endpoint para transcrição com diarização de falantes
+    Separa áudio de médico vs paciente automaticamente
+    """
+    
+    start_time = datetime.now()
+    
+    try:
+        logger.info(f"🎯 Diarização de áudio: {audio.filename}")
+        
+        if not audio or not audio.filename:
+            return {
+                'success': False,
+                'error': 'Arquivo de áudio é obrigatório'
+            }
+        
+        # Verificar formato de áudio
+        audio_formats = ['.wav', '.mp3', '.m4a', '.webm', '.ogg', '.mp4']
+        if not any(audio.filename.lower().endswith(ext) for ext in audio_formats):
+            return {
+                'success': False,
+                'error': f"Formato não suportado. Use: {', '.join(audio_formats)}"
+            }
+        
+        # Ler arquivo de áudio
+        audio_data = await audio.read()
+        
+        if len(audio_data) == 0:
+            return {
+                'success': False,
+                'error': 'Arquivo de áudio vazio'
+            }
+        
+        logger.info(f"Arquivo de áudio recebido: {len(audio_data)} bytes")
+        
+        # Executar diarização
+        transcricao_result = await sistema.transcricao.transcrever_audio_com_diarizacao(
+            audio_data, audio.filename
+        )
+        
+        if not transcricao_result['sucesso']:
+            return {
+                'success': False,
+                'error': transcricao_result.get('erro', 'Erro na transcrição'),
+                'timestamp': start_time.isoformat()
+            }
+        
+        # Preparar resultado
+        processing_time = (datetime.now() - start_time).total_seconds()
+        
+        result = {
+            'success': True,
+            'timestamp': start_time.isoformat(),
+            'processing_time_seconds': processing_time,
+            'patient_info': patient_info,
+            'transcription': transcricao_result.get('transcricao', ''),
+            'medical_conversation': {
+                'doctor_text': transcricao_result.get('medico', ''),
+                'patient_text': transcricao_result.get('paciente', ''),
+                'detailed_conversation': transcricao_result.get('conversa_detalhada', ''),
+                'total_speakers': transcricao_result.get('total_falantes', 0),
+                'method_used': transcricao_result.get('metodo', 'unknown'),
+                'duration_seconds': transcricao_result.get('duracao', 0)
+            },
+            'file_info': {
+                'filename': audio.filename,
+                'size_bytes': len(audio_data),
+                'transcription_length': transcricao_result.get('tamanho', 0)
+            },
+            'warnings': [transcricao_result.get('warning')] if transcricao_result.get('warning') else []
+        }
+        
+        logger.info(f"✅ Diarização concluída em {processing_time:.2f}s - Método: {transcricao_result.get('metodo')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na diarização: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'timestamp': start_time.isoformat()
+        }
+
+# ============================================================================
+# ENDPOINT DE ÁUDIO DIARIZAÇÃO ADICIONAL
+# ============================================================================
+
+@app.post("/api/audio-diarization")
+async def audio_diarization(
+    patient_info: str = Form(default=""),
+    audio: UploadFile = File(...),
+    recording_metadata: Optional[str] = Form(None)
+):
+    start_time = datetime.now()
+    
+    try:
+        # Decodificar metadados se fornecidos
+        metadata = {}
+        if recording_metadata:
+            try:
+                import json
+                metadata = json.loads(recording_metadata)
+                logger.info(f"Metadados recebidos: {metadata}")
+            except Exception as e:
+                logger.warning(f"Erro ao decodificar metadados: {e}")
+        
+        # Ler arquivo de áudio
+        audio_data = await audio.read()
+        
+        # Usar a TranscricaoService SEM pyannote (só Whisper + GPT)
+        resultado = await sistema.transcricao.transcrever_audio_com_diarizacao(
+            audio_data, audio.filename, metadata
+        )
+        
+        if not resultado['sucesso']:
+            return {
+                'success': False,
+                'error': resultado.get('erro', 'Erro na transcrição'),
+                'transcription': '',
+                'medical_conversation': {}
+            }
+        
+        # Preparar resposta para o frontend
+        processing_time = (datetime.now() - start_time).total_seconds()
+        
+        return {
+            'success': True,
+            'transcription': resultado.get('transcricao', ''),
+            'medical_conversation': {
+                'doctor_text': resultado.get('medico', ''),
+                'patient_text': resultado.get('paciente', ''),
+                'detailed_conversation': resultado.get('conversa_detalhada', ''),
+                'total_speakers': resultado.get('total_falantes', 0),
+                'method_used': resultado.get('metodo', 'whisper_gpt_analysis_v2')
+            },
+            'file_info': {
+                'filename': audio.filename,
+                'size_bytes': len(audio_data),
+                'transcription_length': resultado.get('tamanho', 0)
+            },
+            'processing_time_seconds': processing_time,
+            'warnings': [resultado.get('warning')] if resultado.get('warning') else []
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro na diarização: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'transcription': '',
+            'medical_conversation': {}
+        }
 
 # ============================================================================
 # STARTUP
