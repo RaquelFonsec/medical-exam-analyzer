@@ -343,8 +343,8 @@
                let streamType = 'unknown';
                let streamMetadata = {};
                
-               // MODAL DE INSTRUÇÕES PRIMEIRO
-               await showRecordingInstructions();
+               // INSTRUÇÃO SIMPLES PARA CAPTURA DE ÁUDIO
+               alert("⚠️ IMPORTANTE: Escolha 'Compartilhar áudio da aba' para capturar médico + paciente!");
                
                // 1. CAPTURAR ÁUDIO DO SISTEMA (PRIORIDADE - para videochamadas)
                try {
@@ -656,7 +656,7 @@
                    formData.append('recording_metadata', JSON.stringify(window.recordingMetadata));
                }
 
-               const response = await fetch('http://localhost:8000/api/audio-diarization', {
+               const response = await fetch('https://consultorio.previdas.com.br/api/audio-diarization', {
                    method: 'POST',
                    body: formData
                });
@@ -767,7 +767,7 @@
                
                formData.append('additional_info', patientInfo);
 
-               const response = await fetch('http://localhost:8000/api/analyze-exam-with-llm', {
+               const response = await fetch('https://consultorio.previdas.com.br/api/analyze-exam-with-llm', {
                    method: 'POST',
                    body: formData
                });

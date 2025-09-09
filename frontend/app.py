@@ -5,7 +5,7 @@ import os
 app = Flask(__name__)
 
 # Configuração do backend
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = "https://consultorio.previdas.com.br"
 
 @app.route("/")
 def index():
@@ -271,7 +271,7 @@ def test_page():
         <script>
             async function testBackend() {
                 try {
-                    const response = await fetch('http://localhost:8000/health');
+                    const response = await fetch('https://consultorio.previdas.com.br/health');
                     const result = await response.json();
                     document.getElementById('backend-status').innerHTML = '✅ ' + result.status;
                     document.getElementById('test-result').innerHTML = 
