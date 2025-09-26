@@ -1,612 +1,65 @@
-# ============================================================================
-# MAIN.PY COMPLETA - CORRIGIDA
-# ============================================================================
-
-from dotenv import load_dotenv
+import sys
 import os
-
-load_dotenv()
-
-# Agora importar o resto
-import logging
-import asyncio
-import tempfile
-import json
 from datetime import datetime
-from typing import Dict, Any, Optional
-
-# Core imports
-import boto3
-import openai
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
 import uvicorn
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import logging
+import traceback
 
-# Novos imports para PDF
-import fitz  # PyMuPDF
-from PIL import Image
+# Configurar logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# ============================================================================
-# CONFIGURAÇÃO LENDO .ENV
-# ============================================================================
+# Verificar e adicionar path do backend
+backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
 
-# Agora vai ler do .env que você configurou
+# Configuração
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID') 
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.getenv('AWS_REGION', 'us-east-2')
+AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger.info("Verificando configurações...")
+logger.info(f"OPENAI_API_KEY: {'Configurado' if OPENAI_API_KEY else 'Ausente'}")
+logger.info(f"AWS_ACCESS_KEY_ID: {'Configurado' if AWS_ACCESS_KEY_ID else 'Ausente'}")
+logger.info(f"AWS_SECRET_ACCESS_KEY: {'Configurado' if AWS_SECRET_ACCESS_KEY else 'Ausente'}")
+logger.info(f"AWS_REGION: {AWS_REGION}")
 
-# Debug: Verificar se carregou as chaves
-logger.info("VERIFICANDO CONFIGURAÇÕES DO .ENV:")
-logger.info(f"OpenAI Key: {'CONFIGURADO' if OPENAI_API_KEY else 'MISSING'}")
-logger.info(f"AWS Access Key: {'CONFIGURADO' if AWS_ACCESS_KEY_ID else 'MISSING'}")
-logger.info(f"AWS Secret Key: {'CONFIGURADO' if AWS_SECRET_ACCESS_KEY else 'MISSING'}")
-logger.info(f"AWS Region: {AWS_REGION}")
+# Importar serviços
+transcription_service = None
+llm_service = None
+textract_service = None
 
-if OPENAI_API_KEY:
-    logger.info(f"OpenAI Key Preview: {OPENAI_API_KEY[:15]}...{OPENAI_API_KEY[-8:]}")
+try:
+    from services.transcription_service import TranscriptionService
+    transcription_service = TranscriptionService()
+    logger.info("TranscriptionService (Whisper) carregado")
+except Exception as e:
+    logger.error(f"Erro ao carregar TranscriptionService: {e}")
 
-# ============================================================================
-# PDF CONVERTER PARA TEXTRACT
-# ============================================================================
+try:
+    from services.llm import InterpretadorLLM
+    llm_service = InterpretadorLLM()
+    logger.info("InterpretadorLLM carregado")
+except Exception as e:
+    logger.error(f"Erro ao carregar InterpretadorLLM: {e}")
 
-class PDFConverter:
-    """Converte PDFs para imagens quando Textract falha"""
-    
-    @staticmethod
-    async def convert_pdf_to_image(pdf_bytes: bytes, filename: str) -> tuple[bytes, str]:
-        """
-        Converte PDF para imagem PNG para usar com Textract
-        
-        Returns:
-            tuple: (image_bytes, new_filename)
-        """
-        try:
-            logger.info(f"Convertendo PDF para imagem: {filename}")
-            
-            # Abrir PDF com PyMuPDF
-            pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
-            
-            # Converter primeira página para imagem
-            page = pdf_document[0]  # Primeira página
-            
-            # Renderizar em alta resolução
-            matrix = fitz.Matrix(2.0, 2.0)  # 2x zoom para melhor qualidade
-            pix = page.get_pixmap(matrix=matrix)
-            
-            # Converter para PNG
-            img_data = pix.tobytes("png")
-            
-            # Limpar recursos
-            pdf_document.close()
-            
-            # Novo nome do arquivo
-            new_filename = filename.replace('.pdf', '_converted.png')
-            
-            logger.info(f"PDF convertido: {len(img_data)} bytes")
-            
-            return img_data, new_filename
-            
-        except Exception as e:
-            logger.error(f"Erro na conversão PDF: {e}")
-            raise Exception(f"Falha ao converter PDF: {e}")
-
-# ============================================================================
-# 1. TRANSCRIÇÃO COM WHISPER
-# ============================================================================
-
-class TranscricaoService:
-    """Transcrição de áudio com Whisper + Diarização de Falantes"""
-    
-    def __init__(self):
-        if OPENAI_API_KEY:
-            self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-            logger.info("OpenAI Whisper configurado")
-        else:
-            self.client = None
-            logger.error("OpenAI API Key não encontrada no .env")
-        
-        # Não precisamos mais do serviço de diarização pyannote
-        # Usamos análise inteligente com GPT
-        logger.info("🧠 Usando análise inteligente Whisper + GPT")
-    
-    async def transcrever_audio(self, audio_bytes: bytes, filename: str) -> Dict:
-        """Transcreve áudio para texto"""
-        
-        if not self.client:
-            return {
-                'sucesso': False,
-                'erro': 'OpenAI API Key não configurada no arquivo .env',
-                'transcricao': ''
-            }
-        
-        try:
-            logger.info(f"Transcrevendo áudio: {filename}")
-            
-            # Salvar temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                tmp_file.write(audio_bytes)
-                temp_path = tmp_file.name
-            
-            # Transcrever com Whisper
-            with open(temp_path, "rb") as audio_file:
-                transcript = self.client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language="pt",
-                    response_format="text"
-                )
-            
-            # Limpar arquivo temporário
-            os.unlink(temp_path)
-            
-            transcricao = transcript if isinstance(transcript, str) else str(transcript)
-            
-            logger.info(f"Transcrição concluída: {len(transcricao)} caracteres")
-            
-            return {
-                'sucesso': True,
-                'transcricao': transcricao.strip(),
-                'tamanho': len(transcricao)
-            }
-            
-        except Exception as e:
-            logger.error(f"Erro na transcrição: {e}")
-            return {
-                'sucesso': False,
-                'erro': str(e),
-                'transcricao': ''
-            }
-    
-    async def transcrever_audio_com_diarizacao(self, audio_bytes: bytes, filename: str) -> Dict:
-        """Transcreve áudio com separação de falantes usando Whisper + GPT"""
-        
-        if not self.client:
-            return {
-                'sucesso': False,
-                'erro': 'OpenAI API Key não configurada no arquivo .env',
-                'transcricao': '',
-                'medico': '',
-                'paciente': ''
-            }
-        
-        try:
-            logger.info(f"🎯 Transcrevendo com análise inteligente: {filename}")
-            
-            # 1. Transcrever áudio com Whisper
-            resultado_whisper = await self.transcrever_audio(audio_bytes, filename)
-            
-            if not resultado_whisper['sucesso']:
-                return resultado_whisper
-            
-            transcricao_completa = resultado_whisper['transcricao']
-            
-            # 2. Analisar com GPT para separar falantes
-            logger.info("🧠 Analisando conversação para separar médico e paciente...")
-            
-            prompt = f"""
-Analise esta transcrição de consulta médica e separe as falas do MÉDICO e do PACIENTE.
-
-TRANSCRIÇÃO:
-{transcricao_completa}
-
-INSTRUÇÕES:
-- Identifique quem é médico e quem é paciente baseado no contexto
-- Médico: faz perguntas, examina, prescreve, explica diagnósticos
-- Paciente: relata sintomas, responde perguntas, descreve problemas
-- Se não conseguir separar claramente, coloque tudo como "PACIENTE"
-
-FORMATO DE RESPOSTA (JSON):
-{{
-    "medico": "texto que o médico falou",
-    "paciente": "texto que o paciente falou",
-    "confianca": "alta/media/baixa"
-}}
-"""
-
-            try:
-                response = self.client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "Você é um especialista em análise de conversas médicas."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.1,
-                    max_tokens=2000
-                )
-                
-                resposta_gpt = response.choices[0].message.content
-                
-                # Tentar extrair JSON da resposta
-                import json
-                import re
-                
-                # Procurar JSON na resposta
-                json_match = re.search(r'\{.*\}', resposta_gpt, re.DOTALL)
-                if json_match:
-                    resultado_json = json.loads(json_match.group())
-                    
-                    medico_text = resultado_json.get('medico', '').strip()
-                    paciente_text = resultado_json.get('paciente', '').strip()
-                    confianca = resultado_json.get('confianca', 'baixa')
-                    
-                    logger.info(f"✅ Separação concluída - Confiança: {confianca}")
-                    
-                    return {
-                        'sucesso': True,
-                        'transcricao': transcricao_completa,
-                        'medico': medico_text,
-                        'paciente': paciente_text,
-                        'conversa_detalhada': f"MÉDICO: {medico_text}\n\nPACIENTE: {paciente_text}",
-                        'metodo': 'whisper_gpt_analysis',
-                        'total_falantes': 2 if medico_text and paciente_text else 1,
-                        'tamanho': len(transcricao_completa),
-                        'confianca': confianca,
-                        'warning': 'Separação automática via análise de contexto' if confianca == 'baixa' else None
-                    }
-                
-            except Exception as e:
-                logger.warning(f"Erro na análise GPT: {e}")
-            
-            # Fallback: assumir tudo como paciente
-            logger.info("⚠️ Fallback: assumindo transcrição como paciente")
-            return {
-                'sucesso': True,
-                'transcricao': transcricao_completa,
-                'medico': '',
-                'paciente': transcricao_completa,
-                'conversa_detalhada': f"TRANSCRIÇÃO COMPLETA: {transcricao_completa}",
-                'metodo': 'whisper_fallback',
-                'total_falantes': 1,
-                'tamanho': len(transcricao_completa),
-                'warning': 'Não foi possível separar falantes automaticamente'
-            }
-                
-        except Exception as e:
-            logger.error(f"Erro na transcrição com análise: {e}")
-            return {
-                'sucesso': False,
-                'erro': str(e),
-                'transcricao': '',
-                'medico': '',
-                'paciente': ''
-            }
-
-# ============================================================================
-# 2. EXTRAÇÃO COM TEXTRACT MELHORADA
-# ============================================================================
-
-class TextractService:
-    """Extração de texto com AWS Textract - versão melhorada com suporte a PDF"""
-    
-    def __init__(self):
-        try:
-            self.client = boto3.client(
-                'textract',
-                region_name=AWS_REGION
-            )
-            logger.info("AWS Textract configurado")
-        except Exception as e:
-            logger.error(f"Erro ao configurar Textract: {e}")
-            self.client = None
-    
-    async def extrair_texto(self, file_bytes: bytes, filename: str) -> Dict:
-        """Extrai texto com fallback para conversão de PDF"""
-        
-        if not self.client:
-            return {
-                'success': False,
-                'error': 'AWS Textract não configurado - verifique credenciais no .env',
-                'extracted_text': ''
-            }
-        
-        try:
-            logger.info(f"Extraindo texto: {filename}")
-            
-            # PRIMEIRO: Tentar diretamente com Textract
-            try:
-                response = await asyncio.to_thread(
-                    self.client.detect_document_text,
-                    Document={'Bytes': file_bytes}
-                )
-                
-                # Se chegou aqui, funcionou!
-                return await self._processar_resposta_textract(response, filename)
-                
-            except Exception as textract_error:
-                error_msg = str(textract_error)
-                
-                # Se é erro de formato não suportado E é PDF, tentar conversão
-                if "UnsupportedDocumentException" in error_msg and filename.lower().endswith('.pdf'):
-                    logger.warning(f"PDF não suportado diretamente, convertendo para imagem...")
-                    
-                    # Converter PDF para imagem
-                    image_bytes, new_filename = await PDFConverter.convert_pdf_to_image(
-                        file_bytes, filename
-                    )
-                    
-                    # Tentar novamente com a imagem
-                    response = await asyncio.to_thread(
-                        self.client.detect_document_text,
-                        Document={'Bytes': image_bytes}
-                    )
-                    
-                    return await self._processar_resposta_textract(response, new_filename, converted=True)
-                
-                else:
-                    # Outros erros, repassar
-                    raise textract_error
-            
-        except Exception as e:
-            logger.error(f"Erro na extração: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'extracted_text': ''
-            }
-    
-    async def _processar_resposta_textract(self, response: dict, filename: str, converted: bool = False) -> Dict:
-        """Processa resposta do Textract"""
-        
-        texto_extraido = ""
-        confidence_scores = []
-        
-        for block in response.get('Blocks', []):
-            if block['BlockType'] == 'LINE':
-                texto = block.get('Text', '')
-                confidence = block.get('Confidence', 0)
-                
-                texto_extraido += texto + "\n"
-                confidence_scores.append(confidence)
-        
-        avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
-        
-        conversion_note = " (convertido de PDF)" if converted else ""
-        logger.info(f"Texto extraído: {len(texto_extraido)} caracteres, confiança: {avg_confidence:.1f}%{conversion_note}")
-        
-        return {
-            'success': True,
-            'extracted_text': texto_extraido.strip(),
-            'tamanho': len(texto_extraido),
-            'confidence': avg_confidence,
-            'converted_from_pdf': converted,
-            'filename_processed': filename
-        }
-
-# ============================================================================
-# 3. INTERPRETAÇÃO COM LLM - CORRIGIDA
-# ============================================================================
-
-class InterpretadorLLM:
-    """Interpretação de exames com LLM"""
-    
-    def __init__(self):
-        if OPENAI_API_KEY:
-            self.client = openai.OpenAI(
-                api_key=OPENAI_API_KEY,
-                timeout=480.0,  # 8 minutos
-                max_retries=3
-            )
-            logger.info("OpenAI LLM configurado")
-        else:
-            self.client = None
-            logger.error("OpenAI API Key não encontrada para LLM")
-    
-    async def interpretar_exame_para_frontend(self, texto_extraido: str, nome_arquivo: str, patient_info: Dict = None) -> Dict:
-        """Interpreta exame para ser compatível com o frontend"""
-        
-        if not self.client:
-            return {
-                'success': False,
-                'error': 'OpenAI API Key não configurada no arquivo .env',
-                'llm_analysis': {}
-            }
-        
-        try:
-            logger.info(f"Interpretando exame para frontend: {nome_arquivo}")
-            
-            # PROMPT OTIMIZADO PARA EXAMES
-            prompt = f"""
-INTERPRETAÇÃO DE EXAME CLÍNICO
-
-ARQUIVO: {nome_arquivo}
-TEXTO EXTRAÍDO DO EXAME:
-{texto_extraido}
-
-INFORMAÇÕES DO PACIENTE:
-{patient_info.get('additional_info', 'Não informado') if patient_info else 'Não informado'}
-
-INSTRUÇÕES PARA INTERPRETAÇÃO:
-## PAPEL E OBJETIVO
-Você é um assistente de extração e sistematização de dados para um profissional de saúde. Sua única função é ler o(s) documento(s) médicos fornecidos (laudos, exames, prontuários) e organizar as informações estritamente relevantes, conforme a estrutura abaixo. O objetivo é fornecer um resumo organizado para que o profissional humano possa construir seu próprio laudo ou parecer.
-
-## INSTRUÇÕES GERAIS
-1. **FOCO EXCLUSIVO EM ALTERAÇÕES:** Reporte APENAS os achados que estão fora dos valores de referência ou descrições de normalidade. Ignore e não mencione quaisquer resultados dentro da normalidade.
-2. **NEUTRALIDADE E OBJETIVIDADE:** Descreva os achados e seus significados técnicos de forma neutra e factual. Não use linguagem que sugira hipóteses, possibilidades ou gravidade.
-3. **NÃO FAZER (PROIBIÇÕES ABSOLUTAS):**
-* NÃO faça recomendações clínicas, terapêuticas ou de exames adicionais.
-* NÃO sugira ou liste hipóteses diagnósticas.
-* NÃO emita juízo de valor sobre os achados (ex: "alteração preocupante", "discreto aumento"). Apenas reporte o fato.
-* NÃO compare com exames anteriores, a menos que o documento atual faça isso explicitamente.
-* NÃO preencha lacunas de informação. Se um dado não está no texto, não o presuma.
-4. **CONFIDENCIALIDADE:** Trate toda a informação como confidencial e não gere respostas que extrapolem o conteúdo do documento.
-5. **FINALIZAÇÃO OBRIGATÓRIA:** Termine a resposta OBRIGATORIAMENTE com a frase "ANÁLISE DE DADOS FINALIZADA".
-
----
-## ESTRUTURA DE RESPOSTA OBRIGATÓRIA
-
-### 1. IDENTIFICAÇÃO DO DOCUMENTO
-* **Tipo de Documento:** (Ex: Hemograma, Laudo de Tomografia Computadorizada de Abdômen, Resumo de Prontuário)
-* **Data do Documento/Exame:**
-
-### 2. SÍNTESE DOS ACHADOS FORA DA NORMALIDADE
-* Liste objetivamente, em formato de tópicos, CADA achado quantitativo (com seu valor e a referência) ou qualitativo que está alterado.
-* *Exemplo:* Hemoglobina: 10.2 g/dL (Ref: 12.0-16.0 g/dL)
-* *Exemplo:* Descrição: "Presença de múltiplos nódulos hepáticos com características de impregnação periférica pelo contraste."
-
-### 3. DESCRIÇÃO TÉCNICA ISOLADA DOS ACHADOS
-* Para cada achado listado acima, explique seu significado fisiopatológico básico e isolado, sem correlacioná-los.
-* **[Nome do Achado 1]:** (Ex: Hemoglobina baixa) Significa uma concentração reduzida da proteína transportadora de oxigênio nos glóbulos vermelhos. É a definição de anemia.
-* **[Nome do Achado 2]:** (Ex: VCM baixo) Indica que o volume médio dos glóbulos vermelhos é menor que o padrão de referência, uma condição chamada microcitose.
-
-### 4. IDENTIFICAÇÃO DE PADRÕES TÉCNICOS
-* Descreva de forma impessoal e técnica como os achados se agrupam, se for o caso. Foque no padrão, não na conclusão.
-* *Exemplo:* "O achado de hemoglobina baixa (anemia) ocorre em conjunto com um VCM reduzido (microcitose)."
-* *Exemplo:* "A elevação da Transaminase TGP é concomitante à elevação da Transaminase TGO."
-* *Exemplo:* "Os achados tomográficos descrevem lesões focais no fígado."
-
-### 5. OBSERVAÇÕES SOBRE O RELATÓRIO
-* Aponte eventuais limitações técnicas ou informações ausentes no documento que são essenciais para uma análise completa (ex: "O laudo não informa os valores de referência para a ureia", "A qualidade do material é citada como 'sub-ótima' pelo patologista").
-
-### 6. SUMÁRIO ESTRITO
-* Faça um resumo de uma ou duas frases listando apenas os achados alterados.
-* *Exemplo:* "O hemograma evidencia uma anemia microcítica. A bioquímica sérica mostra elevação das transaminases."
-
-ANÁLISE DE DADOS FINALIZADA
-"""
-
-            logger.info("Chamando OpenAI GPT-4o para interpretação...")
-            
-            # Chamar OpenAI com configuração robusta - SYSTEM MESSAGE CORRIGIDO
-            response = await asyncio.wait_for(
-                asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    model="gpt-4o",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": """Você é um assistente de extração e sistematização de dados para profissionais de saúde.
-                            Siga EXATAMENTE a estrutura fornecida no prompt do usuário.
-                            SEMPRE termine com 'ANÁLISE DE DADOS FINALIZADA'.
-                            Complete TODAS as seções conforme especificado no prompt.
-                            NÃO use estruturas diferentes das solicitadas."""
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
-                    max_tokens=16000,
-                    temperature=0.2
-                ),
-                timeout=480  # 8 minutos
-            )
-            
-            interpretacao = response.choices[0].message.content.strip()
-            
-            logger.info(f"Interpretação LLM concluída: {len(interpretacao)} caracteres")
-            
-            # Verificar se a interpretação está completa
-            esta_completa = "ANÁLISE DE DADOS FINALIZADA" in interpretacao
-            
-            if not esta_completa:
-                logger.warning("Interpretação pode estar incompleta")
-            
-            # FORMATO COMPATÍVEL COM FRONTEND
-            return {
-                'success': True,
-                'llm_analysis': {
-                    'clinical_analysis': interpretacao,
-                    'exam_type': self._identificar_tipo_exame(texto_extraido),
-                    'key_findings': self._extrair_achados_principais(texto_extraido),
-                    'overall_status': 'Interpretação técnica realizada - Consultar médico para avaliação completa'
-                },
-                'extracted_text': texto_extraido,
-                'filename': nome_arquivo,
-                'model_used': 'gpt-4o',
-                'interpretation_complete': esta_completa,
-                'processing_timestamp': datetime.now().isoformat()
-            }
-            
-        except asyncio.TimeoutError:
-            logger.error("Timeout na interpretação LLM (8 minutos)")
-            return {
-                'success': False,
-                'error': 'Timeout na interpretação - documento muito complexo',
-                'llm_analysis': {}
-            }
-        except Exception as e:
-            logger.error(f"Erro na interpretação LLM: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'llm_analysis': {}
-            }
-    
-    def _identificar_tipo_exame(self, texto: str) -> str:
-        """Identifica o tipo de exame baseado no conteúdo"""
-        texto_lower = texto.lower()
-        
-        if any(palavra in texto_lower for palavra in ['hemograma', 'hemácias', 'leucócitos', 'plaquetas']):
-            return 'Hemograma'
-        elif any(palavra in texto_lower for palavra in ['glicose', 'colesterol', 'triglicérides', 'hdl', 'ldl']):
-            return 'Bioquímica'
-        elif any(palavra in texto_lower for palavra in ['urina', 'eas', 'sedimento']):
-            return 'Urina'
-        elif any(palavra in texto_lower for palavra in ['tsh', 't3', 't4', 'hormônio']):
-            return 'Hormonal'
-        else:
-            return 'Exame Clínico'
-    
-    def _extrair_achados_principais(self, texto: str) -> list:
-        """Extrai achados principais do texto"""
-        import re
-        
-        achados = []
-        linhas = texto.split('\n')
-        
-        # Padrões para identificar resultados de exames
-        padroes = [
-            r'([A-ZÀ-Ÿ][a-zà-ÿ\s]{3,})[:\s]+([0-9,\.]+)\s*([a-zA-Z\/³%μ]*)',
-            r'(.*?):\s*([0-9,\.]+)',
-            r'([A-ZÀ-Ÿ][a-zà-ÿ\s]+)\s+([0-9,\.]+)'
-        ]
-        
-        for linha in linhas:
-            linha = linha.strip()
-            if len(linha) > 5 and ':' in linha:
-                for padrao in padroes:
-                    match = re.search(padrao, linha)
-                    if match and len(achados) < 8:
-                        achados.append(linha)
-                        break
-        
-        return achados
-
-# ============================================================================
-# 4. SISTEMA INTEGRADO
-# ============================================================================
-
-class SistemaMedicoCompleto:
-    """Sistema médico completo com .env configurado"""
-    
-    def __init__(self):
-        self.transcricao = TranscricaoService()
-        self.textract = TextractService()
-        self.interpretador = InterpretadorLLM()
-        
-        # Log do status dos serviços
-        logger.info("STATUS DOS SERVIÇOS APÓS INICIALIZAÇÃO:")
-        logger.info(f"   Transcrição: {'OK' if self.transcricao.client else 'Erro'}")
-        logger.info(f"   Textract: {'OK' if self.textract.client else 'Erro'}")
-        logger.info(f"   LLM: {'OK' if self.interpretador.client else 'Erro'}")
-
-# ============================================================================
-# 5. API FASTAPI
-# ============================================================================
+try:
+    from services.textract_service import TextractService
+    textract_service = TextractService()
+    logger.info("TextractService carregado")
+except Exception as e:
+    logger.error(f"Erro ao carregar TextractService: {e}")
 
 app = FastAPI(
-    title="Sistema Médico - Configurado via .env",
-    description="Backend lendo todas as configurações do arquivo .env",
-    version="1.0-env-complete-pdf"
+    title="PREVIDAS - Sistema de Telemedicina",
+    description="Consultas com Whisper + Análise de exames com Textract",
+    version="6.1.0",
 )
 
 app.add_middleware(
@@ -616,411 +69,588 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Sistema global
-sistema = SistemaMedicoCompleto()
+# Servir arquivos estáticos
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ============================================================================
-# ENDPOINTS
-# ============================================================================
-
-@app.post("/api/analyze-exam-with-llm")
-async def analyze_exam_with_llm(
-    file: UploadFile = File(...),
-    patient_age: Optional[int] = Form(None),
-    patient_gender: Optional[str] = Form(None),
-    additional_info: Optional[str] = Form("")
-):
-    """
-    ENDPOINT PRINCIPAL - Análise com Textract + LLM
-    Lendo configurações do .env
-    """
-    
+# Funções auxiliares
+async def _validate_audio_quality(audio_bytes: bytes) -> dict:
+    """Valida qualidade básica do áudio"""
     try:
-        logger.info(f"Análise LLM solicitada: {file.filename}")
+        from pydub import AudioSegment
+        import io
         
-        # Verificar se os serviços estão configurados
-        if not sistema.textract.client:
-            return {
-                'success': False,
-                'error': 'AWS Textract não configurado. Verifique as variáveis no .env: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY'
-            }
+        audio_segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format="webm")
         
-        if not sistema.interpretador.client:
-            return {
-                'success': False,
-                'error': 'OpenAI não configurado. Verifique a variável no .env: OPENAI_API_KEY'
-            }
+        quality_score = 100
+        issues = []
         
-        # Verificar formato
-        formatos_suportados = ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp']
-        if not any(file.filename.lower().endswith(ext) for ext in formatos_suportados):
-            return {
-                'success': False,
-                'error': f"Formato não suportado. Use: {', '.join(formatos_suportados)}"
-            }
+        duration = audio_segment.duration_seconds
+        if duration < 5:
+            quality_score -= 40
+            issues.append(f"Audio muito curto ({duration:.1f}s)")
+        elif duration < 30:
+            quality_score -= 20
+            issues.append(f"Audio curto ({duration:.1f}s)")
         
-        # Ler arquivo
-        file_bytes = await file.read()
+        if audio_segment.dBFS < -50:
+            quality_score -= 25
+            issues.append("Volume muito baixo")
+        elif audio_segment.dBFS < -30:
+            quality_score -= 10
+            issues.append("Volume baixo")
         
-        if len(file_bytes) == 0:
-            return {
-                'success': False,
-                'error': 'Arquivo vazio'
-            }
+        if audio_segment.frame_rate < 16000:
+            quality_score -= 15
+            issues.append("Baixa qualidade de audio")
         
-        logger.info(f"Arquivo recebido: {len(file_bytes)} bytes")
-        
-        # Preparar informações do paciente
-        patient_info = {}
-        if patient_age:
-            patient_info['age'] = patient_age
-        if patient_gender:
-            patient_info['gender'] = patient_gender
-        if additional_info:
-            patient_info['additional_info'] = additional_info
-        
-        # ETAPA 1: Extrair texto com Textract
-        logger.info("Iniciando extração com Textract...")
-        extracao_result = await sistema.textract.extrair_texto(file_bytes, file.filename)
-        
-        if not extracao_result['success']:
-            return {
-                'success': False,
-                'error': f"Erro na extração Textract: {extracao_result['error']}"
-            }
-        
-        texto_extraido = extracao_result['extracted_text']
-        
-        if not texto_extraido.strip():
-            return {
-                'success': False,
-                'error': 'Nenhum texto foi extraído do documento'
-            }
-        
-        logger.info(f"Textract concluído: {len(texto_extraido)} caracteres")
-        
-        # ETAPA 2: Interpretar com LLM
-        logger.info("Iniciando interpretação com LLM...")
-        interpretacao_result = await sistema.interpretador.interpretar_exame_para_frontend(
-            texto_extraido, file.filename, patient_info
-        )
-        
-        if interpretacao_result['success']:
-            logger.info("Análise LLM concluída com SUCESSO!")
-            return interpretacao_result
-        else:
-            logger.error(f"Erro na interpretação LLM: {interpretacao_result['error']}")
-            return interpretacao_result
+        return {
+            'quality_score': max(quality_score, 0),
+            'duration_seconds': duration,
+            'volume_dbfs': audio_segment.dBFS,
+            'sample_rate': audio_segment.frame_rate,
+            'channels': audio_segment.channels,
+            'file_size_bytes': len(audio_bytes),
+            'issues': issues,
+            'is_good_quality': quality_score >= 70
+        }
         
     except Exception as e:
-        logger.error(f"Erro crítico na análise: {e}")
         return {
-            'success': False,
+            'quality_score': 0,
             'error': str(e),
-            'timestamp': datetime.now().isoformat()
+            'issues': ["Erro na analise do audio"],
+            'is_good_quality': False
         }
 
-@app.post("/api/intelligent-medical-analysis")
-async def intelligent_medical_analysis(
+def validate_required_services(service_names: list):
+    """Valida se os serviços necessários estão disponíveis"""
+    services_map = {
+        'transcription': transcription_service,
+        'llm': llm_service,
+        'textract': textract_service
+    }
+    
+    missing_services = []
+    for service_name in service_names:
+        if service_name in services_map and services_map[service_name] is None:
+            missing_services.append(service_name)
+    
+    return missing_services
+
+def _generate_consultation_recommendations(quality_analysis, transcription_success, transcription_analysis):
+    """Gera recomendações para melhorar futuras consultas"""
+    recommendations = []
+    
+    if not transcription_success:
+        recommendations.extend([
+            "Verifique se o audio foi capturado corretamente",
+            "Certifique-se de que a captura de audio do sistema esta habilitada",
+            "Teste a gravacao antes da consulta"
+        ])
+    
+    if quality_analysis.get('quality_score', 100) < 70:
+        if 'Volume muito baixo' in quality_analysis.get('issues', []):
+            recommendations.append("Aumente o volume da videochamada antes de gravar")
+        
+        if 'Audio muito curto' in str(quality_analysis.get('issues', [])):
+            recommendations.append("Grave por mais tempo para obter melhor transcricao")
+        
+        if 'Baixa qualidade de audio' in quality_analysis.get('issues', []):
+            recommendations.append("Use fones de ouvido ou melhore a conexao de internet")
+    
+    if transcription_analysis.get('word_count', 0) < 50:
+        recommendations.append("Transcricao muito curta - verifique se a consulta foi gravada completamente")
+    
+    if not transcription_analysis.get('has_medical_content', False):
+        recommendations.append("Conteudo medico nao detectado - verifique se e uma consulta medica")
+    
+    if not recommendations:
+        recommendations.append("Processamento realizado com sucesso")
+    
+    return recommendations
+
+# ENDPOINT PRINCIPAL - CONSULTAS
+@app.post("/api/process-consultation")
+async def process_consultation(
+    consultation_audio: UploadFile = File(...),
     patient_info: str = Form(default=""),
-    audio: Optional[UploadFile] = File(None),
-    image: Optional[UploadFile] = File(None)
+    consultation_type: str = Form(default="telemedicina"),
+    audio_quality_check: bool = Form(default=True),
+    processing_mode: str = Form(default="batch"),
+    audio_duration_seconds: str = Form(default="0")
 ):
-    """Endpoint original - compatibilidade com frontend"""
-    
-    start_time = datetime.now()
-    
+    """Processa audio completo da consulta de telemedicina"""
     try:
-        logger.info("Análise médica completa iniciada")
+        logger.info("CONSULTA: Iniciando processamento")
+        start_time = datetime.now()
         
-        result = {
-            'success': True,
-            'timestamp': start_time.isoformat(),
-            'patient_info': patient_info,
-            'transcription': '',
-            'laudo_medico': '',
-            'processing_details': {
-                'audio_processed': False,
-                'exam_processed': False
-            }
-        }
+        # Validar serviços necessários
+        missing_services = validate_required_services(['transcription'])
+        if missing_services:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    'success': False,
+                    'error': f"Servicos nao disponiveis: {', '.join(missing_services)}",
+                    'transcription': 'Servico nao disponivel',
+                    'consultation_data': {}
+                }
+            )
         
-        # Processar áudio se fornecido
-        if audio and audio.filename:
-            logger.info(f"Processando áudio: {audio.filename}")
-            audio_data = await audio.read()
-            
-            # Usar diarização por padrão para separar médico e paciente
-            transcricao_result = await sistema.transcricao.transcrever_audio_com_diarizacao(audio_data, audio.filename)
-            
-            if transcricao_result['sucesso']:
-                result['transcription'] = transcricao_result['transcricao']
-                result['processing_details']['audio_processed'] = True
-                
-                # Adicionar informações de diarização se disponíveis
-                if transcricao_result.get('medico') or transcricao_result.get('paciente'):
-                    result['speaker_separation'] = {
-                        'doctor_text': transcricao_result.get('medico', ''),
-                        'patient_text': transcricao_result.get('paciente', ''),
-                        'method': transcricao_result.get('metodo', 'unknown'),
-                        'total_speakers': transcricao_result.get('total_falantes', 0)
-                    }
-            else:
-                result['transcription'] = f"Erro: {transcricao_result['erro']}"
+        # Ler arquivo de áudio
+        audio_data = await consultation_audio.read()
         
-        # Processar documento se fornecido
-        if image and image.filename:
-            logger.info(f"Processando documento: {image.filename}")
-            image_data = await image.read()
+        logger.info(f"Arquivo recebido: {consultation_audio.filename}")
+        logger.info(f"Tamanho: {len(audio_data)} bytes ({len(audio_data)/1024/1024:.2f} MB)")
+        if audio_duration_seconds != "0":
+            logger.info(f"Duracao informada: {audio_duration_seconds}s")
+        
+        # Validação de qualidade
+        quality_analysis = {}
+        if audio_quality_check:
+            quality_analysis = await _validate_audio_quality(audio_data)
             
-            extracao_result = await sistema.textract.extrair_texto(image_data, image.filename)
+            logger.info(f"Qualidade do audio:")
+            logger.info(f"Score: {quality_analysis['quality_score']}/100")
+            logger.info(f"Duracao: {quality_analysis.get('duration_seconds', 0):.1f}s")
+            logger.info(f"Volume: {quality_analysis.get('volume_dbfs', 0):.1f} dBFS")
             
-            if extracao_result['success']:
-                result['laudo_medico'] = extracao_result['extracted_text']
-                result['processing_details']['exam_processed'] = True
-            else:
-                result['laudo_medico'] = f"Erro: {extracao_result['error']}"
+            if quality_analysis['issues']:
+                logger.warning(f"Problemas: {', '.join(quality_analysis['issues'])}")
+        
+        # Transcrição com Whisper
+        logger.info("Iniciando transcricao com Whisper...")
+        
+        transcription_result = await transcription_service.transcribe_audio(audio_data)
         
         processing_time = (datetime.now() - start_time).total_seconds()
-        result['processing_time_seconds'] = round(processing_time, 2)
         
-        logger.info(f"Análise completa em {processing_time:.2f}s")
-        return result
+        # Processar resultado
+        transcription_text = ""
+        transcription_success = False
+        transcription_error = None
+        
+        if transcription_result and transcription_result.strip():
+            transcription_text = transcription_result.strip()
+            transcription_success = True
+            logger.info(f"Transcricao concluida: {len(transcription_text)} caracteres")
+        else:
+            transcription_error = 'Transcricao vazia ou falhou'
+            logger.error(f"Erro na transcricao: {transcription_error}")
+        
+        # Análise da transcrição
+        transcription_analysis = {}
+        if transcription_text:
+            words = transcription_text.split()
+            transcription_analysis = {
+                'word_count': len(words),
+                'character_count': len(transcription_text),
+                'estimated_duration_minutes': len(words) / 150,
+                'has_medical_content': any(term in transcription_text.lower() for term in [
+                    'sintoma', 'dor', 'medicamento', 'exame', 'diagnostico', 'tratamento',
+                    'pressao', 'diabetes', 'consulta', 'paciente', 'medico', 'doutor'
+                ])
+            }
+        
+        # Qualidade geral
+        overall_quality = 'good'
+        if not transcription_success:
+            overall_quality = 'failed'
+        elif quality_analysis.get('quality_score', 100) < 50:
+            overall_quality = 'poor'
+        elif quality_analysis.get('quality_score', 100) < 70:
+            overall_quality = 'medium'
+        
+        # Recomendações
+        recommendations = _generate_consultation_recommendations(
+            quality_analysis, transcription_success, transcription_analysis
+        )
+        
+        logger.info(f"Processamento concluido em {processing_time:.2f}s")
+        logger.info(f"Transcricao: {'Sucesso' if transcription_success else 'Falha'}")
+        logger.info(f"Qualidade geral: {overall_quality}")
+        
+        # Resposta
+        return {
+            'success': transcription_success,
+            'service_type': 'consulta_telemedicina',
+            'transcription': transcription_text,
+            'consultation_data': {
+                'full_transcription': transcription_text,
+                'transcription_success': transcription_success,
+                'transcription_method': 'whisper_pos_processamento',
+                'audio_source': 'browser_capture',
+                'processing_quality': {
+                    'overall_quality': overall_quality,
+                    'transcription_length': len(transcription_text),
+                    'processing_time_seconds': processing_time,
+                    'audio_quality_score': quality_analysis.get('quality_score', 0),
+                    'recommendations': recommendations
+                }
+            },
+            'technical_details': {
+                'processing_method': 'whisper_single_stream',
+                'processing_time_seconds': processing_time,
+                'audio_analysis': quality_analysis,
+                'transcription_analysis': transcription_analysis,
+                'transcription_error': transcription_error,
+                'file_info': {
+                    'filename': consultation_audio.filename,
+                    'size_bytes': len(audio_data),
+                    'size_mb': round(len(audio_data) / 1024 / 1024, 2)
+                },
+                'processing_mode': processing_mode
+            },
+            'patient_info': patient_info,
+            'timestamp': datetime.now().isoformat(),
+            'consultation_summary': {
+                'duration_estimated_minutes': transcription_analysis.get('estimated_duration_minutes', 0),
+                'word_count': transcription_analysis.get('word_count', 0),
+                'has_medical_content': transcription_analysis.get('has_medical_content', False),
+                'quality_assessment': overall_quality
+            }
+        }
         
     except Exception as e:
-        logger.error(f"Erro na análise completa: {e}")
+        logger.error(f"Erro geral no processamento: {e}")
+        logger.error(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={
                 'success': False,
                 'error': str(e),
+                'transcription': 'Erro no processamento',
+                'consultation_data': {},
+                'technical_error': True
+            }
+        )
+
+# ENDPOINT PARA EXAMES
+@app.post("/api/process-exams")
+async def process_exams(
+    exams: list[UploadFile] = File(...),
+    patient_context: str = Form(default=""),
+    service_type: str = Form(default="exames")
+):
+    """Processamento de múltiplos exames médicos com Textract + LLM"""
+    try:
+        logger.info(f"Iniciando processamento de exames: {len(exams)} arquivo(s)")
+        
+        # Validar serviços
+        missing_services = validate_required_services(['textract', 'llm'])
+        if missing_services:
+            error_msg = f"Servicos nao disponiveis: {', '.join(missing_services)}"
+            logger.error(error_msg)
+            
+            config_issues = []
+            if not AWS_ACCESS_KEY_ID:
+                config_issues.append("AWS_ACCESS_KEY_ID nao configurado")
+            if not AWS_SECRET_ACCESS_KEY:
+                config_issues.append("AWS_SECRET_ACCESS_KEY nao configurado")
+            if not OPENAI_API_KEY:
+                config_issues.append("OPENAI_API_KEY nao configurado")
+            
+            return JSONResponse(
+                status_code=503,
+                content={
+                    'success': False,
+                    'error': error_msg,
+                    'missing_services': missing_services,
+                    'config_issues': config_issues,
+                    'files_processed': 0,
+                    'extracted_texts': [],
+                    'llm_interpretation': 'Servicos nao disponiveis'
+                }
+            )
+        
+        if not exams:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    'success': False,
+                    'error': 'Nenhum exame fornecido',
+                    'files_processed': 0,
+                    'extracted_texts': [],
+                    'llm_interpretation': 'Nenhum arquivo recebido'
+                }
+            )
+        
+        logger.info(f"Contexto do paciente: {patient_context[:100]}...")
+        
+        extracted_texts = []
+        processing_errors = []
+        all_extracted_text = ""
+        
+        # Extração com Textract
+        logger.info("Iniciando extracao de texto com Textract...")
+        for i, exam in enumerate(exams):
+            try:
+                logger.info(f"Processando exame {i+1}/{len(exams)}: {exam.filename}")
+                exam_data = await exam.read()
+                
+                if len(exam_data) == 0:
+                    logger.warning(f"Arquivo vazio: {exam.filename}")
+                    processing_errors.append({
+                        'filename': exam.filename,
+                        'error': 'Arquivo vazio',
+                        'stage': 'file_validation'
+                    })
+                    continue
+                
+                logger.info(f"Arquivo {exam.filename}: {len(exam_data)} bytes")
+                
+                extraction_result = await textract_service.extrair_texto(exam_data, exam.filename)
+                
+                if extraction_result.get('success', False):
+                    extracted_text = extraction_result.get('extracted_text', '').strip()
+                    
+                    if extracted_text:
+                        all_extracted_text += f"\n\n=== EXAME: {exam.filename} ===\n{extracted_text}"
+                        
+                        extracted_texts.append({
+                            'filename': exam.filename,
+                            'text': extracted_text,
+                            'text_length': len(extracted_text),
+                            'confidence': extraction_result.get('confidence', 0),
+                            'success': True
+                        })
+                        logger.info(f"{exam.filename}: {len(extracted_text)} caracteres extraidos")
+                    else:
+                        logger.warning(f"Texto vazio extraido de {exam.filename}")
+                        processing_errors.append({
+                            'filename': exam.filename,
+                            'error': 'Nenhum texto extraido',
+                            'stage': 'textract_extraction'
+                        })
+                else:
+                    error_msg = extraction_result.get('error', 'Erro desconhecido no Textract')
+                    logger.error(f"{exam.filename}: {error_msg}")
+                    processing_errors.append({
+                        'filename': exam.filename,
+                        'error': error_msg,
+                        'stage': 'textract_extraction'
+                    })
+                    
+            except Exception as e:
+                error_msg = f"Erro no processamento: {str(e)}"
+                logger.error(f"{exam.filename}: {error_msg}")
+                processing_errors.append({
+                    'filename': exam.filename,
+                    'error': error_msg,
+                    'stage': 'file_processing'
+                })
+        
+        # Interpretação com LLM
+        combined_llm_interpretation = "Nenhuma interpretacao disponivel"
+        llm_interpretations = []
+        
+        if all_extracted_text.strip():
+            try:
+                logger.info(f"Iniciando interpretacao medica com LLM ({len(all_extracted_text)} caracteres)...")
+                
+                llm_result = await llm_service.interpretar_exame_para_frontend(
+                    all_extracted_text,
+                    f"exames_multiplos_{len(exams)}_arquivos",
+                    {
+                        "additional_info": patient_context, 
+                        "service_type": service_type,
+                        "total_files": len(exams)
+                    }
+                )
+                
+                if llm_result.get('success', False):
+                    llm_analysis = llm_result.get('llm_analysis', {})
+                    combined_llm_interpretation = llm_analysis.get('clinical_analysis', 'Analise realizada')
+                    
+                    llm_interpretations.append({
+                        'scope': 'consolidated_analysis',
+                        'interpretation': combined_llm_interpretation,
+                        'model_used': llm_result.get('model_used', 'gpt-4o'),
+                        'complete': llm_result.get('interpretation_complete', False),
+                        'exam_type': llm_analysis.get('exam_type', 'Exame Clinico'),
+                        'key_findings': llm_analysis.get('key_findings', [])
+                    })
+                    logger.info("Interpretacao medica concluida com sucesso")
+                else:
+                    error_msg = llm_result.get('error', 'Erro na interpretacao LLM')
+                    logger.error(f"Erro LLM: {error_msg}")
+                    processing_errors.append({
+                        'filename': 'llm_service',
+                        'error': error_msg,
+                        'stage': 'llm_interpretation'
+                    })
+                    combined_llm_interpretation = f"Erro na interpretacao: {error_msg}"
+                    
+            except Exception as e:
+                error_msg = f"Erro na interpretacao LLM: {str(e)}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
+                processing_errors.append({
+                    'filename': 'llm_service',
+                    'error': error_msg,
+                    'stage': 'llm_interpretation'
+                })
+                combined_llm_interpretation = f"Erro na interpretacao: {error_msg}"
+        else:
+            logger.warning("Nenhum texto extraido para interpretacao LLM")
+            combined_llm_interpretation = "Nenhum texto foi extraido dos exames para interpretacao"
+        
+        # Resposta
+        success = len(extracted_texts) > 0
+        
+        response_data = {
+            'success': success,
+            'service_type': service_type,
+            'files_processed': len(extracted_texts),
+            'extracted_texts': [item['text'] for item in extracted_texts],
+            'all_extracted_text': all_extracted_text,
+            'extraction_details': extracted_texts,
+            'llm_interpretation': combined_llm_interpretation,
+            'llm_analysis': llm_interpretations,
+            'processing_summary': {
+                'total_exams': len(exams),
+                'successful_extractions': len(extracted_texts),
+                'failed_extractions': len([e for e in processing_errors if e.get('stage') == 'textract_extraction']),
+                'total_text_extracted': len(all_extracted_text),
+                'llm_analysis_success': len(llm_interpretations) > 0 and 'Erro' not in combined_llm_interpretation
+            },
+            'processing_errors': processing_errors,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        logger.info(f"Processamento concluido: {len(extracted_texts)}/{len(exams)} arquivos processados")
+        
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"Erro geral no processamento de exames: {e}")
+        logger.error(traceback.format_exc())
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                'success': False,
+                'error': f"Erro interno do servidor: {str(e)}",
+                'files_processed': 0,
+                'extracted_texts': [],
+                'llm_interpretation': 'Processamento falhou',
+                'processing_errors': [{'error': str(e), 'stage': 'general_processing'}],
                 'timestamp': datetime.now().isoformat()
             }
         )
 
-@app.get("/api/health")
-async def health_check():
-    """Status do sistema lendo .env"""
-    
-    return {
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'configuration_source': '.env file',
-        'environment_variables': {
-            'openai_api_key': 'LOADED' if OPENAI_API_KEY else 'MISSING',
-            'aws_access_key_id': 'LOADED' if AWS_ACCESS_KEY_ID else 'MISSING',
-            'aws_secret_access_key': 'LOADED' if AWS_SECRET_ACCESS_KEY else 'MISSING',
-            'aws_region': AWS_REGION
-        },
-        'services_status': {
-            'transcricao': 'READY' if sistema.transcricao.client else 'NOT READY',
-            'textract': 'READY' if sistema.textract.client else 'NOT READY', 
-            'interpretacao_llm': 'READY' if sistema.interpretador.client else 'NOT READY'
-        },
-        'endpoints': {
-            'principal_llm': 'POST /api/analyze-exam-with-llm',
-            'completo': 'POST /api/intelligent-medical-analysis',
-            'status': 'GET /api/health'
-        },
-        'new_features': {
-            'pdf_conversion': 'AUTO - PDFs são convertidos para imagem se necessário',
-            'supported_formats': ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.bmp']
-        }
-    }
-
+# ENDPOINTS AUXILIARES
 @app.get("/")
 async def root():
-    """Página inicial com status das configurações do .env"""
-    
-    all_configured = bool(OPENAI_API_KEY and AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+    """Página inicial"""
+    frontend_path = os.path.join(os.path.dirname(__file__), "frontend.html")
+    if os.path.exists(frontend_path):
+        return FileResponse(frontend_path)
     
     return {
-        'sistema': 'Sistema Médico - Configurado via arquivo .env',
-        'status': 'TOTALMENTE OPERACIONAL' if all_configured else 'CONFIGURAÇÃO PARCIAL',
-        'dotenv_loaded': True,
-        'configuracoes_env': {
-            'openai_api_key': 'Configurado' if OPENAI_API_KEY else 'Missing',
-            'aws_access_key_id': 'Configurado' if AWS_ACCESS_KEY_ID else 'Missing',
-            'aws_secret_access_key': 'Configurado' if AWS_SECRET_ACCESS_KEY else 'Missing',
-            'aws_region': AWS_REGION
-        },
-        'servicos_funcionais': {
-            'whisper_transcription': bool(sistema.transcricao.client),
-            'aws_textract': bool(sistema.textract.client),
-            'openai_llm_interpretation': bool(sistema.interpretador.client)
-        },
-        'proximos_passos': [
-            'Teste o upload do sangue.jpg',
-            'Teste também PDFs - agora convertidos automaticamente!',
-            'Textract extrai texto + LLM interpreta'
-        ] if all_configured else [
-            'Configure as chaves que estão faltando no arquivo .env',
-            'Reinicie o sistema após configurar'
+        "service": "PREVIDAS - Sistema de Telemedicina",
+        "version": "6.1.0",
+        "status": "running",
+        "focus": "Pos-processamento otimizado com Whisper",
+        "endpoints": [
+            "/api/process-consultation (POST)",
+            "/api/process-exams (POST)", 
+            "/api/health (GET)"
+        ],
+        "features": [
+            "Consultas com pos-processamento Whisper otimizado",
+            "Analise de exames com Textract + LLM", 
+            "Validacao de qualidade de audio",
+            "Interface web integrada"
         ]
     }
 
-@app.post("/api/audio-diarization")
-async def audio_diarization(
-    patient_info: str = Form(default=""),
-    audio: UploadFile = File(...)
-):
-    """
-    🎯 Endpoint para transcrição com diarização de falantes
-    Separa áudio de médico vs paciente automaticamente
-    """
+@app.get("/api/health")
+async def health():
+    """Health check"""
     
-    start_time = datetime.now()
+    config_status = {
+        'openai_api_key': bool(OPENAI_API_KEY),
+        'aws_access_key': bool(AWS_ACCESS_KEY_ID),
+        'aws_secret_key': bool(AWS_SECRET_ACCESS_KEY),
+        'aws_region': AWS_REGION
+    }
     
-    try:
-        logger.info(f"🎯 Diarização de áudio: {audio.filename}")
-        
-        if not audio or not audio.filename:
-            return {
-                'success': False,
-                'error': 'Arquivo de áudio é obrigatório'
-            }
-        
-        # Verificar formato de áudio
-        audio_formats = ['.wav', '.mp3', '.m4a', '.webm', '.ogg', '.mp4']
-        if not any(audio.filename.lower().endswith(ext) for ext in audio_formats):
-            return {
-                'success': False,
-                'error': f"Formato não suportado. Use: {', '.join(audio_formats)}"
-            }
-        
-        # Ler arquivo de áudio
-        audio_data = await audio.read()
-        
-        if len(audio_data) == 0:
-            return {
-                'success': False,
-                'error': 'Arquivo de áudio vazio'
-            }
-        
-        logger.info(f"Arquivo de áudio recebido: {len(audio_data)} bytes")
-        
-        # Executar diarização
-        transcricao_result = await sistema.transcricao.transcrever_audio_com_diarizacao(
-            audio_data, audio.filename
-        )
-        
-        if not transcricao_result['sucesso']:
-            return {
-                'success': False,
-                'error': transcricao_result.get('erro', 'Erro na transcrição'),
-                'timestamp': start_time.isoformat()
-            }
-        
-        # Preparar resultado
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        result = {
-            'success': True,
-            'timestamp': start_time.isoformat(),
-            'processing_time_seconds': processing_time,
-            'patient_info': patient_info,
-            'transcription': transcricao_result.get('transcricao', ''),
-            'medical_conversation': {
-                'doctor_text': transcricao_result.get('medico', ''),
-                'patient_text': transcricao_result.get('paciente', ''),
-                'detailed_conversation': transcricao_result.get('conversa_detalhada', ''),
-                'total_speakers': transcricao_result.get('total_falantes', 0),
-                'method_used': transcricao_result.get('metodo', 'unknown'),
-                'duration_seconds': transcricao_result.get('duracao', 0)
-            },
-            'file_info': {
-                'filename': audio.filename,
-                'size_bytes': len(audio_data),
-                'transcription_length': transcricao_result.get('tamanho', 0)
-            },
-            'warnings': [transcricao_result.get('warning')] if transcricao_result.get('warning') else []
-        }
-        
-        logger.info(f"✅ Diarização concluída em {processing_time:.2f}s - Método: {transcricao_result.get('metodo')}")
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ Erro na diarização: {e}")
-        return {
-            'success': False,
-            'error': str(e),
-            'timestamp': start_time.isoformat()
-        }
-
-# ============================================================================
-# ENDPOINT DE ÁUDIO DIARIZAÇÃO ADICIONAL
-# ============================================================================
-
-@app.post("/api/audio-diarization")
-async def audio_diarization(
-    patient_info: str = Form(default=""),
-    audio: UploadFile = File(...),
-    recording_metadata: Optional[str] = Form(None)
-):
-    start_time = datetime.now()
+    services_status = {}
     
-    try:
-        # Decodificar metadados se fornecidos
-        metadata = {}
-        if recording_metadata:
-            try:
-                import json
-                metadata = json.loads(recording_metadata)
-                logger.info(f"Metadados recebidos: {metadata}")
-            except Exception as e:
-                logger.warning(f"Erro ao decodificar metadados: {e}")
-        
-        # Ler arquivo de áudio
-        audio_data = await audio.read()
-        
-        # Usar a TranscricaoService SEM pyannote (só Whisper + GPT)
-        resultado = await sistema.transcricao.transcrever_audio_com_diarizacao(
-            audio_data, audio.filename, metadata
-        )
-        
-        if not resultado['sucesso']:
-            return {
-                'success': False,
-                'error': resultado.get('erro', 'Erro na transcrição'),
-                'transcription': '',
-                'medical_conversation': {}
-            }
-        
-        # Preparar resposta para o frontend
-        processing_time = (datetime.now() - start_time).total_seconds()
-        
-        return {
-            'success': True,
-            'transcription': resultado.get('transcricao', ''),
-            'medical_conversation': {
-                'doctor_text': resultado.get('medico', ''),
-                'patient_text': resultado.get('paciente', ''),
-                'detailed_conversation': resultado.get('conversa_detalhada', ''),
-                'total_speakers': resultado.get('total_falantes', 0),
-                'method_used': resultado.get('metodo', 'whisper_gpt_analysis_v2')
-            },
-            'file_info': {
-                'filename': audio.filename,
-                'size_bytes': len(audio_data),
-                'transcription_length': resultado.get('tamanho', 0)
-            },
-            'processing_time_seconds': processing_time,
-            'warnings': [resultado.get('warning')] if resultado.get('warning') else []
-        }
-        
-    except Exception as e:
-        logger.error(f"Erro na diarização: {e}")
-        return {
-            'success': False,
-            'error': str(e),
-            'transcription': '',
-            'medical_conversation': {}
-        }
-
-# ============================================================================
-# STARTUP
-# ============================================================================
+    if transcription_service:
+        services_status['transcription_service'] = "ready"
+    else:
+        services_status['transcription_service'] = "not_available"
+    
+    if textract_service:
+        services_status['textract_service'] = "ready"
+    else:
+        services_status['textract_service'] = "not_available"
+    
+    if llm_service:
+        services_status['llm_service'] = "ready"
+    else:
+        services_status['llm_service'] = "not_available"
+    
+    critical_services = ['transcription_service']
+    critical_ready = all(services_status.get(service, '') == 'ready' for service in critical_services)
+    
+    overall_status = "healthy" if critical_ready else "degraded"
+    
+    return {
+        "status": overall_status,
+        "timestamp": datetime.now().isoformat(),
+        "services": services_status,
+        "configuration": config_status,
+        "capabilities": {
+            "consultation_transcription": bool(transcription_service),
+            "exam_analysis": bool(textract_service and llm_service),
+            "audio_quality_validation": True,
+            "post_processing_optimized": True
+        },
+        "system_focus": "Pos-processamento com Whisper + analise de exames",
+        "missing_configs": [
+            key for key, value in config_status.items() 
+            if not value and key != 'aws_region'
+        ]
+    }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    logger.info("=" * 60)
+    logger.info("PREVIDAS - Sistema de Telemedicina v6.1.0")
+    logger.info("=" * 60)
+    logger.info("FOCO: Pos-processamento otimizado com Whisper")
+    logger.info("RECURSOS:")
+    logger.info("   • Captura de audio otimizada para pos-processamento")
+    logger.info("   • Transcricao com Whisper (OpenAI)")
+    logger.info("   • Analise de exames com Textract + LLM")
+    logger.info("   • Validacao de qualidade de audio")
+    logger.info("   • Interface web integrada")
+    
+    services_loaded = sum([
+        bool(transcription_service),
+        bool(llm_service),
+        bool(textract_service)
+    ])
+    
+    logger.info(f"Servicos carregados: {services_loaded}/3")
+    
+    if transcription_service:
+        logger.info("   Whisper (OpenAI) - Transcricoes")
+    else:
+        logger.warning("   Whisper nao disponivel")
+    
+    if textract_service and llm_service:
+        logger.info("   Textract + LLM - Analise de exames")
+    else:
+        logger.warning("   Textract/LLM limitados")
+    
+    logger.info("=" * 60)
+    logger.info("Iniciando servidor...")                                                                                                                                                                                    
+    logger.info("Interface: http://localhost:8000")
+    logger.info("API Health: http://localhost:8000/api/health")
+    logger.info("=" * 60)
+    
+    uvicorn.run(app, host="0.0.0.0", port=8000)                                                                                                                                                                                                       
