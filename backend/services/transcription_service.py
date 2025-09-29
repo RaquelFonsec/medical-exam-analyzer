@@ -90,8 +90,8 @@ class TranscriptionService:
                     file=audio_file,
                     language="pt",  # Português
                     response_format="text",
-                    temperature=0.1,  # Mais conservador para melhor precisão
-                    prompt="Esta é uma consulta médica em português. O paciente está relatando sintomas e histórico médico para o médico."  # Contexto para melhor transcrição
+                    temperature=0.0,  # Mais determinístico para evitar repetições
+                    prompt="Transcrição de consulta médica em português brasileiro. Fale de forma clara e natural, sem repetir frases."  # Prompt melhorado
                 )
             
             # O Whisper retorna um objeto, extrair o texto
@@ -99,6 +99,9 @@ class TranscriptionService:
             
             # Limpar e validar o texto transcrito
             transcribed_text = transcribed_text.strip()
+            
+            # Pós-processar para remover repetições e melhorar qualidade
+            transcribed_text = self._post_process_transcription(transcribed_text)
             
             if transcribed_text:
                 print(f"✅ Transcrição concluída: {len(transcribed_text)} caracteres")
@@ -162,6 +165,62 @@ class TranscriptionService:
                     print("🗑️ Arquivo temporário removido")
                 except Exception as e:
                     print(f"⚠️ Erro ao remover arquivo temporário: {e}")
+    
+    def _post_process_transcription(self, text: str) -> str:
+        """
+        Pós-processa a transcrição para remover repetições e melhorar qualidade
+        """
+        if not text:
+            return text
+        
+        # Remover espaços extras
+        text = ' '.join(text.split())
+        
+        # Detectar e remover repetições comuns
+        sentences = text.split('.')
+        cleaned_sentences = []
+        
+        for i, sentence in enumerate(sentences):
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+                
+            # Verificar se a frase é repetição da anterior
+            is_repetition = False
+            if i > 0 and len(sentence) > 10:
+                for prev_sentence in cleaned_sentences[-2:]:  # Verificar últimas 2 frases
+                    if prev_sentence and len(prev_sentence) > 10:
+                        # Calcular similaridade simples
+                        words_current = set(sentence.lower().split())
+                        words_prev = set(prev_sentence.lower().split())
+                        
+                        if len(words_current) > 0 and len(words_prev) > 0:
+                            similarity = len(words_current.intersection(words_prev)) / len(words_current.union(words_prev))
+                            if similarity > 0.8:  # 80% de similaridade
+                                is_repetition = True
+                                print(f"🔄 Removendo repetição: {sentence[:50]}...")
+                                break
+            
+            if not is_repetition:
+                cleaned_sentences.append(sentence)
+        
+        # Reconstruir texto
+        result = '. '.join(cleaned_sentences)
+        if result and not result.endswith('.'):
+            result += '.'
+        
+        # Remover frases muito curtas que podem ser ruído
+        final_sentences = []
+        for sentence in result.split('.'):
+            sentence = sentence.strip()
+            if len(sentence) > 3:  # Manter apenas frases com mais de 3 caracteres
+                final_sentences.append(sentence)
+        
+        result = '. '.join(final_sentences)
+        if result and not result.endswith('.'):
+            result += '.'
+        
+        return result.strip()
     
     def _detect_audio_format(self, audio_bytes: bytes) -> str:
         """
