@@ -85,7 +85,7 @@ class InterpretadorLLM:
                 logger.warning("Interpretação pode estar incompleta")
             
             # Extrair informações estruturadas (mantém compatibilidade com frontend)
-            elementos_chave = self._extrair_achados_principais(texto_extraido)
+            elementos_chave = self._extrair_achados_principais(texto_extraido)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
             
             # FORMATO COMPATÍVEL COM FRONTEND EXISTENTE
             return {

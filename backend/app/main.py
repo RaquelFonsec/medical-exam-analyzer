@@ -8,10 +8,16 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import logging
 import traceback
+from dotenv import load_dotenv
 
-# Configurar logging
+# Configurar logging primeiro
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Carregar variáveis do arquivo .env
+env_path = '/home/raquel-fonseca/medical-exam-analyzer/.env'
+logger.info(f"Tentando carregar .env de: {env_path}")
+load_dotenv(env_path)
 
 # Verificar e adicionar path do backend
 backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -2,13 +2,12 @@ import openai
 import os
 import tempfile
 from typing import Union
-from ..config import settings
 
 class TranscriptionService:
     def __init__(self):
         """Inicializar serviço de transcrição com Whisper API"""
         try:
-            self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            self.client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
             print("✅ TranscriptionService inicializado com OpenAI Whisper")
         except Exception as e:
             print(f"❌ Erro ao inicializar TranscriptionService: {e}")

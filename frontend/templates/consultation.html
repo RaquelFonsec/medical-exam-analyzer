@@ -44,7 +44,6 @@
                 PREVIDAS - Telemedicina
             </h1>
             <p class="lead">Captura de Audio da Consultae Analise inteligente de Documentos </p>
-            <small class="text-light opacity-75">Versao 6.1 - Sistema Simplificado</small>
         </div>
 
         <div class="service-toggle">
@@ -182,8 +181,9 @@
         let recordingTimer = null;
         let recordingSeconds = 0;
 
-        const BACKEND_URL = 'http://localhost:8000';
-
+        const BACKEND_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000'
+    : 'https://consultorio.previdas.com.br';
         function selectMode(mode) {
             document.querySelectorAll('.mode-option').forEach(option => {
                 option.classList.remove('selected');
@@ -745,19 +745,3 @@
 
                                               
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-                          
-
-                                                            
