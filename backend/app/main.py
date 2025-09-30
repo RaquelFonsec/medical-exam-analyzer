@@ -38,6 +38,7 @@ logger.info(f"AWS_REGION: {AWS_REGION}")
 
 # Importar serviços
 transcription_service = None
+hybrid_transcription_service = None
 llm_service = None
 textract_service = None
 
@@ -47,6 +48,13 @@ try:
     logger.info("TranscriptionService (Whisper) carregado")
 except Exception as e:
     logger.error(f"Erro ao carregar TranscriptionService: {e}")
+
+try:
+    from services.hybrid_transcription_service import HybridTranscriptionService
+    hybrid_transcription_service = HybridTranscriptionService()
+    logger.info("HybridTranscriptionService (Whisper + Transcribe) carregado")
+except Exception as e:
+    logger.error(f"Erro ao carregar HybridTranscriptionService: {e}")
 
 try:
     from services.llm import InterpretadorLLM
@@ -387,6 +395,7 @@ async def process_exams(
         extracted_texts = []
         processing_errors = []
         all_extracted_text = ""
+        all_paragrafos = []  # Para coletar parágrafos de todos os exames
         
         # Extração com Textract
         logger.info("Iniciando extracao de texto com Textract...")
@@ -410,9 +419,14 @@ async def process_exams(
                 
                 if extraction_result.get('success', False):
                     extracted_text = extraction_result.get('extracted_text', '').strip()
+                    paragrafos = extraction_result.get('paragrafos', [])
                     
                     if extracted_text:
                         all_extracted_text += f"\n\n=== EXAME: {exam.filename} ===\n{extracted_text}"
+                        
+                        # Coletar parágrafos
+                        if paragrafos:
+                            all_paragrafos.extend(paragrafos)
                         
                         extracted_texts.append({
                             'filename': exam.filename,
@@ -455,6 +469,9 @@ async def process_exams(
             try:
                 logger.info(f"Iniciando interpretacao medica com LLM ({len(all_extracted_text)} caracteres)...")
                 
+                # Usar parágrafos coletados durante o processamento
+                todos_paragrafos = all_paragrafos
+                
                 llm_result = await llm_service.interpretar_exame_para_frontend(
                     all_extracted_text,
                     f"exames_multiplos_{len(exams)}_arquivos",
@@ -462,7 +479,8 @@ async def process_exams(
                         "additional_info": patient_context, 
                         "service_type": service_type,
                         "total_files": len(exams)
-                    }
+                    },
+                    paragrafos=todos_paragrafos if todos_paragrafos else None
                 )
                 
                 if llm_result.get('success', False):

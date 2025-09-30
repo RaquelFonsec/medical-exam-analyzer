@@ -91,7 +91,7 @@ class TranscriptionService:
                     language="pt",  # Português
                     response_format="text",
                     temperature=0.0,  # Mais determinístico para evitar repetições
-                    prompt="Transcrição de consulta médica em português brasileiro. Fale de forma clara e natural, sem repetir frases."  # Prompt melhorado
+                    prompt="Transcreva o áudio em português brasileiro de forma clara e precisa."  # Transcrição neutra sem viés médico
                 )
             
             # O Whisper retorna um objeto, extrair o texto

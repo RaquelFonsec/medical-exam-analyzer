@@ -43,7 +43,7 @@
                 <i class="fas fa-stethoscope me-3"></i>
                 PREVIDAS - Telemedicina
             </h1>
-            <p class="lead">Captura de Audio da Consultae Analise inteligente de Documentos </p>
+            <p class="lead">Captura de Áudio da Consulta e Análise Inteligente de Documentos</p>
         </div>
 
         <div class="service-toggle">
@@ -705,11 +705,14 @@
             let llmText = 'Interpretacao nao disponivel';
             
             if (result.llm_interpretation && result.llm_interpretation.trim()) {
-                llmText = '<div class="llm-analysis">' + result.llm_interpretation + '</div>';
+                // Preservar quebras de linha convertendo \n para <br>
+                const formattedText = result.llm_interpretation.replace(/\n/g, '<br>');
+                llmText = '<div class="llm-analysis" style="white-space: pre-line;">' + formattedText + '</div>';
             } else if (result.llm_analysis && result.llm_analysis.length > 0) {
                 llmText = '';
                 for (let analysis of result.llm_analysis) {
-                    llmText += '<div class="llm-analysis">' + (analysis.interpretation || analysis.clinical_analysis || 'Analise disponivel') + '</div>';
+                    const formattedAnalysis = (analysis.interpretation || analysis.clinical_analysis || 'Analise disponivel').replace(/\n/g, '<br>');
+                    llmText += '<div class="llm-analysis" style="white-space: pre-line;">' + formattedAnalysis + '</div>';
                 }
             }
 

@@ -27,7 +27,7 @@ class InterpretadorLLM:
             self.client = None
             logger.error("OpenAI API Key não encontrada para LLM")
     
-    async def interpretar_exame_para_frontend(self, texto_extraido: str, nome_arquivo: str, patient_info: Dict = None) -> Dict:
+    async def interpretar_exame_para_frontend(self, texto_extraido: str, nome_arquivo: str, patient_info: Dict = None, paragrafos: List[str] = None) -> Dict:
         """Interpreta qualquer tipo de documento de forma inteligente - COMPATÍVEL COM FRONTEND EXISTENTE"""
         
         if not self.client:
@@ -43,10 +43,12 @@ class InterpretadorLLM:
             # Detectar tipo de documento automaticamente
             tipo_documento = self._detectar_tipo_documento(texto_extraido, nome_arquivo)
             
-            # Gerar prompt específico para o tipo de documento
-            prompt = self._gerar_prompt_contextual(texto_extraido, nome_arquivo, tipo_documento, patient_info)
+            # Gerar prompt específico para o tipo de documento (com parágrafos se disponível)
+            prompt = self._gerar_prompt_contextual(texto_extraido, nome_arquivo, tipo_documento, patient_info, paragrafos)
             
             logger.info(f"Tipo de documento detectado: {tipo_documento}")
+            if paragrafos:
+                logger.info(f"Processando {len(paragrafos)} parágrafos separados")
             
             # Chamar OpenAI
             response = await asyncio.wait_for(
@@ -368,7 +370,7 @@ class InterpretadorLLM:
                       Identifique pontos-chave e elementos importantes do conteúdo.
                       Termine sempre com 'ANÁLISE FINALIZADA'."""
     
-    def _gerar_prompt_contextual(self, texto: str, nome_arquivo: str, tipo_documento: str, contexto_info: Dict = None) -> str:
+    def _gerar_prompt_contextual(self, texto: str, nome_arquivo: str, tipo_documento: str, contexto_info: Dict = None, paragrafos: List[str] = None) -> str:
         """Gera prompt específico baseado no tipo de documento"""
         
         # PROMPT MÉDICO ESPECÍFICO (seu prompt original EXATO)
@@ -377,17 +379,55 @@ class InterpretadorLLM:
                                                       'Endoscopia', 'Anatomopatológico', 'Citologia', 'Prontuário',
                                                       'Consulta', 'Cirúrgico', 'Alta', 'Prescrição', 'Atestado',
                                                       'Eletrocardiograma', 'Ecocardiograma', 'Espirometria', 'Médico']):
+            # Preparar texto com parágrafos se disponível
+            texto_para_analise = texto
+            if paragrafos and len(paragrafos) > 1:
+                # Separar parágrafos com quebras de linha muito claras
+                texto_para_analise = "\n\n---\n\n".join([f"### {i+1}\n\n{paragrafo}" for i, paragrafo in enumerate(paragrafos)])
+            
             return f"""
 INTERPRETAÇÃO DE DOCUMENTO MÉDICO
 
 ARQUIVO: {nome_arquivo}
-TEXTO EXTRAÍDO DO DOCUMENTO:
-{texto}
+TEXTO EXTRAÍDO DO DOCUMENTO (SEPARADO POR PARÁGRAFOS):
+{texto_para_analise}
+
+🚨🚨🚨 INSTRUÇÃO CRÍTICA DE FORMATAÇÃO - OBRIGATÓRIO 🚨🚨🚨
+
+VOCÊ DEVE USAR EXATAMENTE ESTE TEMPLATE FIXO COM QUEBRAS DE LINHA:
+
+### 1. IDENTIFICAÇÃO DO DOCUMENTO
+
+[escreva aqui o conteúdo da seção 1]
+
+### 2. CONTEÚDO PRINCIPAL
+
+[escreva aqui o conteúdo da seção 2]
+
+### 3. PONTOS-CHAVE
+
+[escreva aqui o conteúdo da seção 3]
+
+### 4. RESUMO EXECUTIVO
+
+[escreva aqui o conteúdo da seção 4]
+
+ANÁLISE FINALIZADA
+
+🚨 PROIBIDO JUNTAR AS SEÇÕES EM UM BLOCO CONTÍNUO 🚨
+🚨 CADA SEÇÃO DEVE ESTAR EM LINHAS SEPARADAS COM QUEBRAS DE LINHA 🚨
+🚨 USE O TEMPLATE ACIMA EXATAMENTE COMO ESTÁ 🚨
+🚨 CADA ### DEVE ESTAR EM UMA LINHA SEPARADA 🚨
 
 INFORMAÇÕES DO PACIENTE:
 {contexto_info.get('additional_info', 'Não informado') if contexto_info else 'Não informado'}
 
 INSTRUÇÕES PARA INTERPRETAÇÃO:
+CRÍTICO: Você DEVE manter a separação visual dos parágrafos na sua resposta. 
+- Use quebras de linha duplas (\n\n) entre cada seção
+- Cada seção deve aparecer em linhas separadas
+- NÃO junte tudo em um bloco contínuo
+- Formato obrigatório: ### 1. [conteúdo]\n\n### 2. [conteúdo]\n\n### 3. [conteúdo]
 ## PAPEL E OBJETIVO
 Você é um assistente de extração e sistematização de dados para um profissional de saúde. Sua função é analisar documentos médicos (exames laboratoriais, laudos de imagem, relatórios de consulta, prontuários, relatórios cirúrgicos, etc.) e organizar as informações clinicamente relevantes. O objetivo é fornecer um resumo organizado para que o profissional humano possa ter uma visão clara dos achados importantes.
 
@@ -444,7 +484,32 @@ Para RELATÓRIOS CLÍNICOS/PRONTUÁRIOS:
 * Sintetize em 1-2 frases os principais achados do documento
 * Foque apenas no que foi objetivamente documentado
 
-ANÁLISE DE DADOS FINALIZADA
+🚨🚨🚨 FORMATO DE RESPOSTA OBRIGATÓRIO - TEMPLATE FIXO 🚨🚨🚨
+
+VOCÊ DEVE USAR EXATAMENTE ESTE FORMATO COM QUEBRAS DE LINHA:
+
+### 1. IDENTIFICAÇÃO DO DOCUMENTO
+
+[conteúdo da seção 1]
+
+### 2. CONTEÚDO PRINCIPAL
+
+[conteúdo da seção 2]
+
+### 3. PONTOS-CHAVE
+
+[conteúdo da seção 3]
+
+### 4. RESUMO EXECUTIVO
+
+[conteúdo da seção 4]
+
+ANÁLISE FINALIZADA
+
+🚨 PROIBIDO JUNTAR AS SEÇÕES EM UM BLOCO CONTÍNUO 🚨
+🚨 CADA SEÇÃO DEVE ESTAR EM LINHAS SEPARADAS 🚨
+🚨 USE O TEMPLATE ACIMA EXATAMENTE COMO ESTÁ 🚨
+🚨 CADA ### DEVE ESTAR EM UMA LINHA SEPARADA 🚨
 """
         
         # PROMPT PARA DOCUMENTOS JURÍDICOS
