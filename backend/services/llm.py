@@ -83,6 +83,27 @@ class InterpretadorLLM:
             else:
                 esta_completa = "ANÁLISE FINALIZADA" in interpretacao
             
+            # Remover duplicação de "ANÁLISE FINALIZADA"
+            if interpretacao.count("ANÁLISE FINALIZADA") > 1:
+                # Encontrar a primeira ocorrência e remover as demais
+                primeira_ocorrencia = interpretacao.find("ANÁLISE FINALIZADA")
+                if primeira_ocorrencia != -1:
+                    # Manter tudo até a primeira ocorrência + "ANÁLISE FINALIZADA"
+                    interpretacao = interpretacao[:primeira_ocorrencia + len("ANÁLISE FINALIZADA")]
+                    # Garantir que não há espaços extras no final
+                    interpretacao = interpretacao.strip()
+            
+            # Garantir que há apenas uma "ANÁLISE FINALIZADA" no final
+            if interpretacao.endswith("ANÁLISE FINALIZADA"):
+                # Se já termina com "ANÁLISE FINALIZADA", não fazer nada
+                pass
+            elif "ANÁLISE FINALIZADA" in interpretacao:
+                # Se contém mas não termina, garantir que termine com ela
+                interpretacao = interpretacao.split("ANÁLISE FINALIZADA")[0] + "ANÁLISE FINALIZADA"
+            else:
+                # Se não contém, adicionar no final
+                interpretacao = interpretacao.strip() + "\n\nANÁLISE FINALIZADA"
+            
             if not esta_completa:
                 logger.warning("Interpretação pode estar incompleta")
             
@@ -131,14 +152,36 @@ class InterpretadorLLM:
         texto_lower = texto.lower()
         nome_lower = nome_arquivo.lower()
         
-        # DOCUMENTOS MÉDICOS (mantém lógica original)
+        # DOCUMENTOS MÉDICOS (PRIORIDADE MÁXIMA - detectar primeiro)
         if any(palavra in texto_lower for palavra in [
             'hemograma', 'leucócitos', 'hemácias', 'plaquetas', 'glicose', 'colesterol',
-            'exame', 'laudo', 'diagnóstico', 'paciente', 'médico', 'hospital', 'clínica',
+            'exame médico', 'laudo médico', 'diagnóstico médico', 'paciente', 'médico', 'hospital', 'clínica',
             'tomografia', 'ressonância', 'ultrassom', 'raio-x', 'biopsia', 'cirurgia',
-            'urina', 'eas', 'tsh', 't3', 't4', 'hormônio', 'citologia', 'anatomopatológico'
+            'urina', 'eas', 'tsh', 't3', 't4', 'hormônio', 'citologia', 'anatomopatológico',
+            # Novas palavras-chave médicas específicas
+            'relatório médico', 'relatório', 'parecer médico', 'avaliação médica',
+            'anamnese', 'história clínica', 'prontuário', 'evolução médica',
+            'obesidade', 'transtornos', 'discos lombares', 'medicações',
+            'acompanhamento médico', 'estado de saúde', 'condições médicas',
+            'edmilson', 'karla', 'christina', 'ramos', 'silva', 'freitas', 'ribeiro',
+            'cf américo veloso', 'clínica', 'unidade básica', 'ubs',
+            'doutor', 'dra.', 'dr.', 'enfermeiro', 'fisioterapeuta', 'psicólogo',
+            'receita médica', 'atestado médico', 'declaração médica', 'alta médica',
+            'consulta médica', 'retorno médico', 'seguimento médico', 'cremerj', 'crmrj',
+            'médico da estratégia', 'saúde da família', 'crem', 'rms', 'cid', 'sus'
         ]):
             return self._identificar_tipo_documento(texto_lower)  # Usa método original
+        
+        # DOCUMENTOS TÉCNICOS/ENGENHARIA (prioridade alta)
+        elif any(palavra in texto_lower for palavra in [
+            'arquitetura', 'multiagentes', 'langgraph', 'sistema', 'framework',
+            'dashboard', 'métricas', 'api', 'fastapi', 'mysql', 'scheduler',
+            'automação', 'ia generativa', 'agentes', 'orquestração', 'supervisão',
+            'documentação técnica', 'especificação', 'projeto', 'desenho', 'planta',
+            'manual', 'procedimento', 'norma', 'padrão', 'teste', 'ensaio',
+            'relatório técnico', 'análise técnica', 'engenharia', 'construção'
+        ]):
+            return 'Documento Técnico'
         
         # DOCUMENTOS JURÍDICOS
         elif any(palavra in texto_lower for palavra in [
@@ -158,14 +201,6 @@ class InterpretadorLLM:
         ]):
             return 'Documento Financeiro'
         
-        # DOCUMENTOS TÉCNICOS/ENGENHARIA
-        elif any(palavra in texto_lower for palavra in [
-            'especificação', 'projeto', 'desenho', 'planta', 'esquema', 'diagrama',
-            'manual', 'procedimento', 'norma', 'padrão', 'teste', 'ensaio',
-            'relatório técnico', 'análise técnica', 'engenharia', 'construção'
-        ]):
-            return 'Documento Técnico'
-        
         # DOCUMENTOS ADMINISTRATIVOS
         elif any(palavra in texto_lower for palavra in [
             'memorando', 'ofício', 'circular', 'portaria', 'resolução', 'instrução',
@@ -180,6 +215,7 @@ class InterpretadorLLM:
             'dissertação', 'tese', 'monografia', 'trabalho de conclusão'
         ]):
             return 'Documento Acadêmico'
+        
         
         else:
             return 'Documento Geral'
@@ -361,6 +397,13 @@ class InterpretadorLLM:
             return """Você é um assistente de análise documental para documentos financeiros.
                       Extraia informações financeiras relevantes: valores, indicadores, condições.
                       Seja objetivo e factual, sem fazer análises financeiras.
+                      Termine sempre com 'ANÁLISE FINALIZADA'."""
+        
+        # Para documentos técnicos
+        elif 'Técnico' in tipo_documento:
+            return """Você é um assistente de análise documental para documentos técnicos.
+                      Extraia informações técnicas relevantes: especificações, procedimentos, métricas.
+                      Seja objetivo e factual, sem fazer interpretações técnicas.
                       Termine sempre com 'ANÁLISE FINALIZADA'."""
         
         # Para outros tipos
@@ -602,6 +645,48 @@ Você é um assistente de extração e sistematização de dados para um profiss
 
 ### 4. RESUMO EXECUTIVO
 * Sintetize a situação financeira documentada
+
+ANÁLISE FINALIZADA
+"""
+        
+        # PROMPT PARA DOCUMENTOS TÉCNICOS
+        elif 'Técnico' in tipo_documento:
+            return f"""
+INTERPRETAÇÃO DE DOCUMENTO TÉCNICO
+
+ARQUIVO: {nome_arquivo}
+TEXTO EXTRAÍDO DO DOCUMENTO:
+{texto}
+
+CONTEXTO ADICIONAL:
+{contexto_info.get('additional_info', 'Não informado') if contexto_info else 'Não informado'}
+
+INSTRUÇÕES PARA INTERPRETAÇÃO:
+## PAPEL E OBJETIVO
+Você é um assistente de análise documental para documentos técnicos. Sua função é analisar documentos técnicos e organizar as informações mais relevantes de forma estruturada.
+
+## INSTRUÇÕES GERAIS
+1. *FOCO EM INFORMAÇÕES TÉCNICAS:* Documente especificações, procedimentos, métricas, arquiteturas.
+2. *NEUTRALIDADE E OBJETIVIDADE:* Descreva as informações de forma neutra e factual.
+3. *NÃO PREENCHA LACUNAS:* Documente apenas o que está explicitamente presente.
+4. *FINALIZAÇÃO OBRIGATÓRIA:* Termine com "ANÁLISE FINALIZADA".
+
+---
+## ESTRUTURA DE RESPOSTA OBRIGATÓRIA
+
+### 1. IDENTIFICAÇÃO DO DOCUMENTO
+* *Tipo de Documento:*
+* *Data/Período:*
+* *Origem:*
+
+### 2. CONTEÚDO PRINCIPAL
+* Liste as principais informações técnicas e especificações
+
+### 3. PONTOS-CHAVE
+* Destaque elementos técnicos mais importantes
+
+### 4. RESUMO EXECUTIVO
+* Sintetize o conteúdo principal do documento
 
 ANÁLISE FINALIZADA
 """

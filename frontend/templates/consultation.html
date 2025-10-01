@@ -73,8 +73,8 @@
                 </h3>
 
                 <div class="mb-4">
-                    <label class="form-label fw-semibold">Informacoes do Paciente</label>
-                    <textarea name="patient_info" class="form-control" rows="3" placeholder="Nome, idade, queixa principal, historico medico relevante..."></textarea>
+                    <label class="form-label fw-semibold">Informacoes do Paciente <span class="text-muted">(Opcional)</span></label>
+            <textarea name="patient_info" class="form-control" rows="3" placeholder="Nome, idade, queixa principal, historico medico relevante... (opcional)"></textarea>
                 </div>
 
                 <div class="recording-area">
@@ -125,6 +125,10 @@
                     <h5>Upload de Documentos</h5>
                     <p class="text-muted mb-2">Clique aqui ou arraste arquivos</p>
                     <small class="text-muted">Suporta: PDF, JPG, PNG, TIFF, DOC, DOCX</small>
+                    <div class="alert alert-info mt-2 mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Limite:</strong> Máximo de 10 documentos por processamento
+                    </div>
                     <input type="file" id="examInput" accept=".pdf,.jpg,.jpeg,.png,.tiff,.doc,.docx,.txt" multiple style="display: none;">
                 </div>
 
@@ -333,10 +337,9 @@
             }
 
             const patientInfo = document.querySelector('textarea[name="patient_info"]').value;
-            if (!patientInfo.trim()) {
-                alert('Preencha as informacoes do paciente');
-                return;
-            }
+            // INFORMACOES DO PACIENTE SAO OPCIONAIS - NAO VALIDAR OBRIGATORIEDADE
+            // Sistema permite transcricao sem preenchimento do campo paciente
+            console.log('Informacoes do paciente (opcional):', patientInfo ? 'Preenchido' : 'Vazio - OK para processar');
 
             // Preparar arquivo otimizado para pos-processamento
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -430,18 +433,9 @@
             const consultationSummary = result.consultation_summary || {};
             
             // Informacoes especificas do pos-processamento
-            const processingTime = technicalDetails.processing_time_seconds || 0;
-            const audioQuality = technicalDetails.audio_analysis?.quality_score || 0;
-            const estimatedDuration = consultationSummary.duration_estimated_minutes || 0;
             
             const contextHtml = `
                 <div class="context-badge context-consultation">Consulta - Pos-Processamento Completo</div>
-                <small>
-                    <strong>Metodo:</strong> Whisper Pos-Processamento • 
-                    <strong>Tempo:</strong> ${processingTime}s • 
-                    <strong>Qualidade Audio:</strong> ${audioQuality}/100 • 
-                    <strong>Duracao Estimada:</strong> ${Math.round(estimatedDuration)} min
-                </small>
             `;
             
             document.getElementById('contextInfo').innerHTML = contextHtml;
@@ -450,58 +444,19 @@
             let transcriptionHtml = '<div class="whisper-badge">OpenAI Whisper - Pos-Processamento</div>';
             
             if (result.transcription && result.transcription.trim()) {
+                // Botão copiar transcrição
+                transcriptionHtml += '<div class="d-flex justify-content-end mb-3">';
+                transcriptionHtml += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="copyTranscription()" id="copyTranscriptionBtn">';
+                transcriptionHtml += '<i class="fas fa-copy me-2"></i>Copiar Transcrição';
+                transcriptionHtml += '</button>';
+                transcriptionHtml += '</div>';
+                
                 transcriptionHtml += '<div class="mb-4">';
                 transcriptionHtml += '<div class="bg-primary bg-opacity-10 p-4 rounded" style="border-left: 4px solid #0d6efd;">';
                 transcriptionHtml += '<div style="white-space: pre-wrap; line-height: 1.6;">' + result.transcription + '</div>';
                 transcriptionHtml += '</div>';
                 transcriptionHtml += '</div>';
                 
-                // Estatisticas detalhadas para pos-processamento
-                transcriptionHtml += '<div class="row text-center">';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + (consultationSummary.word_count || 0) + '</strong><br>';
-                transcriptionHtml += '<small class="text-muted">Palavras</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + Math.round(estimatedDuration) + '</strong><br>';
-                transcriptionHtml += '<small class="text-muted">Min</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + audioQuality + '/100</strong><br>';
-                transcriptionHtml += '<small class="text-muted">Qualidade</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + (consultationSummary.has_medical_content ? 'Sim' : 'Nao') + '</strong><br>';
-                transcriptionHtml += '<small class="text-muted">Medico</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + Math.round(processingTime) + 's</strong><br>';
-                transcriptionHtml += '<small class="text-muted">Proc.</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '<div class="col-md-2">';
-                transcriptionHtml += '<div class="border rounded p-2">';
-                transcriptionHtml += '<strong>' + (technicalDetails.file_info?.size_mb || 0) + '</strong><br>';
-                transcriptionHtml += '<small class="text-muted">MB</small>';
-                transcriptionHtml += '</div>';
-                transcriptionHtml += '</div>';
-                
-                transcriptionHtml += '</div>';
 
                 // Recomendacoes baseadas no pos-processamento
                 const recommendations = technicalDetails.processing_quality?.recommendations || [];
@@ -563,10 +518,36 @@
 
         function handleExamFiles() {
             const files = document.getElementById('examInput').files;
+            console.log('Arquivos selecionados:', files.length, files);
+            
+            // Verificar limite de 10 documentos
+            if (files.length > 10) {
+                alert('⚠️ Limite excedido!\n\nMáximo de 10 documentos por processamento.\nSelecione até 10 documentos.');
+                // Limpar seleção
+                document.getElementById('examInput').value = '';
+                document.getElementById('selectedExams').style.display = 'none';
+                return;
+            }
+            
             if (files.length > 0) {
                 document.getElementById('selectedExams').style.display = 'block';
                 
-                let fileListHtml = '';
+                // Determinar cor do alerta baseado na quantidade
+                let alertClass = 'alert-info';
+                let alertIcon = 'fas fa-info-circle';
+                let alertText = `${files.length} arquivo(s) selecionado(s)`;
+                
+                if (files.length >= 8) {
+                    alertClass = 'alert-warning';
+                    alertIcon = 'fas fa-exclamation-triangle';
+                    alertText = `${files.length} arquivo(s) selecionado(s) - Próximo do limite (10)`;
+                }
+                
+                let fileListHtml = `<div class="alert ${alertClass} mb-3">
+                    <i class="${alertIcon} me-2"></i>
+                    <strong>${alertText}</strong>
+                </div>`;
+                
                 for (let file of files) {
                     fileListHtml += '<div class="d-flex justify-content-between align-items-center py-2 px-3 mb-2 bg-light rounded">';
                     fileListHtml += '<span><i class="fas fa-file-alt me-2"></i>' + file.name + '</span>';
@@ -575,15 +556,27 @@
                 }
                 
                 document.getElementById('examList').innerHTML = fileListHtml;
+            } else {
+                document.getElementById('selectedExams').style.display = 'none';
             }
         }
 
         async function processExams() {
+            console.log('=== INICIANDO PROCESSAMENTO INDIVIDUAL ===');
             const files = document.getElementById('examInput').files;
             const context = document.querySelector('textarea[name="exam_context"]').value;
 
+            console.log('Arquivos selecionados:', files.length);
+            console.log('Arquivos:', files);
+
             if (files.length === 0) {
                 alert('Selecione pelo menos um documento para analise');
+                return;
+            }
+            
+            // Verificar limite de 10 documentos
+            if (files.length > 10) {
+                alert('⚠️ Limite excedido!\n\nMáximo de 10 documentos por processamento.\nSelecione até 10 documentos.');
                 return;
             }
 
@@ -635,6 +628,80 @@
                 alert('Erro no processamento: ' + error.message);
             } finally {
                 document.getElementById('processing').style.display = 'none';
+            }
+        }
+
+        // Função para copiar transcrição
+        function copyTranscription() {
+            // Procurar pela transcrição dentro do elemento transcriptionText
+            const transcriptionContainer = document.getElementById('transcriptionText');
+            if (transcriptionContainer) {
+                // Procurar pelo elemento com classe bg-primary que contém a transcrição
+                const transcriptionElement = transcriptionContainer.querySelector('.bg-primary');
+                if (transcriptionElement) {
+                    const transcriptionText = transcriptionElement.textContent || transcriptionElement.innerText;
+                    
+                    // Copiar para área de transferência
+                    navigator.clipboard.writeText(transcriptionText).then(() => {
+                        // Feedback visual
+                        const btn = document.getElementById('copyTranscriptionBtn');
+                        const originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-check me-2"></i>Copiado!';
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-success');
+                        
+                        // Restaurar botão após 2 segundos
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('btn-success');
+                            btn.classList.add('btn-outline-primary');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Erro ao copiar:', err);
+                        alert('Erro ao copiar transcrição. Tente selecionar o texto manualmente.');
+                    });
+                } else {
+                    alert('Transcrição não encontrada no elemento esperado.');
+                }
+            } else {
+                alert('Container de transcrição não encontrado.');
+            }
+        }
+
+        // Função para copiar interpretação LLM
+        function copyInterpretation() {
+            // Procurar pela interpretação dentro do elemento analysisText
+            const analysisContainer = document.getElementById('analysisText');
+            if (analysisContainer) {
+                // Procurar pelo elemento com classe llm-analysis que contém a interpretação
+                const interpretationElement = analysisContainer.querySelector('.llm-analysis');
+                if (interpretationElement) {
+                    const interpretationText = interpretationElement.textContent || interpretationElement.innerText;
+                    
+                    // Copiar para área de transferência
+                    navigator.clipboard.writeText(interpretationText).then(() => {
+                        // Feedback visual
+                        const btn = document.getElementById('copyInterpretationBtn');
+                        const originalText = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-check me-2"></i>Copiado!';
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-success');
+                        
+                        // Restaurar botão após 2 segundos
+                        setTimeout(() => {
+                            btn.innerHTML = originalText;
+                            btn.classList.remove('btn-success');
+                            btn.classList.add('btn-outline-primary');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Erro ao copiar:', err);
+                        alert('Erro ao copiar interpretação. Tente selecionar o texto manualmente.');
+                    });
+                } else {
+                    alert('Interpretação não encontrada no elemento esperado.');
+                }
+            } else {
+                alert('Container de interpretação não encontrado.');
             }
         }
 
@@ -705,11 +772,24 @@
             let llmText = 'Interpretacao nao disponivel';
             
             if (result.llm_interpretation && result.llm_interpretation.trim()) {
+                // Botão copiar interpretação
+                llmText = '<div class="d-flex justify-content-end mb-3">';
+                llmText += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="copyInterpretation()" id="copyInterpretationBtn">';
+                llmText += '<i class="fas fa-copy me-2"></i>Copiar Interpretação';
+                llmText += '</button>';
+                llmText += '</div>';
+                
                 // Preservar quebras de linha convertendo \n para <br>
                 const formattedText = result.llm_interpretation.replace(/\n/g, '<br>');
-                llmText = '<div class="llm-analysis" style="white-space: pre-line;">' + formattedText + '</div>';
+                llmText += '<div class="llm-analysis" style="white-space: pre-line;">' + formattedText + '</div>';
             } else if (result.llm_analysis && result.llm_analysis.length > 0) {
-                llmText = '';
+                // Botão copiar interpretação
+                llmText = '<div class="d-flex justify-content-end mb-3">';
+                llmText += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="copyInterpretation()" id="copyInterpretationBtn">';
+                llmText += '<i class="fas fa-copy me-2"></i>Copiar Interpretação';
+                llmText += '</button>';
+                llmText += '</div>';
+                
                 for (let analysis of result.llm_analysis) {
                     const formattedAnalysis = (analysis.interpretation || analysis.clinical_analysis || 'Analise disponivel').replace(/\n/g, '<br>');
                     llmText += '<div class="llm-analysis" style="white-space: pre-line;">' + formattedAnalysis + '</div>';
@@ -730,6 +810,9 @@
             document.getElementById('results').style.display = 'block';
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
         }
+
+
+
 
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('startRecordingBtn').addEventListener('click', startRecording);
