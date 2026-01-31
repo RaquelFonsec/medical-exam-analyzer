@@ -1,89 +1,87 @@
+
 import openai
 import os
 import tempfile
-from typing import Union
-from ..config import settings
+from typing import Union, Dict, Any
+from config.settings import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TranscriptionService:
     def __init__(self):
         """Inicializar serviço de transcrição com Whisper API"""
         try:
             self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-            print("✅ TranscriptionService inicializado com OpenAI Whisper")
+            logger.info("TranscriptionService inicializado com OpenAI Whisper")
         except Exception as e:
-            print(f"❌ Erro ao inicializar TranscriptionService: {e}")
+            logger.error(f"Erro ao inicializar TranscriptionService: {e}")
             self.client = None
     
-    async def transcribe_audio(self, audio_input: Union[str, bytes]) -> str:
+    async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str = "audio.wav") -> Dict[str, Any]:
         """
         Transcrição de áudio usando OpenAI Whisper API
         
         Args:
-            audio_input: Pode ser:
-                - str: Caminho para arquivo de áudio
-                - bytes: Dados binários do áudio
+            audio_bytes: Dados binários do áudio
+            filename: Nome do arquivo para referência
         
         Returns:
-            str: Texto transcrito ou string vazia em caso de erro
+            Dict: Resultado da transcrição com metadados
         """
         if not self.client:
-            print("❌ Cliente OpenAI não disponível para transcrição")
-            return ""
+            logger.error("Cliente OpenAI não disponível para transcrição")
+            return {
+                "transcription": "Erro: Cliente OpenAI não configurado",
+                "success": False,
+                "error": "Cliente não inicializado"
+            }
         
         temp_file_path = None
         
         try:
-            # Se recebeu bytes, salvar em arquivo temporário
-            if isinstance(audio_input, bytes):
-                print(f"🎤 Processando áudio: {len(audio_input)} bytes")
+            logger.info(f"Processando áudio: {len(audio_bytes)} bytes")
+            
+            # Validar se os bytes não estão vazios
+            if len(audio_bytes) < 100:
+                logger.warning("Arquivo de áudio muito pequeno - possivelmente vazio")
+                return {
+                    "transcription": "Erro: Arquivo de áudio muito pequeno",
+                    "success": False,
+                    "error": "Arquivo muito pequeno"
+                }
+            
+            # Validar tamanho mínimo para áudio real
+            if len(audio_bytes) < 1000:
+                logger.warning("Áudio muito pequeno - pode não conter fala suficiente")
+            
+            # Criar arquivo temporário
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+                tmp_file.write(audio_bytes)
+                temp_file_path = tmp_file.name
                 
-                # Validar se os bytes não estão vazios
-                if len(audio_input) < 100:
-                    print("⚠️ Arquivo de áudio muito pequeno - possivelmente vazio")
-                    return ""
-                
-                # Validar tamanho mínimo para áudio real
-                if len(audio_input) < 1000:
-                    print("⚠️ Áudio muito pequeno - pode não conter fala suficiente")
-                
-                # Criar arquivo temporário
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-                    tmp_file.write(audio_input)
-                    temp_file_path = tmp_file.name
-                    
-                audio_file_path = temp_file_path
-                print(f"📁 Áudio salvo temporariamente: {audio_file_path}")
-                
-            # Se recebeu string (caminho do arquivo)
-            elif isinstance(audio_input, str):
-                audio_file_path = audio_input
-                print(f"📁 Processando arquivo: {audio_file_path}")
-                
-                # Verificar se o arquivo existe
-                if not os.path.exists(audio_file_path):
-                    print(f"❌ Arquivo não encontrado: {audio_file_path}")
-                    return ""
-            else:
-                print(f"❌ Tipo de entrada inválido: {type(audio_input)}")
-                return ""
+            logger.info(f"Áudio salvo temporariamente: {temp_file_path}")
             
             # Verificar tamanho do arquivo
-            file_size = os.path.getsize(audio_file_path)
-            print(f"📊 Tamanho do arquivo: {file_size} bytes")
+            file_size = os.path.getsize(temp_file_path)
+            logger.info(f"Tamanho do arquivo: {file_size} bytes")
             
             if file_size == 0:
-                print("❌ Arquivo de áudio vazio")
-                return ""
+                logger.error("Arquivo de áudio vazio")
+                return {
+                    "transcription": "Erro: Arquivo de áudio vazio",
+                    "success": False,
+                    "error": "Arquivo vazio"
+                }
             
             # Validação adicional para arquivos pequenos
             if file_size < 10000:  # Menos de 10KB
-                print("⚠️ Arquivo muito pequeno - pode não conter fala audível")
-                print("💡 Para melhor resultado: grave pelo menos 2-3 segundos de fala clara")
+                logger.warning("Arquivo muito pequeno - pode não conter fala audível")
             
             # Realizar transcrição com Whisper API
-            print("🤖 Iniciando transcrição com Whisper API...")
+            logger.info("Iniciando transcrição com Whisper API...")
             
-            with open(audio_file_path, "rb") as audio_file:
+            with open(temp_file_path, "rb") as audio_file:
                 transcript = self.client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio_file,
@@ -100,67 +98,84 @@ class TranscriptionService:
             transcribed_text = transcribed_text.strip()
             
             if transcribed_text:
-                print(f"✅ Transcrição concluída: {len(transcribed_text)} caracteres")
-                print(f"📝 Preview: {transcribed_text[:150]}...")
+                logger.info(f"Transcrição concluída: {len(transcribed_text)} caracteres")
+                logger.info(f"Preview: {transcribed_text[:150]}...")
                 
                 # Verificar se parece ser uma transcrição válida
                 if len(transcribed_text) < 5:
-                    print("⚠️ Transcrição muito curta - pode não ter capturado fala suficiente")
+                    logger.warning("Transcrição muito curta - pode não ter capturado fala suficiente")
                 elif not any(char.isalpha() for char in transcribed_text):
-                    print("⚠️ Transcrição não contém letras - pode ser ruído")
+                    logger.warning("Transcrição não contém letras - pode ser ruído")
                 else:
-                    print("✅ Transcrição parece válida")
+                    logger.info("Transcrição parece válida")
+                
+                return {
+                    "transcription": transcribed_text,
+                    "language": "pt",
+                    "model": "whisper-1",
+                    "success": True,
+                    "character_count": len(transcribed_text),
+                    "filename": filename
+                }
                     
             else:
-                print("⚠️ Transcrição retornou vazio")
-                print("💡 Possíveis causas:")
-                print("   - Áudio sem fala audível")
-                print("   - Gravação muito baixa")
-                print("   - Formato de áudio não ideal")
-                print("   - Ruído excessivo")
-            
-            return transcribed_text
+                logger.warning("Transcrição retornou vazio")
+                return {
+                    "transcription": "Nenhum texto foi detectado no áudio. Verifique a qualidade da gravação.",
+                    "success": False,
+                    "error": "Transcrição vazia"
+                }
             
         except openai.BadRequestError as e:
             error_msg = str(e)
-            print(f"❌ Erro de requisição OpenAI: {error_msg}")
+            logger.error(f"Erro de requisição OpenAI: {error_msg}")
             
             if "audio_too_short" in error_msg:
-                print("💡 SOLUÇÃO: Grave pelo menos 0.1 segundos (idealmente 2-3 segundos) de fala clara")
+                suggestion = "Grave pelo menos 0.1 segundos (idealmente 2-3 segundos) de fala clara"
             elif "invalid_file" in error_msg:
-                print("💡 SOLUÇÃO: Use formatos suportados (mp3, mp4, wav, webm, m4a)")
+                suggestion = "Use formatos suportados (mp3, mp4, wav, webm, m4a)"
             else:
-                print("💡 Possíveis causas: formato não suportado, arquivo corrompido, sem fala audível")
+                suggestion = "Verifique o formato do arquivo e qualidade da gravação"
             
-            return ""
+            return {
+                "transcription": f"Erro na transcrição: {error_msg}",
+                "success": False,
+                "error": error_msg,
+                "suggestion": suggestion
+            }
             
         except openai.AuthenticationError as e:
-            print(f"❌ Erro de autenticação OpenAI: {e}")
-            print("💡 Verifique se a OPENAI_API_KEY está correta e ativa")
-            return ""
+            logger.error(f"Erro de autenticação OpenAI: {e}")
+            return {
+                "transcription": "Erro de autenticação. Verifique se a OPENAI_API_KEY está correta.",
+                "success": False,
+                "error": str(e)
+            }
             
         except openai.RateLimitError as e:
-            print(f"❌ Limite de rate da OpenAI excedido: {e}")
-            print("💡 Aguarde alguns segundos e tente novamente")
-            return ""
+            logger.error(f"Limite de rate da OpenAI excedido: {e}")
+            return {
+                "transcription": "Limite de requisições excedido. Aguarde alguns segundos e tente novamente.",
+                "success": False,
+                "error": str(e)
+            }
             
         except Exception as e:
-            print(f"❌ Erro inesperado na transcrição: {type(e).__name__}: {e}")
-            print("💡 Verifique:")
-            print("   - Formato do áudio (suportados: mp3, mp4, wav, webm, m4a)")
-            print("   - Qualidade da gravação (sem muito ruído)")
-            print("   - Duração mínima (pelo menos 1-2 segundos)")
-            print("   - Conexão com a internet (para API OpenAI)")
-            return ""
+            logger.error(f"Erro inesperado na transcrição: {type(e).__name__}: {e}")
+            return {
+                "transcription": f"Erro inesperado: {str(e)}",
+                "success": False,
+                "error": str(e)
+            }
             
         finally:
             # Limpar arquivo temporário se foi criado
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
-                    print("🗑️ Arquivo temporário removido")
+                    logger.info("Arquivo temporário removido")
                 except Exception as e:
-                    print(f"⚠️ Erro ao remover arquivo temporário: {e}")
+                    logger.warning(f"Erro ao remover arquivo temporário: {e}")
     
     def test_whisper_connection(self) -> bool:
         """Testa se a conexão com Whisper API está funcionando"""
@@ -170,8 +185,6 @@ class TranscriptionService:
             
             # Criar um arquivo de áudio vazio para teste
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                # Criar um arquivo WAV mínimo (apenas para teste de conexão)
-                # Não vamos realmente fazer transcrição, só verificar se a API responde
                 tmp.write(b'')
                 test_file = tmp.name
             
@@ -194,7 +207,7 @@ class TranscriptionService:
             return True
             
         except Exception as e:
-            print(f"❌ Erro no teste Whisper: {e}")
+            logger.error(f"Erro no teste Whisper: {e}")
             return False
 
     def validate_audio_quality(self, audio_input: Union[str, bytes]) -> dict:
@@ -243,3 +256,15 @@ class TranscriptionService:
                 "warnings": ["Erro ao analisar áudio"],
                 "recommendations": ["Verifique o formato e integridade do arquivo"]
             }
+    
+    def get_health_status(self) -> Dict:
+        """Status de saúde do serviço"""
+        return {
+            'service': 'OpenAI Whisper API',
+            'status': 'Ready' if self.client else 'Not configured',
+            'features': ['Portuguese language', 'Medical context', 'High accuracy']
+        }
+    
+    def get_status(self) -> str:
+        """Status simples"""
+        return "Ready" if self.client else "Not configured"
